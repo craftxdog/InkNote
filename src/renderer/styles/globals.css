@@ -31,26 +31,23 @@ body,
   overflow: hidden;
 }
 body {
-  user-select: none;
+  overflow: hidden;
 }
 /* ---------------------------------------------------------
    Workspace
 --------------------------------------------------------- */
 
 .workspace {
-  --navigation-width: 240px;
-  --notes-width: 310px;
-
   width: 100vw;
   height: 100vh;
 
   display: grid;
 
   grid-template-columns:
-    var(--navigation-width)
-    var(--notes-width)
-    minmax(360px, 0.95fr)
-    minmax(400px, 1.15fr);
+    clamp(180px, 16vw, 240px)
+    clamp(220px, 20vw, 320px)
+    minmax(0, 0.95fr)
+    minmax(0, 1.05fr);
 
   overflow: hidden;
 
@@ -102,7 +99,10 @@ body {
   display: flex;
   flex-direction: column;
 
+  min-width: 0;
   min-height: 0;
+
+  overflow: hidden;
 }
 
 .panel-header {
@@ -113,11 +113,15 @@ body {
   display: flex;
   align-items: center;
 
+  min-width: 0;
+
   padding: 0 14px;
 
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 
   -webkit-app-region: drag;
+
+  user-select: none;
 }
 
 .panel-header--traffic-lights {
@@ -125,6 +129,8 @@ body {
 }
 
 .panel-title {
+  min-width: 0;
+
   overflow: hidden;
 
   font-size: 14px;
