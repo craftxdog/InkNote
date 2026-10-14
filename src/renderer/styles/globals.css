@@ -38,20 +38,46 @@ body {
 --------------------------------------------------------- */
 
 .workspace {
+  --navigation-width: clamp(180px, 16vw, 240px);
+  --notes-width: clamp(220px, 20vw, 320px);
+
   width: 100vw;
   height: 100vh;
 
   display: grid;
 
   grid-template-columns:
-    clamp(180px, 16vw, 240px)
-    clamp(220px, 20vw, 320px)
+    var(--navigation-width)
+    var(--notes-width)
     minmax(0, 0.95fr)
     minmax(0, 1.05fr);
 
   overflow: hidden;
 
   background: #f4f3f1;
+
+  transition: grid-template-columns 180ms ease;
+}
+.workspace--navigation-hidden {
+  --navigation-width: 0px;
+}
+.workspace__navigation {
+  opacity: 1;
+
+  visibility: visible;
+
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
+}
+.workspace__navigation--hidden {
+  opacity: 0;
+
+  visibility: hidden;
+
+  pointer-events: none;
+
+  border-right: 0;
 }
 
 /* ---------------------------------------------------------
@@ -105,23 +131,46 @@ body {
   overflow: hidden;
 }
 
-.panel-header {
-  height: 48px;
+.panel-header.notes-header {
+  display: grid;
 
-  flex: 0 0 48px;
+  grid-template-columns:
+    40px
+    minmax(0, 1fr)
+    40px;
 
+  align-items: center;
+
+  gap: 4px;
+
+  padding: 4px 8px;
+}
+.notes-header {
+  display: grid;
+
+  grid-template-columns:
+    40px
+    minmax(0, 1fr)
+    40px;
+
+  align-items: center;
+
+  gap: 4px;
+
+  padding: 4px 8px;
+}
+.notes-header__title {
+  text-align: center;
+}
+.notes-header__actions {
   display: flex;
+
+  justify-content: flex-end;
   align-items: center;
 
   min-width: 0;
 
-  padding: 0 14px;
-
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-
-  -webkit-app-region: drag;
-
-  user-select: none;
+  -webkit-app-region: no-drag;
 }
 
 .panel-header--traffic-lights {
@@ -170,4 +219,51 @@ body {
 
 .placeholder span {
   font-size: 12px;
+}
+
+.toolbar-button {
+  width: 38px;
+  height: 38px;
+
+  flex: 0 0 38px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  color: #5f5f5f;
+
+  background: transparent;
+
+  border: 1px solid transparent;
+  border-radius: 9px;
+
+  cursor: default;
+
+  user-select: none;
+
+  -webkit-app-region: no-drag;
+
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.toolbar-button:hover {
+  color: #404040;
+
+  background: rgba(0, 0, 0, 0.045);
+}
+
+.toolbar-button:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.toolbar-button:focus-visible {
+  outline: 2px solid #86ccef;
+  outline-offset: 1px;
 }
