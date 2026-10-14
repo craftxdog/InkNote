@@ -1,29 +1,23 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-export type Channels = 'ipc-example';
+import { contextBridge, ipcRenderer } from 'electron';
 
-const electronHandler = {
-  ipcRenderer: {
-    sendMessage(channel: Channels, ...args: unknown[]) {
-      ipcRenderer.send(channel, ...args);
-    },
-    on(channel: Channels, func: (...args: unknown[]) => void) {
-      const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
-        func(...args);
-      ipcRenderer.on(channel, subscription);
+import type { InknoteApi } from '../shared/bridge';
+import { IPC_CHANNELS } from '../shared/ipc/channels';
 
-      return () => {
-        ipcRenderer.removeListener(channel, subscription);
-      };
-    },
-    once(channel: Channels, func: (...args: unknown[]) => void) {
-      ipcRenderer.once(channel, (_event, ...args) => func(...args));
+const inknoteApi: InknoteApi = {
+  windowControls: {
+    setTrafficLightsVisible: async (visible: boolean) => {
+      const result = await ipcRenderer.invoke(
+        IPC_CHANNELS.window.setTrafficLightsVisibility,
+        visible,
+      );
+
+      return Boolean(result);
     },
   },
 };
 
-contextBridge.exposeInMainWorld('electron', electronHandler);
-
-export type ElectronHandler = typeof electronHandler;
+// API propia de Inknote
+contextBridge.exposeInMainWorld('inknote', inknoteApi);

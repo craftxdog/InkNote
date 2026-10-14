@@ -1,27 +1,41 @@
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
 /**
- * This module executes inside of electron's main process. You can start
- * electron renderer process from here and communicate with the other processes
- * through IPC.
+ * Electron main process.
  *
- * When running `npm run build`, this file is compiled to
- * `./release/app/dist/main/main.js` using electron-vite.
+ * Responsibilities:
+ * - Create and manage native application windows.
+ * - Register IPC handlers exposed through preload.
+ * - Configure application menus.
+ * - Handle external URLs.
+ * - Start application updates.
  */
+
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
+
 import log from 'electron-log';
+
+import { IPC_CHANNELS } from '../shared/ipc/channels';
+
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
 import startAutoUpdates from './updates';
+import { resolveHtmlPath } from './util';
+
+/* =========================================================
+   Window state
+========================================================= */
 
 let mainWindow: BrowserWindow | null = null;
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
+/* =========================================================
+   Legacy IPC example
+   TODO: remove once the ERB example IPC is no longer used.
+========================================================= */
+
+/* =========================================================
+   Environment
+========================================================= */
 
 if (process.env.NODE_ENV === 'production') {
   process.setSourceMapsEnabled(true);
@@ -29,6 +43,10 @@ if (process.env.NODE_ENV === 'production') {
 
 const isDebug =
   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
+
+/* =========================================================
+   Development tools
+========================================================= */
 
 if (isDebug) {
   void import('electron-debug')
@@ -39,10 +57,71 @@ if (isDebug) {
 const installExtensions = async () => {
   const { installExtension, REACT_DEVELOPER_TOOLS } =
     await import('electron-devtools-installer');
+
   return installExtension(REACT_DEVELOPER_TOOLS, {
     forceDownload: !!process.env.UPGRADE_EXTENSIONS,
   }).catch(console.log);
 };
+
+/* =========================================================
+   IPC handlers
+========================================================= */
+
+/**
+ * Registers IPC operations related to native windows.
+ *
+ * This must be executed once during application startup,
+ * not every time a BrowserWindow is created.
+ */
+const TRAFFIC_LIGHT_POSITION = {
+  x: 15,
+  y: 15,
+} as const;
+
+function registerWindowIpcHandlers() {
+  ipcMain.handle(
+    IPC_CHANNELS.window.setTrafficLightsVisibility,
+
+    (event, visible: unknown) => {
+      if (typeof visible !== 'boolean') {
+        throw new TypeError('Traffic light visibility must be a boolean');
+      }
+
+      /**
+       * macOS-only functionality.
+       *
+       * Sidebar still works on Windows/Linux,
+       * but native traffic-light controls do not exist.
+       */
+      if (process.platform !== 'darwin') {
+        return false;
+      }
+
+      /**
+       * Resolve the BrowserWindow that originated
+       * the IPC request instead of depending on the
+       * global mainWindow reference.
+       */
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return false;
+      }
+
+      targetWindow.setWindowButtonVisibility(visible);
+
+      if (visible) {
+        targetWindow.setWindowButtonPosition(TRAFFIC_LIGHT_POSITION);
+      }
+
+      return true;
+    },
+  );
+}
+
+/* =========================================================
+   Window creation
+========================================================= */
 
 const createWindow = async () => {
   if (isDebug) {
@@ -59,22 +138,44 @@ const createWindow = async () => {
 
   mainWindow = new BrowserWindow({
     title: 'InkNote',
+
     show: false,
+
     width: 1430,
     height: 960,
+
     minWidth: 900,
     minHeight: 600,
+
     icon: getAssetPath('icon.png'),
-    titleBarStyle: 'hiddenInset',
+
+    /**
+     * We draw our own title/navigation bar.
+     *
+     * On macOS the native traffic lights remain available
+     * and can be shown/hidden through IPC.
+     */
+    titleBarStyle: 'hidden',
+
+    /**
+     * macOS traffic-light position when visible.
+     */
+    trafficLightPosition: TRAFFIC_LIGHT_POSITION,
+
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
     },
   });
 
+  /* -------------------------------------------------------
+     Window lifecycle
+  ------------------------------------------------------- */
+
   mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
+
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {
@@ -86,51 +187,98 @@ const createWindow = async () => {
     mainWindow = null;
   });
 
+  /* -------------------------------------------------------
+     Application menu
+  ------------------------------------------------------- */
+
   const menuBuilder = new MenuBuilder(mainWindow);
+
   menuBuilder.buildMenu();
 
-  // Open urls in the user's browser
-  mainWindow.webContents.setWindowOpenHandler((edata) => {
-    shell.openExternal(edata.url);
-    return { action: 'deny' };
+  /* -------------------------------------------------------
+     External URLs
+  ------------------------------------------------------- */
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+
+    return {
+      action: 'deny',
+    };
   });
+
+  /* -------------------------------------------------------
+     Renderer
+  ------------------------------------------------------- */
 
   await mainWindow.loadURL(resolveHtmlPath('index.html'));
 };
 
-/**
- * Add event listeners...
- */
-
-app.on('window-all-closed', () => {
-  // Respect the OSX convention of having the application in memory even
-  // after all windows have been closed
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+/* =========================================================
+   Error handling
+========================================================= */
 
 function reportWindowError(error: unknown) {
   log.error('Failed to create the application window', error);
+
   mainWindow?.destroy();
+
   mainWindow = null;
 }
 
+/* =========================================================
+   macOS activation
+========================================================= */
+
 function onActivate() {
-  // Reopening a macOS window must not initialize another updater.
+  /**
+   * macOS keeps the application alive when all windows
+   * are closed.
+   *
+   * Create a new window without restarting the updater
+   * or registering IPC handlers again.
+   */
   if (mainWindow === null) {
     void createWindow().catch(reportWindowError);
   }
 }
 
+/* =========================================================
+   Application lifecycle
+========================================================= */
+
+app.on('window-all-closed', () => {
+  /**
+   * Standard macOS behavior:
+   * closing all windows does not quit the application.
+   */
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
 app
   .whenReady()
   .then(async () => {
+    /**
+     * IMPORTANT:
+     *
+     * IPC handlers are registered once per Electron
+     * main process, before the renderer starts using them.
+     */
+    registerWindowIpcHandlers();
+
     await createWindow();
+
+    /**
+     * Auto updater is also initialized once.
+     */
     startAutoUpdates();
+
     app.on('activate', onActivate);
   })
   .catch((error: unknown) => {
     reportWindowError(error);
+
     app.quit();
   });
