@@ -1,0 +1,18 @@
+{
+  "name": "inknote",
+  "version": "4.6.0",
+  "description": "A foundation for scalable desktop apps",
+  "license": "MIT",
+  "author": {
+    "name": "Craftzdog",
+    "email": "craftzdog@alphaby.cloud",
+    "url": "www.https://alphaby.cloud"
+  },
+  "main": "./dist/main/main.js",
+  "scripts": {
+    "rebuild": "node -r ../../.erb/scripts/register.cjs ../../.erb/scripts/electron-rebuild.js",
+    "postinstall": "npm run rebuild && npm run link-modules",
+    "link-modules": "node -r ../../.erb/scripts/register.cjs ../../.erb/scripts/link-modules.ts"
+  },
+  "dependencies": {}
+}
