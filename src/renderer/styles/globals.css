@@ -1,6 +1,20 @@
 @import 'tailwindcss';
 
+/* =========================================================
+   Design tokens
+========================================================= */
+
 :root {
+  --color-text: #202020;
+
+  --color-navigation: #d4cecb;
+  --color-notes: #f1efed;
+  --color-workspace: #faf9f7;
+
+  --color-divider: rgba(0, 0, 0, 0.09);
+
+  --navbar-height: 64px;
+
   font-family:
     Inter,
     ui-sans-serif,
@@ -10,15 +24,22 @@
     'Segoe UI',
     sans-serif;
 
-  color: #202020;
-  background: #f4f3f1;
+  color: var(--color-text);
+
+  background: var(--color-workspace);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
+
+/* =========================================================
+   Reset
+========================================================= */
+
 * {
   box-sizing: border-box;
 }
+
 html,
 body,
 #root {
@@ -30,20 +51,59 @@ body,
 
   overflow: hidden;
 }
-body {
-  overflow: hidden;
-}
-/* ---------------------------------------------------------
-   Workspace
---------------------------------------------------------- */
 
-.workspace {
-  --navigation-width: clamp(180px, 16vw, 240px);
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* =========================================================
+   Workspace shell
+========================================================= */
+
+.workspace-shell {
+  /*
+   * Navigation es ligeramente más estrecho que antes.
+   * 16vw estaba produciendo el primer separador demasiado
+   * desplazado respecto a la referencia.
+   */
+  --navigation-width: clamp(90px, 15.5vw, 240px);
   --notes-width: clamp(220px, 20vw, 320px);
+  --navbar-height: 45px;
 
   width: 100vw;
   height: 100vh;
 
+  display: grid;
+
+  grid-template-rows:
+    var(--navbar-height)
+    minmax(0, 1fr);
+
+  overflow: hidden;
+
+  background: var(--color-workspace);
+}
+
+/*
+ * ÚNICO estado para sidebar oculto.
+ */
+.workspace-shell--navigation-hidden {
+  --navigation-width: 0px;
+}
+
+/* =========================================================
+   Shared grid
+========================================================= */
+
+/*
+ * Navbar y contenido usan exactamente las mismas columnas.
+ * Esto mantiene todos los divisores alineados.
+ */
+.workspace-navbar,
+.workspace-grid {
   display: grid;
 
   grid-template-columns:
@@ -52,37 +112,287 @@ body {
     minmax(0, 0.95fr)
     minmax(0, 1.05fr);
 
-  overflow: hidden;
+  min-width: 0;
 
-  background: #f4f3f1;
-
-  transition: grid-template-columns 180ms ease;
+  transition: grid-template-columns 160ms ease;
 }
-.workspace--navigation-hidden {
-  --navigation-width: 0px;
-}
-.workspace__navigation {
-  opacity: 1;
 
-  visibility: visible;
+/* =========================================================
+   Workspace navbar
+========================================================= */
+
+.workspace-navbar {
+  height: var(--navbar-height);
+
+  user-select: none;
+
+  background: var(--color-workspace);
+
+  border-bottom: 1px solid var(--color-divider);
+
+  -webkit-app-region: drag;
+
+  z-index: 100;
+}
+
+/* =========================================================
+   Navbar zones
+========================================================= */
+
+.navbar-zone {
+  position: relative;
+
+  min-width: 0;
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  border-right: 1px solid var(--color-divider);
+}
+
+.navbar-zone:last-child {
+  border-right: 0;
+}
+
+/* ---------------------------------------------------------
+   Navigation zone
+--------------------------------------------------------- */
+
+.navbar-zone--navigation {
+  justify-content: flex-end;
+
+  padding: 0 8px 0 82px;
+
+  background: var(--color-navigation);
 
   transition:
-    opacity 120ms ease,
-    visibility 120ms ease;
+    opacity 100ms ease,
+    visibility 100ms ease;
 }
-.workspace__navigation--hidden {
+
+/*
+ * La columna continúa montada pero ocupa 0px.
+ */
+.workspace-shell--navigation-hidden .navbar-zone--navigation {
   opacity: 0;
 
   visibility: hidden;
-
   pointer-events: none;
 
   border-right: 0;
 }
 
 /* ---------------------------------------------------------
-   Panels
+   Notes zone
 --------------------------------------------------------- */
+
+.navbar-zone--notes {
+  display: grid;
+
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    44px;
+
+  align-items: center;
+
+  gap: 2px;
+
+  padding: 0 8px;
+
+  background: var(--color-notes);
+}
+
+.navbar-title {
+  min-width: 0;
+
+  margin: 0;
+
+  overflow: hidden;
+
+  color: #242424;
+
+  font-size: 20px;
+  font-weight: 650;
+
+  text-align: center;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------
+   Editor zone
+--------------------------------------------------------- */
+
+.navbar-zone--editor {
+  padding: 0 8px;
+
+  background: var(--color-workspace);
+}
+
+.navbar-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 2px;
+
+  -webkit-app-region: no-drag;
+}
+
+/* ---------------------------------------------------------
+   Preview / view controls
+--------------------------------------------------------- */
+
+.navbar-zone--preview {
+  justify-content: center;
+
+  padding: 0 56px;
+
+  background: var(--color-workspace);
+}
+
+/* =========================================================
+   Generic navbar buttons
+========================================================= */
+
+.navbar-button {
+  width: 42px;
+  height: 42px;
+
+  flex: 0 0 42px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  color: #5c5c5c;
+
+  background: transparent;
+
+  border: 1px solid transparent;
+  border-radius: 11px;
+
+  cursor: default;
+
+  user-select: none;
+
+  -webkit-app-region: no-drag;
+
+  transition:
+    color 100ms ease,
+    background-color 100ms ease,
+    border-color 100ms ease;
+}
+
+.navbar-button:hover {
+  color: #353535;
+
+  background: rgba(0, 0, 0, 0.055);
+}
+
+.navbar-button:active {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+.navbar-button:focus-visible {
+  outline: 2px solid #8dd3ef;
+  outline-offset: 1px;
+
+  background: rgba(120, 195, 225, 0.08);
+}
+
+/* =========================================================
+   View switcher
+========================================================= */
+
+.view-switcher {
+  height: 40px;
+
+  display: grid;
+
+  grid-template-columns: repeat(3, 48px);
+
+  overflow: hidden;
+
+  background: rgba(240, 240, 238, 0.85);
+
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 11px;
+
+  -webkit-app-region: no-drag;
+}
+
+.view-switcher__button {
+  width: 48px;
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  color: #626262;
+
+  background: transparent;
+
+  border: 0;
+
+  cursor: default;
+
+  -webkit-app-region: no-drag;
+}
+
+.view-switcher__button:hover {
+  color: #333;
+
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.view-switcher__button--active {
+  color: #454545;
+
+  background: rgba(160, 170, 181, 0.28);
+}
+
+/* =========================================================
+   More menu
+========================================================= */
+
+.navbar-more {
+  position: absolute;
+
+  top: 50%;
+  right: 8px;
+
+  transform: translateY(-50%);
+}
+
+/* =========================================================
+   Workspace grid
+========================================================= */
+
+.workspace-grid {
+  min-height: 0;
+
+  overflow: hidden;
+}
+
+/* =========================================================
+   Workspace panels
+========================================================= */
 
 .workspace__navigation,
 .workspace__notes,
@@ -93,109 +403,79 @@ body {
 
   overflow: hidden;
 
-  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  border-right: 1px solid var(--color-divider);
 }
 
 .workspace__navigation {
-  background: #d4cecb;
+  opacity: 1;
+
+  visibility: visible;
+
+  background: var(--color-navigation);
+
+  transition:
+    opacity 100ms ease,
+    visibility 100ms ease;
 }
 
 .workspace__notes {
-  background: #efedeb;
+  background: var(--color-notes);
 }
 
-.workspace__editor {
-  background: #faf9f7;
+.workspace__editor,
+.workspace__preview {
+  background: var(--color-workspace);
 }
 
 .workspace__preview {
-  background: #faf9f7;
+  border-right: 0;
+}
+
+/*
+ * Navigation escondido.
+ *
+ * No desmontamos el componente; conservamos su estado.
+ */
+.workspace-shell--navigation-hidden .workspace__navigation {
+  opacity: 0;
+
+  visibility: hidden;
+  pointer-events: none;
 
   border-right: 0;
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
    Shared panel
---------------------------------------------------------- */
+========================================================= */
 
 .panel {
   width: 100%;
   height: 100%;
 
-  display: flex;
-  flex-direction: column;
-
   min-width: 0;
   min-height: 0;
 
-  overflow: hidden;
-}
-
-.panel-header.notes-header {
-  display: grid;
-
-  grid-template-columns:
-    40px
-    minmax(0, 1fr)
-    40px;
-
-  align-items: center;
-
-  gap: 4px;
-
-  padding: 4px 8px;
-}
-.notes-header {
-  display: grid;
-
-  grid-template-columns:
-    40px
-    minmax(0, 1fr)
-    40px;
-
-  align-items: center;
-
-  gap: 4px;
-
-  padding: 4px 8px;
-}
-.notes-header__title {
-  text-align: center;
-}
-.notes-header__actions {
   display: flex;
 
-  justify-content: flex-end;
-  align-items: center;
-
-  min-width: 0;
-
-  -webkit-app-region: no-drag;
-}
-
-.panel-header--traffic-lights {
-  padding-left: 78px;
-}
-
-.panel-title {
-  min-width: 0;
+  flex-direction: column;
 
   overflow: hidden;
-
-  font-size: 14px;
-  font-weight: 600;
-
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .panel-content {
   flex: 1;
 
+  min-width: 0;
   min-height: 0;
 
   overflow: auto;
 }
+
+/* =========================================================
+   Temporary placeholders
+   TODO: remove when real panel content is implemented.
+========================================================= */
 
 .placeholder {
   height: 100%;
@@ -219,51 +499,4 @@ body {
 
 .placeholder span {
   font-size: 12px;
-}
-
-.toolbar-button {
-  width: 38px;
-  height: 38px;
-
-  flex: 0 0 38px;
-
-  display: inline-flex;
-
-  align-items: center;
-  justify-content: center;
-
-  padding: 0;
-
-  color: #5f5f5f;
-
-  background: transparent;
-
-  border: 1px solid transparent;
-  border-radius: 9px;
-
-  cursor: default;
-
-  user-select: none;
-
-  -webkit-app-region: no-drag;
-
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
-}
-
-.toolbar-button:hover {
-  color: #404040;
-
-  background: rgba(0, 0, 0, 0.045);
-}
-
-.toolbar-button:active {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.toolbar-button:focus-visible {
-  outline: 2px solid #86ccef;
-  outline-offset: 1px;
 }
