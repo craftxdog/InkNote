@@ -1,27 +1,27 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
-import icon from '../../assets/icon.svg';
-import './App.css';
+import './styles/globals.css';
+import { WorkSpaceLayout } from './layouts/WorkspaceLayout';
+import { NavigationPanel } from './features/navigation/components/NavigationPanel';
+import { NotesPanel } from './features/notes/components/NotesPanel';
+import { EditorPanel } from './features/editor/components/EditorPanel';
+import { PreviewPanel } from './features/preview/components/PreviewPanel';
 
-const Hello = () => {
+function WorkspacePage() {
   return (
-    <div>
-      <div>
-        <h1 className="bg-red-500">Hello world</h1>
-      </div>
-      <span className="app-titlebar_color" />
-      <div className="Hello">
-        <img width="200" alt="icon" src={icon} />
-      </div>
-      <div className="Hello"></div>
-    </div>
+    <WorkSpaceLayout
+      navigation={<NavigationPanel />}
+      notes={<NotesPanel />}
+      editor={<EditorPanel />}
+      preview={<PreviewPanel />}
+    />
   );
-};
+}
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Hello />} />
+        <Route path="/" element={<WorkspacePage />} />
       </Routes>
     </Router>
   );
