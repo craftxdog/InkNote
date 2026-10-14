@@ -1,6 +1,25 @@
 type IconProps = {
   size?: number;
 };
+export function CollapseIcon({ size = 21 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M8 8H3V3M16 16h5v5M3 3l6 6M21 21l-6-6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export function SidebarIcon({ size = 22 }: IconProps) {
   return (

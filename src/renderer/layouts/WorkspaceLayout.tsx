@@ -1,9 +1,13 @@
 import type { ReactNode } from 'react';
+
 import { WorkspaceNavbar } from '../components/workspace/WorkspaceNavbar';
 
-type WorkSpaceLayoutProps = {
+type WorkspaceLayoutProps = {
   isNavigationVisible: boolean;
+  isWorkspaceExpanded: boolean;
+
   onToggleNavigation: () => void;
+  onToggleWorkspaceExpanded: () => void;
 
   navigation: ReactNode;
   notes: ReactNode;
@@ -11,36 +15,49 @@ type WorkSpaceLayoutProps = {
   preview: ReactNode;
 };
 
-export const WorkSpaceLayout = ({
+export const WorkspaceLayout = ({
   isNavigationVisible,
+  isWorkspaceExpanded,
   onToggleNavigation,
+  onToggleWorkspaceExpanded,
   navigation,
   notes,
   editor,
   preview,
-}: WorkSpaceLayoutProps) => {
+}: WorkspaceLayoutProps) => {
+  const className = [
+    'workspace-shell',
+
+    !isNavigationVisible ? 'workspace-shell--navigation-hidden' : '',
+
+    isWorkspaceExpanded ? 'workspace-shell--expanded' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div
-      className={[
-        'workspace-shell',
-        !isNavigationVisible ? 'workspace-shell--navigation-hidden' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
+    <div className={className}>
       <WorkspaceNavbar
         isNavigationVisible={isNavigationVisible}
+        isWorkspaceExpanded={isWorkspaceExpanded}
         onToggleNavigation={onToggleNavigation}
+        onToggleWorkspaceExpanded={onToggleWorkspaceExpanded}
       />
+
       <main className="workspace-grid">
         <aside
           className="workspace__navigation"
-          aria-hidden={!isNavigationVisible}
+          aria-hidden={!isNavigationVisible || isWorkspaceExpanded}
         >
           {navigation}
         </aside>
-        <section className="workspace__notes">{notes}</section>
+
+        <section className="workspace__notes" aria-hidden={isWorkspaceExpanded}>
+          {notes}
+        </section>
+
         <section className="workspace__editor">{editor}</section>
+
         <section className="workspace__preview">{preview}</section>
       </main>
     </div>

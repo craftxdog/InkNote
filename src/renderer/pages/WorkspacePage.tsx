@@ -4,26 +4,43 @@ import { EditorPanel } from '../features/editor/components/EditorPanel';
 import { NavigationPanel } from '../features/navigation/components/NavigationPanel';
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
-import { WorkSpaceLayout } from '../layouts/WorkspaceLayout';
+import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 
 export function WorkspacePage() {
   const [isNavigationVisible, setIsNavigationVisible] = useState(true);
+  const [isWorkspaceExpanded, setIsWorkspaceExpanded] = useState(false);
+
+  /*
+   * Traffic lights are shown only when the
+   * Navigation panel is actually visible.
+   *
+   * Expanded mode always hides them.
+   */
+
+  const shouldShowTrafficLights = isNavigationVisible && !isWorkspaceExpanded;
+
   useEffect(() => {
     void window.inknote.windowControls
-      .setTrafficLightsVisible(isNavigationVisible)
+      .setTrafficLightsVisible(shouldShowTrafficLights)
       .catch((error: unknown) => {
         console.error('Failed to update traffic lights visibility', error);
       });
-  }, [isNavigationVisible]);
+  }, [shouldShowTrafficLights]);
 
   const toggleNavigation = () => {
     setIsNavigationVisible((current) => !current);
   };
 
+  const toggleWorkspaceExpanded = () => {
+    setIsWorkspaceExpanded((current) => !current);
+  };
+
   return (
-    <WorkSpaceLayout
+    <WorkspaceLayout
       isNavigationVisible={isNavigationVisible}
+      isWorkspaceExpanded={isWorkspaceExpanded}
       onToggleNavigation={toggleNavigation}
+      onToggleWorkspaceExpanded={toggleWorkspaceExpanded}
       navigation={<NavigationPanel />}
       notes={<NotesPanel />}
       editor={<EditorPanel />}

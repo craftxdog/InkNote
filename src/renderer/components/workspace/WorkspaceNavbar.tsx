@@ -1,6 +1,6 @@
-import { SidebarIcon } from '../icons/SidebarIcon';
 import {
   BackIcon,
+  CollapseIcon,
   EditModeIcon,
   ExpandIcon,
   ForwardIcon,
@@ -8,17 +8,22 @@ import {
   NewNoteIcon,
   PreviewIcon,
   SettingsIcon,
+  SidebarIcon,
   SplitViewIcon,
 } from '../icons/ToolbarIcons';
 
 type WorkspaceNavbarProp = {
   isNavigationVisible: boolean;
+  isWorkspaceExpanded: boolean;
   onToggleNavigation: () => void;
+  onToggleWorkspaceExpanded: () => void;
 };
 
 export const WorkspaceNavbar = ({
   isNavigationVisible,
+  isWorkspaceExpanded,
   onToggleNavigation,
+  onToggleWorkspaceExpanded,
 }: WorkspaceNavbarProp) => {
   return (
     <>
@@ -63,12 +68,23 @@ export const WorkspaceNavbar = ({
         <div className="navbar-zone navbar-zone--editor">
           <div className="navbar-actions">
             <button
-              className="navbar-button"
               type="button"
-              aria-label="Expand editor"
-              title="Expand editor"
+              className={[
+                'navbar-button',
+                isWorkspaceExpanded ? 'navbar-button--active' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              onClick={onToggleWorkspaceExpanded}
+              aria-label={
+                isWorkspaceExpanded ? 'Restore workspace' : 'Expand workspace'
+              }
+              aria-pressed={isWorkspaceExpanded}
+              title={
+                isWorkspaceExpanded ? 'Restore workspace' : 'Expand workspace'
+              }
             >
-              <ExpandIcon />
+              {isWorkspaceExpanded ? <CollapseIcon /> : <ExpandIcon />}
             </button>
             <button
               className="navbar-button"
@@ -95,7 +111,6 @@ export const WorkspaceNavbar = ({
               type="button"
               className="view-switcher__button"
               aria-label="Editor only"
-              title="Editor only"
             >
               <EditModeIcon />
             </button>
