@@ -1,7 +1,10 @@
 @import 'tailwindcss';
 
 /* =========================================================
-   1. Design tokens
+   1. DESIGN TOKENS
+
+   Valores visuales reutilizables de toda la aplicación.
+   Aquí vivirán también futuros temas light/dark.
 ========================================================= */
 
 :root {
@@ -19,14 +22,33 @@
 
   --color-control: #626262;
   --color-control-hover: #353535;
+  --color-control-active: #454545;
 
   --color-control-hover-background: rgba(0, 0, 0, 0.055);
-
-  --color-control-active-background: rgba(0, 0, 0, 0.09);
-
+  --color-control-pressed-background: rgba(0, 0, 0, 0.09);
   --color-selection-background: rgba(160, 170, 181, 0.28);
 
   --color-focus: #8dd3ef;
+
+  /* -------------------------------------------------------
+     Control dimensions
+  ------------------------------------------------------- */
+
+  --navbar-height: 45px;
+
+  --navbar-button-size: 38px;
+  --navbar-button-radius: 10px;
+
+  --view-switcher-height: 36px;
+  --view-switcher-button-width: 44px;
+  --view-switcher-radius: 10px;
+
+  /* -------------------------------------------------------
+     Animation
+  ------------------------------------------------------- */
+
+  --transition-fast: 100ms ease;
+  --transition-layout: 160ms ease;
 
   /* -------------------------------------------------------
      Typography
@@ -46,12 +68,13 @@
   background: var(--color-workspace);
 
   font-synthesis: none;
-
   text-rendering: optimizeLegibility;
 }
 
 /* =========================================================
-   2. Global reset
+   2. GLOBAL RESET
+
+   Normaliza el documento Electron y evita scroll global.
 ========================================================= */
 
 * {
@@ -78,42 +101,38 @@ select {
 }
 
 /* =========================================================
-   3. Workspace dimensions
+   3. WORKSPACE SHELL
+
+   Contenedor raíz.
+
+   Mantiene:
+   - dimensiones de paneles
+   - proporciones Editor / Preview
+   - navbar
+   - estados globales del workspace
+
+   Estas custom properties podrán ser modificadas después
+   desde React para soportar paneles redimensionables.
 ========================================================= */
 
 .workspace-shell {
-  /*
-   * Navigation panel
-   *
-   * min    90px
-   * ideal  15.5vw
-   * max    240px
-   */
-  --navigation-width: clamp(90px, 15.5vw, 240px);
+  /* -------------------------------------------------------
+     Persistent panel dimensions
+  ------------------------------------------------------- */
 
-  /*
-   * Notes panel
-   *
-   * min    220px
-   * ideal  20vw
-   * max    320px
-   */
+  --navigation-width: clamp(90px, 15.5vw, 240px);
   --notes-width: clamp(220px, 20vw, 320px);
 
-  /*
-   * Document workspace proportions.
-   *
-   * Normal Split:
-   * Editor  ≈ 47.5%
-   * Preview ≈ 52.5%
-   */
+  /* -------------------------------------------------------
+     Document dimensions
+
+     Split por defecto:
+       Editor  = 0.95fr
+       Preview = 1.05fr
+  ------------------------------------------------------- */
+
   --editor-width: 0.95fr;
   --preview-width: 1.05fr;
-
-  /*
-   * Application toolbar.
-   */
-  --navbar-height: 45px;
 
   width: 100vw;
   height: 100vh;
@@ -130,11 +149,17 @@ select {
 }
 
 /* =========================================================
-   4. Workspace layout states
+   4. WORKSPACE LAYOUT STATES
+
+   Solo modifican variables de layout.
+
+   La visibilidad real de cada panel se maneja más abajo.
 ========================================================= */
 
 /* ---------------------------------------------------------
    Navigation hidden
+
+   Oculta únicamente Navigation.
 --------------------------------------------------------- */
 
 .workspace-shell--navigation-hidden {
@@ -143,6 +168,9 @@ select {
 
 /* ---------------------------------------------------------
    Expanded / focus mode
+
+   Navigation y Notes desaparecen.
+   El área documental obtiene todo el espacio.
 --------------------------------------------------------- */
 
 .workspace-shell--expanded {
@@ -154,7 +182,9 @@ select {
 }
 
 /* ---------------------------------------------------------
-   Editor-only view
+   Editor-only mode
+
+   Preview colapsa.
 --------------------------------------------------------- */
 
 .workspace-shell[data-view-mode='editor'] {
@@ -162,30 +192,42 @@ select {
   --preview-width: 0px;
 }
 
+/* ---------------------------------------------------------
+   Preview-only mode
+
+   Editor colapsa.
+--------------------------------------------------------- */
+
+.workspace-shell[data-view-mode='preview'] {
+  --editor-width: 0px;
+  --preview-width: 1fr;
+}
+
 /*
- * Expanded + Editor Only works automatically:
+ * Gracias a estas variables los estados se pueden combinar.
  *
- * Navigation = 0
- * Notes      = 0
- * Editor     = 1fr
- * Preview    = 0
+ * expanded + editor:
+ *   navigation = 0
+ *   notes      = 0
+ *   editor     = 1fr
+ *   preview    = 0
+ *
+ * expanded + preview:
+ *   navigation = 0
+ *   notes      = 0
+ *   editor     = 0
+ *   preview    = 1fr
  */
 
 /* =========================================================
-   5. Workspace navbar grid
-========================================================= */
+   5. WORKSPACE NAVBAR GRID
 
-/*
- * IMPORTANT:
- *
- * The navbar has THREE logical areas:
- *
- * Navigation | Notes | Document
- *
- * Document includes both Editor and Preview controls.
- *
- * This is deliberately different from workspace-grid.
- */
+   La navbar tiene 3 zonas lógicas:
+
+   Navigation | Notes | Document
+
+   Document representa Editor + Preview.
+========================================================= */
 
 .workspace-navbar {
   width: 100%;
@@ -206,22 +248,24 @@ select {
 
   border-bottom: 1px solid var(--color-divider);
 
+  /*
+   * Las zonas vacías de la navbar pueden mover
+   * la ventana Electron.
+   */
   -webkit-app-region: drag;
 
-  transition: grid-template-columns 160ms ease;
+  transition: grid-template-columns var(--transition-layout);
 
   z-index: 100;
 }
 
 /* =========================================================
-   6. Workspace content grid
-========================================================= */
+   6. WORKSPACE CONTENT GRID
 
-/*
- * Content continues to use FOUR areas:
- *
- * Navigation | Notes | Editor | Preview
- */
+   El contenido mantiene 4 columnas:
+
+   Navigation | Notes | Editor | Preview
+========================================================= */
 
 .workspace-grid {
   min-width: 0;
@@ -237,11 +281,13 @@ select {
 
   overflow: hidden;
 
-  transition: grid-template-columns 160ms ease;
+  transition: grid-template-columns var(--transition-layout);
 }
 
 /* =========================================================
-   7. Shared navbar zone
+   7. SHARED NAVBAR ZONE
+
+   Base común para las tres zonas de la navbar.
 ========================================================= */
 
 .navbar-zone {
@@ -259,8 +305,8 @@ select {
   border-right: 1px solid var(--color-divider);
 
   transition:
-    opacity 100ms ease,
-    visibility 100ms ease;
+    opacity var(--transition-fast),
+    visibility var(--transition-fast);
 }
 
 .navbar-zone:last-child {
@@ -268,14 +314,15 @@ select {
 }
 
 /* =========================================================
-   8. Navigation navbar
+   8. NAVIGATION NAVBAR ZONE
 ========================================================= */
 
 .navbar-zone--navigation {
   justify-content: flex-end;
 
   /*
-   * Reserved macOS traffic-light area.
+   * Reserva espacio a la izquierda para los traffic lights
+   * nativos de macOS.
    */
   padding: 0 8px 0 82px;
 
@@ -283,7 +330,7 @@ select {
 }
 
 /* =========================================================
-   9. Notes navbar
+   9. NOTES NAVBAR ZONE
 ========================================================= */
 
 .navbar-zone--notes {
@@ -314,36 +361,30 @@ select {
 
   font-size: 20px;
   font-weight: 650;
-
   line-height: 1;
 
   text-align: center;
 
   white-space: nowrap;
-
   text-overflow: ellipsis;
 
   pointer-events: none;
 }
 
 /* =========================================================
-   10. Document navbar
-========================================================= */
+   10. DOCUMENT NAVBAR ZONE
 
-/*
- * This zone represents the entire document area:
- *
- * Editor + Preview
- *
- * Left:
- *   Expand / Back / Forward
- *
- * Center:
- *   Editor / Split / Preview
- *
- * Right:
- *   More
- */
+   Controla todo el espacio documental:
+
+   izquierda:
+     Expand / Back / Forward
+
+   centro:
+     Editor / Split / Preview
+
+   derecha:
+     More
+========================================================= */
 
 .navbar-zone--document {
   position: relative;
@@ -354,13 +395,16 @@ select {
 
   align-items: center;
 
+  /*
+   * right reserva espacio para More.
+   */
   padding: 0 52px 0 8px;
 
   background: var(--color-workspace);
 }
 
 /* ---------------------------------------------------------
-   Document left controls
+   Document navigation controls
 --------------------------------------------------------- */
 
 .navbar-actions {
@@ -377,20 +421,15 @@ select {
   -webkit-app-region: no-drag;
 }
 
-/* ---------------------------------------------------------
-   Expanded document toolbar
---------------------------------------------------------- */
-
-.workspace-shell--expanded .navbar-zone--document {
-  padding-left: 8px;
-}
-
 /* =========================================================
-   11. Navbar visibility states
+   11. NAVBAR VISIBILITY STATES
+
+   Los componentes permanecen montados.
+   Solo dejan de verse/interactuar.
 ========================================================= */
 
 /* ---------------------------------------------------------
-   Manually hidden navigation
+   Navigation manually hidden
 --------------------------------------------------------- */
 
 .workspace-shell--navigation-hidden .navbar-zone--navigation {
@@ -419,14 +458,17 @@ select {
 }
 
 /* =========================================================
-   12. Generic navbar buttons
+   12. GENERIC NAVBAR BUTTON
+
+   Base para Settings, Sidebar, Expand, Back, Forward,
+   New Note, More, etc.
 ========================================================= */
 
 .navbar-button {
-  width: 38px;
-  height: 38px;
+  width: var(--navbar-button-size);
+  height: var(--navbar-button-size);
 
-  flex: 0 0 38px;
+  flex: 0 0 var(--navbar-button-size);
 
   display: inline-flex;
 
@@ -442,7 +484,7 @@ select {
 
   border: 1px solid transparent;
 
-  border-radius: 10px;
+  border-radius: var(--navbar-button-radius);
 
   cursor: pointer;
 
@@ -451,9 +493,9 @@ select {
   -webkit-app-region: no-drag;
 
   transition:
-    color 100ms ease,
-    background-color 100ms ease,
-    border-color 100ms ease;
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .navbar-button:hover {
@@ -463,7 +505,7 @@ select {
 }
 
 .navbar-button:active {
-  background: var(--color-control-active-background);
+  background: var(--color-control-pressed-background);
 }
 
 .navbar-button:focus-visible {
@@ -474,22 +516,27 @@ select {
 
 /* ---------------------------------------------------------
    Persistent active state
+
+   Ejemplo:
+   Expand activo.
 --------------------------------------------------------- */
 
 .navbar-button--active {
-  color: #4a4a4a;
+  color: var(--color-control-active);
 
   background: var(--color-selection-background);
 }
 
 /* =========================================================
-   13. View switcher
-========================================================= */
+   13. DOCUMENT VIEW SWITCHER
 
-/*
- * Centered against the entire document zone,
- * NOT against Preview.
- */
+   Segmented control:
+
+   Editor | Split | Preview
+
+   Está centrado respecto al área Document completa,
+   no respecto al panel Preview.
+========================================================= */
 
 .view-switcher {
   position: absolute;
@@ -497,12 +544,11 @@ select {
   top: 50%;
   left: 50%;
 
-  width: auto;
-  height: 36px;
+  height: var(--view-switcher-height);
 
   display: grid;
 
-  grid-template-columns: repeat(3, 44px);
+  grid-template-columns: repeat(3, var(--view-switcher-button-width));
 
   overflow: hidden;
 
@@ -512,7 +558,7 @@ select {
 
   border: 1px solid rgba(0, 0, 0, 0.14);
 
-  border-radius: 10px;
+  border-radius: var(--view-switcher-radius);
 
   z-index: 3;
 
@@ -520,11 +566,12 @@ select {
 }
 
 /* ---------------------------------------------------------
-   View switcher buttons
+   View switcher button
 --------------------------------------------------------- */
 
 .view-switcher__button {
-  width: 44px;
+  width: var(--view-switcher-button-width);
+
   height: 100%;
 
   display: flex;
@@ -548,8 +595,8 @@ select {
   -webkit-app-region: no-drag;
 
   transition:
-    color 100ms ease,
-    background-color 100ms ease;
+    color var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 .view-switcher__button:hover:not(:disabled) {
@@ -569,13 +616,13 @@ select {
 --------------------------------------------------------- */
 
 .view-switcher__button--active {
-  color: #454545;
+  color: var(--color-control-active);
 
   background: var(--color-selection-background);
 }
 
 /* ---------------------------------------------------------
-   Future / unavailable view
+   Disabled future action
 --------------------------------------------------------- */
 
 .view-switcher__button:disabled {
@@ -585,7 +632,7 @@ select {
 }
 
 /* =========================================================
-   14. More menu
+   14. MORE MENU BUTTON
 ========================================================= */
 
 .navbar-more {
@@ -600,7 +647,14 @@ select {
 }
 
 /* =========================================================
-   15. Workspace panels
+   15. WORKSPACE PANEL BASE
+
+   Propiedades comunes para:
+
+   Navigation
+   Notes
+   Editor
+   Preview
 ========================================================= */
 
 .workspace__navigation,
@@ -615,12 +669,12 @@ select {
   border-right: 1px solid var(--color-divider);
 
   transition:
-    opacity 100ms ease,
-    visibility 100ms ease;
+    opacity var(--transition-fast),
+    visibility var(--transition-fast);
 }
 
 /* ---------------------------------------------------------
-   Navigation panel
+   Navigation
 --------------------------------------------------------- */
 
 .workspace__navigation {
@@ -632,7 +686,7 @@ select {
 }
 
 /* ---------------------------------------------------------
-   Notes panel
+   Notes
 --------------------------------------------------------- */
 
 .workspace__notes {
@@ -644,7 +698,7 @@ select {
 }
 
 /* ---------------------------------------------------------
-   Editor panel
+   Editor
 --------------------------------------------------------- */
 
 .workspace__editor {
@@ -656,7 +710,7 @@ select {
 }
 
 /* ---------------------------------------------------------
-   Preview panel
+   Preview
 --------------------------------------------------------- */
 
 .workspace__preview {
@@ -666,11 +720,17 @@ select {
 
   background: var(--color-workspace);
 
+  /*
+   * Preview siempre es el último panel visible del grid.
+   */
   border-right: 0;
 }
 
 /* =========================================================
-   16. Workspace panel visibility states
+   16. WORKSPACE PANEL VISIBILITY STATES
+
+   El layout colapsa mediante custom properties.
+   Estas reglas controlan únicamente visibilidad e interacción.
 ========================================================= */
 
 /* ---------------------------------------------------------
@@ -689,6 +749,13 @@ select {
 
 /* ---------------------------------------------------------
    Expanded workspace
+
+   Navigation y Notes permanecen montados para conservar:
+   - selección
+   - scroll
+   - tree state
+   - filtros
+   - estado futuro
 --------------------------------------------------------- */
 
 .workspace-shell--expanded .workspace__navigation,
@@ -703,7 +770,9 @@ select {
 }
 
 /* ---------------------------------------------------------
-   Editor-only view
+   Editor-only mode
+
+   Preview permanece montado pero inaccesible.
 --------------------------------------------------------- */
 
 .workspace-shell[data-view-mode='editor'] .workspace__preview {
@@ -717,16 +786,45 @@ select {
 }
 
 /*
- * Preview no longer exists visually,
- * therefore Editor must not keep a divider
- * against a zero-width column.
+ * Editor pasa a ser el último panel visible.
  */
 .workspace-shell[data-view-mode='editor'] .workspace__editor {
   border-right: 0;
 }
 
+/* ---------------------------------------------------------
+   Preview-only mode
+
+   Editor permanece montado pero inaccesible.
+--------------------------------------------------------- */
+
+.workspace-shell[data-view-mode='preview'] .workspace__editor {
+  opacity: 0;
+
+  visibility: hidden;
+
+  pointer-events: none;
+
+  border-right: 0;
+}
+
+/*
+ * Preview queda como único panel documental visible.
+ */
+.workspace-shell[data-view-mode='preview'] .workspace__preview {
+  opacity: 1;
+
+  visibility: visible;
+
+  pointer-events: auto;
+
+  border-right: 0;
+}
+
 /* =========================================================
-   17. Shared panel container
+   17. SHARED PANEL CONTAINER
+
+   Estructura interna común de cada feature panel.
 ========================================================= */
 
 .panel {
@@ -753,11 +851,13 @@ select {
 }
 
 /* =========================================================
-   18. Temporary development placeholders
+   18. TEMPORARY DEVELOPMENT PLACEHOLDERS
 
-   TODO:
-   Remove these styles when Navigation, Notes,
-   Editor and Preview receive their real content.
+   Solo existen mientras los paneles todavía no tienen
+   implementación real.
+
+   Eliminar cuando Navigation, Notes, Editor y Preview
+   tengan sus componentes finales.
 ========================================================= */
 
 .placeholder {
@@ -784,4 +884,24 @@ select {
 
 .placeholder span {
   font-size: 12px;
+}
+
+/* =========================================================
+   19. REDUCED MOTION
+
+   Respeta usuarios que prefieren minimizar animaciones.
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-navbar,
+  .workspace-grid,
+  .navbar-zone,
+  .navbar-button,
+  .view-switcher__button,
+  .workspace__navigation,
+  .workspace__notes,
+  .workspace__editor,
+  .workspace__preview {
+    transition: none;
+  }
 }

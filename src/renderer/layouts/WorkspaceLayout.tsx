@@ -63,7 +63,12 @@ export const WorkspaceLayout = ({
           {notes}
         </section>
 
-        <section className="workspace__editor">{editor}</section>
+        <section
+          className="workspace__editor"
+          aria-hidden={viewMode === 'preview'}
+        >
+          {editor}
+        </section>
 
         <section
           className="workspace__preview"

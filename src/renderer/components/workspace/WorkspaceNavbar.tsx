@@ -166,10 +166,16 @@ export const WorkspaceNavbar = ({
 
           <button
             type="button"
-            className="view-switcher__button"
+            className={[
+              'view-switcher__button',
+              viewMode === 'preview' ? 'view-switcher__button--active' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => onViewModeChange('preview')}
             aria-label="Preview only"
+            aria-pressed={viewMode === 'preview'}
             title="Preview only"
-            disabled
           >
             <PreviewIcon />
           </button>

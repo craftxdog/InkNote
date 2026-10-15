@@ -1,1 +1,1 @@
-export type WorkspaceViewMode = 'editor' | 'split';
+export type WorkspaceViewMode = 'editor' | 'split' | 'preview';
