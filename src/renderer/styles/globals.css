@@ -5,7 +5,10 @@
 ========================================================= */
 
 :root {
-  /* Colors */
+  /* -------------------------------------------------------
+     Colors
+  ------------------------------------------------------- */
+
   --color-text: #202020;
 
   --color-navigation: #d4cecb;
@@ -14,7 +17,21 @@
 
   --color-divider: rgba(0, 0, 0, 0.09);
 
-  /* Typography */
+  --color-control: #626262;
+  --color-control-hover: #353535;
+
+  --color-control-hover-background: rgba(0, 0, 0, 0.055);
+
+  --color-control-active-background: rgba(0, 0, 0, 0.09);
+
+  --color-selection-background: rgba(160, 170, 181, 0.28);
+
+  --color-focus: #8dd3ef;
+
+  /* -------------------------------------------------------
+     Typography
+  ------------------------------------------------------- */
+
   font-family:
     Inter,
     ui-sans-serif,
@@ -25,9 +42,11 @@
     sans-serif;
 
   color: var(--color-text);
+
   background: var(--color-workspace);
 
   font-synthesis: none;
+
   text-rendering: optimizeLegibility;
 }
 
@@ -59,39 +78,41 @@ select {
 }
 
 /* =========================================================
-   3. Workspace shell
+   3. Workspace dimensions
 ========================================================= */
 
 .workspace-shell {
   /*
-   * Main layout dimensions.
+   * Navigation panel
    *
-   * Navigation:
-   *   min   90px
-   *   ideal 15.5vw
-   *   max   240px
-   *
-   * Notes:
-   *   min   220px
-   *   ideal 20vw
-   *   max   320px
+   * min    90px
+   * ideal  15.5vw
+   * max    240px
    */
   --navigation-width: clamp(90px, 15.5vw, 240px);
+
+  /*
+   * Notes panel
+   *
+   * min    220px
+   * ideal  20vw
+   * max    320px
+   */
   --notes-width: clamp(220px, 20vw, 320px);
 
   /*
-   * Editor / Preview proportions.
+   * Document workspace proportions.
    *
-   * Normal mode:
+   * Normal Split:
    * Editor  ≈ 47.5%
    * Preview ≈ 52.5%
-   *
-   * Expanded mode changes both to 1fr.
    */
   --editor-width: 0.95fr;
   --preview-width: 1.05fr;
 
-  /* Compact macOS-style toolbar */
+  /*
+   * Application toolbar.
+   */
   --navbar-height: 45px;
 
   width: 100vw;
@@ -109,25 +130,21 @@ select {
 }
 
 /* =========================================================
-   4. Workspace states
+   4. Workspace layout states
 ========================================================= */
 
-/*
- * Navigation hidden manually.
- *
- * Only the first column disappears.
- * Notes, Editor and Preview remain intact.
- */
+/* ---------------------------------------------------------
+   Navigation hidden
+--------------------------------------------------------- */
+
 .workspace-shell--navigation-hidden {
   --navigation-width: 0px;
 }
 
-/*
- * Expanded / focus mode.
- *
- * Navigation and Notes collapse to zero while
- * Editor and Preview become a 50 / 50 workspace.
- */
+/* ---------------------------------------------------------
+   Expanded / focus mode
+--------------------------------------------------------- */
+
 .workspace-shell--expanded {
   --navigation-width: 0px;
   --notes-width: 0px;
@@ -136,19 +153,79 @@ select {
   --preview-width: 1fr;
 }
 
+/* ---------------------------------------------------------
+   Editor-only view
+--------------------------------------------------------- */
+
+.workspace-shell[data-view-mode='editor'] {
+  --editor-width: 1fr;
+  --preview-width: 0px;
+}
+
+/*
+ * Expanded + Editor Only works automatically:
+ *
+ * Navigation = 0
+ * Notes      = 0
+ * Editor     = 1fr
+ * Preview    = 0
+ */
+
 /* =========================================================
-   5. Shared workspace grid
+   5. Workspace navbar grid
 ========================================================= */
 
 /*
- * Navbar and content MUST share exactly the same
- * column definition.
+ * IMPORTANT:
  *
- * This keeps every vertical divider aligned.
+ * The navbar has THREE logical areas:
+ *
+ * Navigation | Notes | Document
+ *
+ * Document includes both Editor and Preview controls.
+ *
+ * This is deliberately different from workspace-grid.
  */
-.workspace-navbar,
+
+.workspace-navbar {
+  width: 100%;
+  height: var(--navbar-height);
+
+  min-width: 0;
+
+  display: grid;
+
+  grid-template-columns:
+    var(--navigation-width)
+    var(--notes-width)
+    minmax(0, 1fr);
+
+  user-select: none;
+
+  background: var(--color-workspace);
+
+  border-bottom: 1px solid var(--color-divider);
+
+  -webkit-app-region: drag;
+
+  transition: grid-template-columns 160ms ease;
+
+  z-index: 100;
+}
+
+/* =========================================================
+   6. Workspace content grid
+========================================================= */
+
+/*
+ * Content continues to use FOUR areas:
+ *
+ * Navigation | Notes | Editor | Preview
+ */
+
 .workspace-grid {
   min-width: 0;
+  min-height: 0;
 
   display: grid;
 
@@ -158,40 +235,18 @@ select {
     minmax(0, var(--editor-width))
     minmax(0, var(--preview-width));
 
+  overflow: hidden;
+
   transition: grid-template-columns 160ms ease;
 }
 
 /* =========================================================
-   6. Workspace navbar
-========================================================= */
-
-.workspace-navbar {
-  width: 100%;
-  height: var(--navbar-height);
-
-  user-select: none;
-
-  background: var(--color-workspace);
-
-  border-bottom: 1px solid var(--color-divider);
-
-  /*
-   * Allows moving the Electron window from empty
-   * areas of the navbar.
-   */
-  -webkit-app-region: drag;
-
-  z-index: 100;
-}
-
-/* =========================================================
-   7. Navbar zones
+   7. Shared navbar zone
 ========================================================= */
 
 .navbar-zone {
   position: relative;
 
-  width: 100%;
   min-width: 0;
   height: 100%;
 
@@ -213,36 +268,22 @@ select {
 }
 
 /* =========================================================
-   8. Navigation navbar zone
+   8. Navigation navbar
 ========================================================= */
 
 .navbar-zone--navigation {
   justify-content: flex-end;
 
   /*
-   * Left space is reserved for macOS traffic lights.
+   * Reserved macOS traffic-light area.
    */
   padding: 0 8px 0 82px;
 
   background: var(--color-navigation);
 }
 
-/*
- * Navigation hidden manually.
- *
- * The zone remains mounted but its grid track is 0px.
- */
-.workspace-shell--navigation-hidden .navbar-zone--navigation {
-  opacity: 0;
-
-  visibility: hidden;
-  pointer-events: none;
-
-  border-right: 0;
-}
-
 /* =========================================================
-   9. Notes navbar zone
+   9. Notes navbar
 ========================================================= */
 
 .navbar-zone--notes {
@@ -274,81 +315,111 @@ select {
   font-size: 20px;
   font-weight: 650;
 
+  line-height: 1;
+
   text-align: center;
 
   white-space: nowrap;
+
   text-overflow: ellipsis;
 
   pointer-events: none;
 }
 
 /* =========================================================
-   10. Editor navbar zone
+   10. Document navbar
 ========================================================= */
 
-.navbar-zone--editor {
-  padding: 0 8px;
-
-  background: var(--color-workspace);
-}
-
 /*
- * When the workspace is expanded this becomes the
- * first visible toolbar section.
+ * This zone represents the entire document area:
+ *
+ * Editor + Preview
+ *
+ * Left:
+ *   Expand / Back / Forward
+ *
+ * Center:
+ *   Editor / Split / Preview
+ *
+ * Right:
+ *   More
  */
-.workspace-shell--expanded .navbar-zone--editor {
-  padding-left: 8px;
-}
 
-.navbar-actions {
+.navbar-zone--document {
+  position: relative;
+
+  min-width: 0;
+
   display: flex;
 
   align-items: center;
-
-  gap: 2px;
-
-  -webkit-app-region: no-drag;
-}
-
-/* =========================================================
-   11. Preview navbar zone
-========================================================= */
-
-.navbar-zone--preview {
-  /*
-   * IMPORTANT:
-   * Controls are intentionally aligned to the beginning
-   * of Preview instead of centered inside the panel.
-   */
-  justify-content: flex-start;
 
   padding: 0 52px 0 8px;
 
   background: var(--color-workspace);
 }
 
+/* ---------------------------------------------------------
+   Document left controls
+--------------------------------------------------------- */
+
+.navbar-actions {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 2px;
+
+  z-index: 2;
+
+  -webkit-app-region: no-drag;
+}
+
+/* ---------------------------------------------------------
+   Expanded document toolbar
+--------------------------------------------------------- */
+
+.workspace-shell--expanded .navbar-zone--document {
+  padding-left: 8px;
+}
+
 /* =========================================================
-   12. Expanded workspace visibility
+   11. Navbar visibility states
 ========================================================= */
 
-/*
- * Navigation and Notes remain mounted so their internal
- * state is preserved, but they are visually inaccessible.
- */
-.workspace-shell--expanded .navbar-zone--navigation,
-.workspace-shell--expanded .navbar-zone--notes,
-.workspace-shell--expanded .workspace__navigation,
-.workspace-shell--expanded .workspace__notes {
+/* ---------------------------------------------------------
+   Manually hidden navigation
+--------------------------------------------------------- */
+
+.workspace-shell--navigation-hidden .navbar-zone--navigation {
   opacity: 0;
 
   visibility: hidden;
+
+  pointer-events: none;
+
+  border-right: 0;
+}
+
+/* ---------------------------------------------------------
+   Expanded workspace
+--------------------------------------------------------- */
+
+.workspace-shell--expanded .navbar-zone--navigation,
+.workspace-shell--expanded .navbar-zone--notes {
+  opacity: 0;
+
+  visibility: hidden;
+
   pointer-events: none;
 
   border-right: 0;
 }
 
 /* =========================================================
-   13. Generic navbar buttons
+   12. Generic navbar buttons
 ========================================================= */
 
 .navbar-button {
@@ -365,7 +436,7 @@ select {
   margin: 0;
   padding: 0;
 
-  color: #5c5c5c;
+  color: var(--color-control);
 
   background: transparent;
 
@@ -386,39 +457,47 @@ select {
 }
 
 .navbar-button:hover {
-  color: #353535;
+  color: var(--color-control-hover);
 
-  background: rgba(0, 0, 0, 0.055);
+  background: var(--color-control-hover-background);
 }
 
 .navbar-button:active {
-  background: rgba(0, 0, 0, 0.09);
+  background: var(--color-control-active-background);
 }
 
 .navbar-button:focus-visible {
-  outline: 2px solid #8dd3ef;
+  outline: 2px solid var(--color-focus);
 
   outline-offset: 1px;
-
-  background: rgba(120, 195, 225, 0.08);
 }
 
-/*
- * Persistent visual state.
- *
- * Used by things such as the expanded workspace button.
- */
+/* ---------------------------------------------------------
+   Persistent active state
+--------------------------------------------------------- */
+
 .navbar-button--active {
   color: #4a4a4a;
 
-  background: rgba(150, 165, 180, 0.24);
+  background: var(--color-selection-background);
 }
 
 /* =========================================================
-   14. Editor / Split / Preview switcher
+   13. View switcher
 ========================================================= */
 
+/*
+ * Centered against the entire document zone,
+ * NOT against Preview.
+ */
+
 .view-switcher {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  width: auto;
   height: 36px;
 
   display: grid;
@@ -427,14 +506,22 @@ select {
 
   overflow: hidden;
 
+  transform: translate(-50%, -50%);
+
   background: rgba(240, 240, 238, 0.85);
 
   border: 1px solid rgba(0, 0, 0, 0.14);
 
   border-radius: 10px;
 
+  z-index: 3;
+
   -webkit-app-region: no-drag;
 }
+
+/* ---------------------------------------------------------
+   View switcher buttons
+--------------------------------------------------------- */
 
 .view-switcher__button {
   width: 44px;
@@ -448,7 +535,7 @@ select {
   margin: 0;
   padding: 0;
 
-  color: #626262;
+  color: var(--color-control);
 
   background: transparent;
 
@@ -465,26 +552,40 @@ select {
     background-color 100ms ease;
 }
 
-.view-switcher__button:hover {
-  color: #333;
+.view-switcher__button:hover:not(:disabled) {
+  color: var(--color-control-hover);
 
   background: rgba(0, 0, 0, 0.04);
 }
 
 .view-switcher__button:focus-visible {
-  outline: 2px solid #8dd3ef;
+  outline: 2px solid var(--color-focus);
 
   outline-offset: -2px;
 }
 
+/* ---------------------------------------------------------
+   Selected view
+--------------------------------------------------------- */
+
 .view-switcher__button--active {
   color: #454545;
 
-  background: rgba(160, 170, 181, 0.28);
+  background: var(--color-selection-background);
+}
+
+/* ---------------------------------------------------------
+   Future / unavailable view
+--------------------------------------------------------- */
+
+.view-switcher__button:disabled {
+  cursor: default;
+
+  opacity: 0.55;
 }
 
 /* =========================================================
-   15. More menu button
+   14. More menu
 ========================================================= */
 
 .navbar-more {
@@ -494,20 +595,12 @@ select {
   right: 6px;
 
   transform: translateY(-50%);
+
+  z-index: 3;
 }
 
 /* =========================================================
-   16. Workspace content grid
-========================================================= */
-
-.workspace-grid {
-  min-height: 0;
-
-  overflow: hidden;
-}
-
-/* =========================================================
-   17. Workspace panels
+   15. Workspace panels
 ========================================================= */
 
 .workspace__navigation,
@@ -526,7 +619,9 @@ select {
     visibility 100ms ease;
 }
 
-/* Navigation */
+/* ---------------------------------------------------------
+   Navigation panel
+--------------------------------------------------------- */
 
 .workspace__navigation {
   opacity: 1;
@@ -536,7 +631,9 @@ select {
   background: var(--color-navigation);
 }
 
-/* Notes */
+/* ---------------------------------------------------------
+   Notes panel
+--------------------------------------------------------- */
 
 .workspace__notes {
   opacity: 1;
@@ -546,40 +643,90 @@ select {
   background: var(--color-notes);
 }
 
-/* Editor */
+/* ---------------------------------------------------------
+   Editor panel
+--------------------------------------------------------- */
 
 .workspace__editor {
+  opacity: 1;
+
+  visibility: visible;
+
   background: var(--color-workspace);
 }
 
-/* Preview */
+/* ---------------------------------------------------------
+   Preview panel
+--------------------------------------------------------- */
 
 .workspace__preview {
+  opacity: 1;
+
+  visibility: visible;
+
   background: var(--color-workspace);
 
   border-right: 0;
 }
 
 /* =========================================================
-   18. Navigation hidden state
+   16. Workspace panel visibility states
 ========================================================= */
 
-/*
- * Navigation remains mounted so future state such as
- * selected notebooks, scroll position, tree expansion,
- * etc. is preserved.
- */
+/* ---------------------------------------------------------
+   Navigation manually hidden
+--------------------------------------------------------- */
+
 .workspace-shell--navigation-hidden .workspace__navigation {
   opacity: 0;
 
   visibility: hidden;
+
   pointer-events: none;
 
   border-right: 0;
 }
 
+/* ---------------------------------------------------------
+   Expanded workspace
+--------------------------------------------------------- */
+
+.workspace-shell--expanded .workspace__navigation,
+.workspace-shell--expanded .workspace__notes {
+  opacity: 0;
+
+  visibility: hidden;
+
+  pointer-events: none;
+
+  border-right: 0;
+}
+
+/* ---------------------------------------------------------
+   Editor-only view
+--------------------------------------------------------- */
+
+.workspace-shell[data-view-mode='editor'] .workspace__preview {
+  opacity: 0;
+
+  visibility: hidden;
+
+  pointer-events: none;
+
+  border-right: 0;
+}
+
+/*
+ * Preview no longer exists visually,
+ * therefore Editor must not keep a divider
+ * against a zero-width column.
+ */
+.workspace-shell[data-view-mode='editor'] .workspace__editor {
+  border-right: 0;
+}
+
 /* =========================================================
-   19. Shared panel container
+   17. Shared panel container
 ========================================================= */
 
 .panel {
@@ -606,9 +753,11 @@ select {
 }
 
 /* =========================================================
-   20. Temporary development placeholders
+   18. Temporary development placeholders
+
    TODO:
-   Remove when each panel gets its real implementation.
+   Remove these styles when Navigation, Notes,
+   Editor and Preview receive their real content.
 ========================================================= */
 
 .placeholder {
