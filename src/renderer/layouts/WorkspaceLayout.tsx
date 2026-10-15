@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react';
 
+import type { WorkspaceViewMode } from '../types/workspace';
 import { WorkspaceNavbar } from '../components/workspace/WorkspaceNavbar';
 
 type WorkspaceLayoutProps = {
+  viewMode: WorkspaceViewMode;
+  onViewModeChange: (mode: WorkspaceViewMode) => void;
   isNavigationVisible: boolean;
   isWorkspaceExpanded: boolean;
 
@@ -18,6 +21,8 @@ type WorkspaceLayoutProps = {
 export const WorkspaceLayout = ({
   isNavigationVisible,
   isWorkspaceExpanded,
+  viewMode,
+  onViewModeChange,
   onToggleNavigation,
   onToggleWorkspaceExpanded,
   navigation,
@@ -36,10 +41,12 @@ export const WorkspaceLayout = ({
     .join(' ');
 
   return (
-    <div className={className}>
+    <div className={className} data-view-mode={viewMode}>
       <WorkspaceNavbar
         isNavigationVisible={isNavigationVisible}
         isWorkspaceExpanded={isWorkspaceExpanded}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
         onToggleNavigation={onToggleNavigation}
         onToggleWorkspaceExpanded={onToggleWorkspaceExpanded}
       />
@@ -58,7 +65,12 @@ export const WorkspaceLayout = ({
 
         <section className="workspace__editor">{editor}</section>
 
-        <section className="workspace__preview">{preview}</section>
+        <section
+          className="workspace__preview"
+          aria-hidden={viewMode === 'editor'}
+        >
+          {preview}
+        </section>
       </main>
     </div>
   );

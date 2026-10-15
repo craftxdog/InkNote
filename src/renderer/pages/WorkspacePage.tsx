@@ -5,10 +5,12 @@ import { NavigationPanel } from '../features/navigation/components/NavigationPan
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
+import type { WorkspaceViewMode } from '../types/workspace';
 
 export function WorkspacePage() {
   const [isNavigationVisible, setIsNavigationVisible] = useState(true);
   const [isWorkspaceExpanded, setIsWorkspaceExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<WorkspaceViewMode>('split');
 
   /*
    * Traffic lights are shown only when the
@@ -39,6 +41,8 @@ export function WorkspacePage() {
     <WorkspaceLayout
       isNavigationVisible={isNavigationVisible}
       isWorkspaceExpanded={isWorkspaceExpanded}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
       onToggleNavigation={toggleNavigation}
       onToggleWorkspaceExpanded={toggleWorkspaceExpanded}
       navigation={<NavigationPanel />}
