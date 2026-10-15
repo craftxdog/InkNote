@@ -1,0 +1,462 @@
+/* =========================================================
+   NOTES FEATURE
+
+   Estilos exclusivos del segundo panel.
+
+   globals.css controla el tamaño del panel.
+   notes.css controla Filter + lista de notas.
+========================================================= */
+
+/* =========================================================
+   1. Panel
+========================================================= */
+
+.notes-panel {
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  display: grid;
+
+  grid-template-rows:
+    auto
+    minmax(0, 1fr);
+
+  overflow: hidden;
+
+  background: var(--color-notes);
+}
+
+/* =========================================================
+   2. Filter container
+========================================================= */
+
+.notes-panel__filter {
+  padding: 7px 10px 8px;
+}
+
+/* =========================================================
+   3. Filter control
+
+   Replica el buscador compacto de la referencia:
+   icono izquierda
+   input central
+   clear derecha
+========================================================= */
+
+.notes-filter {
+  position: relative;
+
+  width: 100%;
+  height: 34px;
+
+  display: flex;
+
+  align-items: center;
+
+  overflow: hidden;
+
+  background: rgba(255, 255, 255, 0.94);
+
+  border: 1px solid rgba(0, 0, 0, 0.09);
+
+  border-radius: 9px;
+
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+/* ---------------------------------------------------------
+   Keyboard / input focus
+--------------------------------------------------------- */
+
+.notes-filter:focus-within {
+  border-color: #76c4e5;
+
+  box-shadow: 0 0 0 2px rgba(104, 199, 235, 0.58);
+
+  background: #fff;
+}
+
+/* =========================================================
+   4. Filter icon
+========================================================= */
+
+.notes-filter__icon {
+  width: 34px;
+  height: 100%;
+
+  flex: 0 0 34px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  color: #b2b2b2;
+
+  pointer-events: none;
+}
+
+/* =========================================================
+   5. Filter input
+========================================================= */
+
+.notes-filter__input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+
+  margin: 0;
+  padding: 0 32px 0 0;
+
+  color: #333;
+
+  background: transparent;
+
+  border: 0;
+
+  outline: 0;
+
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.notes-filter__input::placeholder {
+  color: #b5b5b5;
+
+  opacity: 1;
+}
+
+/* =========================================================
+   6. Clear button
+========================================================= */
+
+.notes-filter__clear {
+  position: absolute;
+
+  top: 50%;
+  right: 7px;
+
+  width: 18px;
+  height: 18px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  transform: translateY(-50%);
+
+  color: white;
+
+  background: #bababa;
+
+  border: 0;
+  border-radius: 50%;
+
+  cursor: pointer;
+
+  -webkit-app-region: no-drag;
+}
+
+.notes-filter__clear:hover {
+  background: #999;
+}
+
+.notes-filter__clear:focus-visible {
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: 1px;
+}
+
+/* =========================================================
+   7. Results viewport
+========================================================= */
+
+.notes-panel__results {
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+}
+
+/* =========================================================
+   8. Notes list
+========================================================= */
+
+.notes-list {
+  width: 100%;
+  height: 100%;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  scrollbar-width: none;
+}
+
+.notes-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* =========================================================
+   9. Note list item
+========================================================= */
+
+.note-list-item {
+  width: 100%;
+  min-width: 0;
+
+  display: block;
+
+  margin: 0;
+
+  padding: 10px 10px 9px;
+
+  color: #292929;
+
+  background: transparent;
+
+  border: 0;
+
+  border-bottom: 1px solid rgba(0, 0, 0, 0.045);
+
+  text-align: left;
+
+  cursor: pointer;
+
+  -webkit-app-region: no-drag;
+
+  transition: background-color var(--transition-fast);
+}
+
+.note-list-item:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.note-list-item--selected {
+  background: #bfd0d9;
+}
+
+.note-list-item--selected:hover {
+  background: #bfd0d9;
+}
+
+.note-list-item:focus-visible {
+  position: relative;
+
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: -2px;
+
+  z-index: 1;
+}
+
+/* =========================================================
+   10. Note title
+========================================================= */
+
+.note-list-item__title-row {
+  min-width: 0;
+
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 5px;
+}
+
+.note-list-item__pin {
+  flex: 0 0 auto;
+
+  color: #428cef;
+}
+
+.note-list-item__title {
+  min-width: 0;
+
+  overflow: hidden;
+
+  font-size: 14px;
+  font-weight: 650;
+
+  line-height: 1.35;
+
+  display: -webkit-box;
+
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* =========================================================
+   11. Note metadata
+========================================================= */
+
+.note-list-item__metadata {
+  min-width: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  margin-top: 5px;
+
+  overflow: hidden;
+}
+
+.note-list-item__updated {
+  flex: 0 0 auto;
+
+  color: #3688ff;
+
+  font-size: 12px;
+}
+
+.note-list-item__tasks {
+  flex: 0 0 auto;
+
+  color: #555;
+
+  font-size: 12px;
+
+  white-space: nowrap;
+}
+
+.note-list-item__tags {
+  min-width: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 3px;
+
+  overflow: hidden;
+}
+
+/* =========================================================
+   12. Tags
+========================================================= */
+
+.note-tag {
+  display: inline-flex;
+
+  align-items: center;
+
+  height: 19px;
+
+  padding: 0 6px;
+
+  border: 1px solid currentColor;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 500;
+
+  white-space: nowrap;
+}
+
+.note-tag--blue {
+  color: #398bff;
+
+  background: rgba(57, 139, 255, 0.08);
+}
+
+.note-tag--red {
+  color: #ff6060;
+
+  background: rgba(255, 96, 96, 0.08);
+}
+
+.note-tag--purple {
+  color: #8a68ff;
+
+  background: rgba(138, 104, 255, 0.08);
+}
+
+.note-tag--green {
+  color: #27bd69;
+
+  background: rgba(39, 189, 105, 0.08);
+}
+
+.note-tag--orange {
+  color: #ef9a24;
+
+  background: rgba(239, 154, 36, 0.08);
+}
+
+/* =========================================================
+   13. Note excerpt
+========================================================= */
+
+.note-list-item__excerpt {
+  min-width: 0;
+
+  margin: 5px 0 0;
+
+  overflow: hidden;
+
+  color: #656565;
+
+  font-size: 13px;
+
+  line-height: 1.25;
+
+  white-space: nowrap;
+
+  text-overflow: ellipsis;
+}
+
+/* =========================================================
+   14. Empty filter state
+========================================================= */
+
+.notes-empty-state {
+  height: 100%;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 4px;
+
+  padding: 20px;
+
+  color: #777;
+
+  text-align: center;
+}
+
+.notes-empty-state strong {
+  color: #444;
+
+  font-size: 14px;
+}
+
+.notes-empty-state span {
+  font-size: 12px;
+}
+
+/* =========================================================
+   15. Reduced motion
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .notes-filter,
+  .note-list-item {
+    transition: none;
+  }
+}
