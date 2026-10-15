@@ -1,7 +1,7 @@
 {
   "name": "inknote",
   "version": "0.1.0",
-  "description": "A keyboard-first Markdown note-taking app with Vim-inspired navigation.",
+  "description": "A local-first Markdown note-taking desktop app with Vim-inspired navigation.",
   "keywords": [
     "electron",
     "notes",
@@ -15,19 +15,19 @@
     "typescript",
     "vite"
   ],
-  "homepage": "https://github.com/electron-react-boilerplate/electron-react-boilerplate#readme",
+  "homepage": "https://github.com/craftxdog/InkNote#readme",
   "bugs": {
-    "url": "https://github.com/electron-react-boilerplate/electron-react-boilerplate/issues"
+    "url": "https://github.com/craftxdog/InkNote/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/electron-react-boilerplate/electron-react-boilerplate.git"
+    "url": "git+https://github.com/craftxdog/InkNote.git"
   },
   "license": "MIT",
   "author": {
-    "name": "Craftxdog",
+    "name": "craftxdog",
     "email": "craftxdog@alphaby.cloud",
-    "url": "https://electron-react-boilerplate.js.org"
+    "url": "https://github.com/craftxdog"
   },
   "main": "./release/app/dist/main/main.js",
   "scripts": {
@@ -37,9 +37,14 @@
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx,.cjs --fix",
     "package": "npm run build && electron-builder build --publish never",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
+    "release": "npm run build && electron-builder build --publish always",
     "start": "electron-vite dev --watch",
     "test": "jest",
+    "test:ci": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand",
     "test:smoke": "node .erb/scripts/smoke-test.cjs",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run lint && npm run typecheck && npm run test:ci && npm run build",
     "preview": "electron-vite preview"
   },
   "browserslist": [
@@ -114,7 +119,7 @@
   },
   "build": {
     "productName": "InkNote",
-    "appId": "app.inknote.desktop",
+    "appId": "com.craftxdog.inknote",
     "asar": true,
     "afterSign": ".erb/scripts/notarize.js",
     "asarUnpack": "**\\*.{node,dll}",
@@ -175,11 +180,8 @@
     "publish": {
       "provider": "github",
       "owner": "craftxdog",
-      "repo": "inknote"
+      "repo": "InkNote"
     }
-  },
-  "collective": {
-    "url": "https://opencollective.com/electron-react-boilerplate-594"
   },
   "devEngines": {
     "runtime": {

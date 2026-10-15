@@ -1,0 +1,13 @@
+# Default owner
+* @craftxdog
+
+# CI/CD and repository governance
+/.github/ @craftxdog
+
+# Electron process and preload security
+/src/main/ @craftxdog
+/src/shared/ @craftxdog
+
+# Packaging configuration
+/package.json @craftxdog
+/electron.vite.config.ts @craftxdog

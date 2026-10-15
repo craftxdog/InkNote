@@ -4,6 +4,7 @@ const toolingRequire = createRequire(
 );
 
 module.exports = {
+  watchman: false,
   modulePathIgnorePatterns: ['<rootDir>/release/app/package.json'],
   moduleDirectories: ['node_modules', 'release/app/node_modules', 'src'],
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'json'],

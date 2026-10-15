@@ -1,0 +1,37 @@
+name: Stale Issues
+
+on:
+  schedule:
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark stale issues
+        uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          stale-issue-label: stale
+          exempt-issue-labels: >
+            security,
+            bug,
+            discussion,
+            roadmap
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has
+            not had recent activity. Add new information or activity to keep
+            it open.
+          close-issue-message: >
+            This issue has been automatically closed after remaining inactive
+            following the stale period.
