@@ -1,0 +1,412 @@
+/* =========================================================
+   Navigation feature
+
+   Visual styles specific to the left sidebar.
+   Workspace geometry remains in globals.css.
+========================================================= */
+
+/* =========================================================
+   1. Panel
+========================================================= */
+
+.navigation-panel {
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+
+  color: #242424;
+
+  background: var(--color-navigation);
+}
+
+.navigation-panel__scroll {
+  width: 100%;
+  height: 100%;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  padding: 6px 0 18px;
+
+  scrollbar-width: none;
+}
+
+.navigation-panel__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* =========================================================
+   2. Navigation row
+
+   Shared clickable row for items, notebooks,
+   statuses, tags and Trash.
+========================================================= */
+
+.navigation-row {
+  --navigation-depth: 0;
+
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+
+  display: grid;
+
+  grid-template-columns:
+    auto
+    auto
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 7px;
+
+  margin: 0;
+
+  padding: 0 12px 0 calc(14px + (var(--navigation-depth) * 16px));
+
+  color: #262626;
+
+  background: transparent;
+
+  border: 0;
+  border-radius: 0;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  user-select: none;
+
+  -webkit-app-region: no-drag;
+
+  transition: background-color 100ms ease;
+}
+
+.navigation-row:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.navigation-row--selected {
+  background: #b8c8d0;
+}
+
+.navigation-row--selected:hover {
+  background: #b8c8d0;
+}
+
+/* =========================================================
+   3. Row content
+========================================================= */
+
+.navigation-row__prefix,
+.navigation-row__icon {
+  width: 20px;
+  height: 20px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 auto;
+
+  color: #323232;
+}
+
+.navigation-row__label {
+  min-width: 0;
+
+  overflow: hidden;
+
+  font-size: 15px;
+  font-weight: 450;
+
+  line-height: 1;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.navigation-row__count {
+  padding-left: 8px;
+
+  color: #6c6a69;
+
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   4. Section headings
+========================================================= */
+
+.navigation-section-header {
+  min-height: 32px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 4px;
+
+  padding: 0 10px 0 14px;
+}
+
+.navigation-section-header__title {
+  color: #7b7876;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  user-select: none;
+}
+
+.navigation-section-header__actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 2px;
+}
+
+/* =========================================================
+   5. Small header actions
+========================================================= */
+
+.navigation-icon-button {
+  width: 26px;
+  height: 26px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  color: #74716f;
+
+  background: transparent;
+
+  border: 0;
+  border-radius: 7px;
+
+  cursor: pointer;
+
+  -webkit-app-region: no-drag;
+
+  transition:
+    color 100ms ease,
+    background-color 100ms ease;
+}
+
+.navigation-icon-button:hover {
+  color: #383736;
+
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.navigation-icon-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: -1px;
+}
+
+/* =========================================================
+   6. Expand / collapse chevrons
+========================================================= */
+
+.navigation-chevron,
+.navigation-section-toggle {
+  transition: transform 120ms ease;
+}
+
+.navigation-chevron {
+  display: inline-flex;
+}
+
+/*
+ * Base SVG points down.
+ * Collapsed tree can be represented pointing right.
+ */
+.navigation-chevron:not(.navigation-chevron--expanded) {
+  transform: rotate(-90deg);
+}
+
+.navigation-section-toggle--expanded {
+  transform: rotate(180deg);
+}
+
+/* =========================================================
+   7. Status indicators
+========================================================= */
+
+.navigation-status {
+  position: relative;
+
+  width: 15px;
+  height: 15px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+}
+
+/* Active */
+
+.navigation-status--active {
+  background: #a9bfd9;
+}
+
+.navigation-status--active::after {
+  content: '';
+
+  width: 0;
+  height: 0;
+
+  margin-left: 2px;
+
+  border-top: 4px solid transparent;
+
+  border-bottom: 4px solid transparent;
+
+  border-left: 6px solid white;
+}
+
+/* On Hold */
+
+.navigation-status--on-hold {
+  border: 2px solid #ffa500;
+}
+
+.navigation-status--on-hold::before,
+.navigation-status--on-hold::after {
+  content: '';
+
+  width: 2px;
+  height: 7px;
+
+  position: absolute;
+
+  top: 2px;
+
+  background: #ffa500;
+}
+
+.navigation-status--on-hold::before {
+  left: 3px;
+}
+
+.navigation-status--on-hold::after {
+  right: 3px;
+}
+
+/* Completed */
+
+.navigation-status--completed {
+  background: #20c997;
+}
+
+.navigation-status--completed::after {
+  content: '';
+
+  width: 6px;
+  height: 3px;
+
+  border-left: 2px solid white;
+
+  border-bottom: 2px solid white;
+
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+/* Dropped */
+
+.navigation-status--dropped {
+  background: #ff7285;
+}
+
+.navigation-status--dropped::before,
+.navigation-status--dropped::after {
+  content: '';
+
+  width: 8px;
+  height: 2px;
+
+  position: absolute;
+
+  background: white;
+}
+
+.navigation-status--dropped::before {
+  transform: rotate(45deg);
+}
+
+.navigation-status--dropped::after {
+  transform: rotate(-45deg);
+}
+
+/* =========================================================
+   8. Tag indicators
+========================================================= */
+
+.navigation-tag-dot {
+  --tag-color: #808080;
+
+  width: 13px;
+  height: 13px;
+
+  display: inline-block;
+
+  border: 2px solid var(--tag-color);
+
+  border-radius: 50%;
+
+  background: color-mix(in srgb, var(--tag-color) 30%, transparent);
+}
+
+/* =========================================================
+   9. Responsive sidebar density
+
+   The Workspace controls sidebar width.
+   These rules only protect internal content.
+========================================================= */
+
+@media (max-width: 1000px) {
+  .navigation-row {
+    padding-right: 8px;
+  }
+
+  .navigation-row__label {
+    font-size: 14px;
+  }
+
+  .navigation-row__count {
+    font-size: 11px;
+  }
+}
+
+/* =========================================================
+   10. Reduced motion
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation-row,
+  .navigation-icon-button,
+  .navigation-chevron,
+  .navigation-section-toggle {
+    transition: none;
+  }
+}
