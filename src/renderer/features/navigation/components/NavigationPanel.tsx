@@ -1,12 +1,14 @@
 import type { CSSProperties } from 'react';
 import {
   navigationCounts,
+  navigationDestinations,
   statusItems,
   tagItems,
-} from '../data/navigation.mock';
+} from '../data/navigation.data';
 
 import { useNavigationState } from '../hooks/useNavigationState';
 
+import { NavigationSelection } from '../model/navigation.types';
 import {
   BriefcaseIcon,
   ChevronIcon,
@@ -21,11 +23,28 @@ import {
 
 import { NavigationRow } from './NavigationRow';
 import { NavigationHeader } from './NavigationSectionHeader';
+
 import '../styles/navigation.css';
 
-export const NavigationPanel = () => {
-  const { isSelectedItem, isExpandedSections, selectItem, toggleSection } =
-    useNavigationState();
+export type NavigationPanelProps = {
+  selection: NavigationSelection;
+  onSelectionChange: (selection: NavigationSelection) => void;
+};
+
+export const NavigationPanel = ({
+  selection,
+  onSelectionChange,
+}: NavigationPanelProps) => {
+  const { expandedSections, toggleSection } = useNavigationState();
+
+  /**
+   * Una única comparación para todos los elementos.
+   *
+   * Elimina por completo el viejo isSelectedItem.
+   */
+  const isSelected = (id: string): boolean => {
+    return selection.id === id;
+  };
 
   return (
     <>
@@ -34,21 +53,23 @@ export const NavigationPanel = () => {
           {/* Primary */}
 
           <NavigationRow
-            label="All Notes"
+            label={navigationDestinations.allNotes.label}
             icon={<NotesIcon />}
             count={navigationCounts.allNotes}
-            selected={isSelectedItem === 'all-notes'}
-            onClick={() => selectItem('all-notes')}
+            selected={isSelected(navigationDestinations.allNotes.id)}
+            onClick={() => onSelectionChange(navigationDestinations.allNotes)}
           />
 
           <NavigationRow
-            label="Note Templates"
+            label={navigationDestinations.templates.label}
             icon={<TemplateIcon />}
-            selected={isSelectedItem === 'note-templates'}
-            onClick={() => selectItem('note-templates')}
+            selected={isSelected(navigationDestinations.templates.id)}
+            onClick={() => onSelectionChange(navigationDestinations.templates)}
           />
 
-          {/* Notebooks */}
+          {/* =================================================
+            Notebooks
+        ================================================= */}
 
           <NavigationHeader
             title="Notebooks"
@@ -76,20 +97,21 @@ export const NavigationPanel = () => {
           />
 
           <NavigationRow
-            label="Inbox"
+            label={navigationDestinations.inbox.label}
             icon={<InboxIcon />}
             depth={1}
-            selected={isSelectedItem === 'inbox'}
-            onClick={() => selectItem('inbox')}
+            selected={isSelected(navigationDestinations.inbox.id)}
+            onClick={() => onSelectionChange(navigationDestinations.inbox)}
           />
 
           <NavigationRow
-            label="Work"
+            label={navigationDestinations.work.label}
             prefix={
               <span
                 className={[
                   'navigation-chevron',
-                  isExpandedSections.work ? 'navigation-chevron--expanded' : '',
+
+                  expandedSections.work ? 'navigation-chevron--expanded' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -98,24 +120,27 @@ export const NavigationPanel = () => {
               </span>
             }
             icon={<BriefcaseIcon />}
-            selected={isSelectedItem === 'work'}
+            selected={isSelected(navigationDestinations.work.id)}
             onClick={() => {
-              selectItem('work');
+              onSelectionChange(navigationDestinations.work);
+
               toggleSection('work');
             }}
           />
 
-          {isExpandedSections.work && (
+          {expandedSections.work && (
             <NavigationRow
-              label="Projects"
+              label={navigationDestinations.projects.label}
               icon={<RocketIcon />}
               depth={2}
-              selected={isSelectedItem === 'projects'}
-              onClick={() => selectItem('projects')}
+              selected={isSelected(navigationDestinations.projects.id)}
+              onClick={() => onSelectionChange(navigationDestinations.projects)}
             />
           )}
 
-          {/* Status */}
+          {/* =================================================
+            Status
+        ================================================= */}
 
           <NavigationHeader
             title="Status"
@@ -125,39 +150,46 @@ export const NavigationPanel = () => {
                 className={[
                   'navigation-icon-button',
                   'navigation-section-toggle',
-                  isExpandedSections.status
+
+                  expandedSections.status
                     ? 'navigation-section-toggle--expanded'
                     : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
                 onClick={() => toggleSection('status')}
-                aria-expanded={isExpandedSections.status}
+                aria-expanded={expandedSections.status}
                 aria-label="Toggle status"
+                title="Toggle status"
               >
                 <ChevronIcon />
               </button>
             }
           />
 
-          {isExpandedSections.status &&
+          {expandedSections.status &&
             statusItems.map((item) => (
               <NavigationRow
-                key={item.id}
-                label={item.label}
+                key={item.destination.id}
+                label={item.destination.label}
                 icon={
                   <span
-                    className={`navigation-status navigation-status--${item.status}`}
+                    className={[
+                      'navigation-status',
+                      `navigation-status--${item.status}`,
+                    ].join(' ')}
                   />
                 }
                 count={item.count}
                 depth={1}
-                selected={isSelectedItem === item.id}
-                onClick={() => selectItem(item.id)}
+                selected={isSelected(item.destination.id)}
+                onClick={() => onSelectionChange(item.destination)}
               />
             ))}
 
-          {/* Tags */}
+          {/* =================================================
+            Tags
+        ================================================= */}
 
           <NavigationHeader
             title="Tags"
@@ -177,15 +209,17 @@ export const NavigationPanel = () => {
                   className={[
                     'navigation-icon-button',
                     'navigation-section-toggle',
-                    isExpandedSections.tags
+
+                    expandedSections.tags
                       ? 'navigation-section-toggle--expanded'
                       : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
                   onClick={() => toggleSection('tags')}
-                  aria-expanded={isExpandedSections.tags}
+                  aria-expanded={expandedSections.tags}
                   aria-label="Toggle tags"
+                  title="Toggle tags"
                 >
                   <ChevronIcon />
                 </button>
@@ -193,35 +227,33 @@ export const NavigationPanel = () => {
             }
           />
 
-          {isExpandedSections.tags &&
-            tagItems.map((tag) => (
+          {expandedSections.tags &&
+            tagItems.map((item) => (
               <NavigationRow
-                key={tag.id}
-                label={tag.label}
+                key={item.destination.id}
+                label={item.destination.label}
                 icon={
                   <span
                     className="navigation-tag-dot"
                     style={
                       {
-                        '--tag-color': tag.color,
+                        '--tag-color': item.color,
                       } as CSSProperties
                     }
                   />
                 }
-                count={tag.count}
+                count={item.count}
                 depth={1}
-                selected={isSelectedItem === tag.id}
-                onClick={() => selectItem(tag.id)}
+                selected={isSelected(item.destination.id)}
+                onClick={() => onSelectionChange(item.destination)}
               />
             ))}
 
-          {/* Trash */}
-
           <NavigationRow
-            label="Trash"
+            label={navigationDestinations.trash.label}
             icon={<TrashIcon />}
-            selected={isSelectedItem === 'trash'}
-            onClick={() => selectItem('trash')}
+            selected={isSelected(navigationDestinations.trash.id)}
+            onClick={() => onSelectionChange(navigationDestinations.trash)}
           />
         </div>
       </div>

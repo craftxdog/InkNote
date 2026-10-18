@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-
 import { EditorPanel } from '../features/editor/components/EditorPanel';
 import { NavigationPanel } from '../features/navigation/components/NavigationPanel';
+import { navigationDestinations } from '../features/navigation/data/navigation.data';
+import type { NavigationSelection } from '../features/navigation/model/navigation.types';
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
@@ -12,12 +13,17 @@ export function WorkspacePage() {
   const [isWorkspaceExpanded, setIsWorkspaceExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<WorkspaceViewMode>('split');
 
-  /*
-   * Traffic lights are shown only when the
-   * Navigation panel is actually visible.
+  /**
+   * Contexto seleccionado actualmente.
    *
-   * Expanded mode always hides them.
+   * Esta es la única fuente de verdad para:
+   *
+   * - fila seleccionada en Navigation
+   * - título del panel Notes
+   * - scope de notas
    */
+  const [navigationSelection, setNavigationSelection] =
+    useState<NavigationSelection>(navigationDestinations.allNotes);
 
   const shouldShowTrafficLights = isNavigationVisible && !isWorkspaceExpanded;
 
@@ -39,14 +45,20 @@ export function WorkspacePage() {
 
   return (
     <WorkspaceLayout
+      navigationSelection={navigationSelection}
       isNavigationVisible={isNavigationVisible}
       isWorkspaceExpanded={isWorkspaceExpanded}
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       onToggleNavigation={toggleNavigation}
       onToggleWorkspaceExpanded={toggleWorkspaceExpanded}
-      navigation={<NavigationPanel />}
-      notes={<NotesPanel />}
+      navigation={
+        <NavigationPanel
+          selection={navigationSelection}
+          onSelectionChange={setNavigationSelection}
+        />
+      }
+      notes={<NotesPanel navigationSelection={navigationSelection} />}
       editor={<EditorPanel />}
       preview={<PreviewPanel />}
     />

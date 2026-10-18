@@ -1,35 +1,48 @@
 import type { ReactNode } from 'react';
 
-import type { WorkspaceViewMode } from '../types/workspace';
 import { WorkspaceNavbar } from '../components/workspace/WorkspaceNavbar';
 
+import type { NavigationSelection } from '../features/navigation/model/navigation.types';
+
+import type { WorkspaceViewMode } from '../types/workspace';
+
 type WorkspaceLayoutProps = {
+  navigationSelection: NavigationSelection;
+
   viewMode: WorkspaceViewMode;
+
   onViewModeChange: (mode: WorkspaceViewMode) => void;
+
   isNavigationVisible: boolean;
+
   isWorkspaceExpanded: boolean;
 
   onToggleNavigation: () => void;
+
   onToggleWorkspaceExpanded: () => void;
 
   navigation: ReactNode;
+
   notes: ReactNode;
+
   editor: ReactNode;
+
   preview: ReactNode;
 };
 
-export const WorkspaceLayout = ({
-  isNavigationVisible,
-  isWorkspaceExpanded,
+export function WorkspaceLayout({
+  navigationSelection,
   viewMode,
   onViewModeChange,
+  isNavigationVisible,
+  isWorkspaceExpanded,
   onToggleNavigation,
   onToggleWorkspaceExpanded,
   navigation,
   notes,
   editor,
   preview,
-}: WorkspaceLayoutProps) => {
+}: WorkspaceLayoutProps) {
   const className = [
     'workspace-shell',
 
@@ -43,6 +56,7 @@ export const WorkspaceLayout = ({
   return (
     <div className={className} data-view-mode={viewMode}>
       <WorkspaceNavbar
+        navigationSelection={navigationSelection}
         isNavigationVisible={isNavigationVisible}
         isWorkspaceExpanded={isWorkspaceExpanded}
         viewMode={viewMode}
@@ -79,4 +93,4 @@ export const WorkspaceLayout = ({
       </main>
     </div>
   );
-};
+}

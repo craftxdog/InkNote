@@ -13,10 +13,13 @@ import {
 } from '../icons/ToolbarIcons';
 
 import type { WorkspaceViewMode } from '../../types/workspace';
+import { NavigationContextIcon } from '../../features/navigation/components/NavigationContextIcon';
+import type { NavigationSelection } from '../../features/navigation/model/navigation.types';
 
 type WorkspaceNavbarProps = {
   isNavigationVisible: boolean;
   isWorkspaceExpanded: boolean;
+  navigationSelection: NavigationSelection;
 
   viewMode: WorkspaceViewMode;
 
@@ -29,6 +32,7 @@ type WorkspaceNavbarProps = {
 export const WorkspaceNavbar = ({
   isNavigationVisible,
   isWorkspaceExpanded,
+  navigationSelection,
   viewMode,
   onViewModeChange,
   onToggleNavigation,
@@ -70,7 +74,15 @@ export const WorkspaceNavbar = ({
           <SidebarIcon />
         </button>
 
-        <h1 className="navbar-title">All Notes</h1>
+        <div className="navbar-context-title">
+          {navigationSelection.icon.type !== 'all-notes' && (
+            <span className="navbar-context-title__icon">
+              <NavigationContextIcon selection={navigationSelection} />
+            </span>
+          )}
+
+          <h1 className="navbar-title">{navigationSelection.label}</h1>
+        </div>
 
         <button
           type="button"

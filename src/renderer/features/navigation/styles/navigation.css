@@ -1,12 +1,23 @@
 /* =========================================================
-   Navigation feature
+   NAVIGATION FEATURE
 
-   Visual styles specific to the left sidebar.
-   Workspace geometry remains in globals.css.
+   Estilos exclusivos del sidebar izquierdo.
+
+   globals.css:
+   - controla geometría del workspace
+   - controla ancho del panel
+
+   navigation.css:
+   - controla contenido interno
+   - filas
+   - secciones
+   - status
+   - tags
+   - interacciones
 ========================================================= */
 
 /* =========================================================
-   1. Panel
+   1. PANEL
 ========================================================= */
 
 .navigation-panel {
@@ -18,7 +29,7 @@
 
   overflow: hidden;
 
-  color: #242424;
+  color: var(--color-text);
 
   background: var(--color-navigation);
 }
@@ -26,6 +37,9 @@
 .navigation-panel__scroll {
   width: 100%;
   height: 100%;
+
+  min-width: 0;
+  min-height: 0;
 
   overflow-x: hidden;
   overflow-y: auto;
@@ -40,41 +54,47 @@
 }
 
 /* =========================================================
-   2. Navigation row
+   2. NAVIGATION ROW
 
-   Shared clickable row for items, notebooks,
-   statuses, tags and Trash.
+   Estructura:
+
+   leading | label | count
+
+   leading puede contener:
+   prefix + icon
+
+   Ejemplo Work:
+   [chevron + briefcase] [Work] [count]
 ========================================================= */
 
 .navigation-row {
   --navigation-depth: 0;
 
   width: 100%;
+
   min-width: 0;
-  height: 36px;
+  min-height: 40px;
 
   display: grid;
 
   grid-template-columns:
-    auto
-    auto
+    max-content
     minmax(0, 1fr)
-    auto;
+    max-content;
 
   align-items: center;
 
-  gap: 7px;
+  column-gap: 9px;
 
   margin: 0;
 
-  padding: 0 12px 0 calc(14px + (var(--navigation-depth) * 16px));
+  padding: 6px 12px 6px calc(14px + var(--navigation-depth) * 18px);
 
-  color: #262626;
+  color: var(--color-text);
 
   background: transparent;
 
   border: 0;
-  border-radius: 0;
 
   text-align: left;
 
@@ -84,93 +104,141 @@
 
   -webkit-app-region: no-drag;
 
-  transition: background-color 100ms ease;
+  transition: background-color var(--transition-fast);
 }
 
 .navigation-row:hover {
   background: rgba(255, 255, 255, 0.16);
 }
 
+/* ---------------------------------------------------------
+   Selected row
+--------------------------------------------------------- */
+
 .navigation-row--selected {
-  background: #b8c8d0;
+  background: #b9ced7;
 }
 
 .navigation-row--selected:hover {
-  background: #b8c8d0;
+  background: #b9ced7;
 }
 
 /* =========================================================
-   3. Row content
+   3. ROW LEADING CONTENT
 ========================================================= */
+
+.navigation-row__leading {
+  min-width: 0;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  line-height: 0;
+}
 
 .navigation-row__prefix,
 .navigation-row__icon {
-  width: 20px;
-  height: 20px;
+  flex: 0 0 auto;
 
   display: inline-flex;
 
   align-items: center;
   justify-content: center;
 
-  flex: 0 0 auto;
-
-  color: #323232;
+  line-height: 0;
 }
+
+.navigation-row__prefix {
+  width: 16px;
+}
+
+.navigation-row__icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* =========================================================
+   4. ROW TEXT
+========================================================= */
 
 .navigation-row__label {
   min-width: 0;
 
+  display: block;
+
   overflow: hidden;
 
-  font-size: 15px;
-  font-weight: 450;
+  color: inherit;
 
-  line-height: 1;
+  font-size: 16px;
+  font-weight: 450;
+  line-height: 1.35;
 
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .navigation-row__count {
-  padding-left: 8px;
+  flex: 0 0 auto;
 
-  color: #6c6a69;
+  color: var(--color-text-secondary);
 
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.35;
 
   white-space: nowrap;
+
+  font-variant-numeric: tabular-nums;
 }
 
 /* =========================================================
-   4. Section headings
+   5. SECTION HEADER
+
+   Ejemplos:
+   Notebooks
+   Status
+   Tags
 ========================================================= */
 
 .navigation-section-header {
-  min-height: 32px;
+  width: 100%;
+
+  min-width: 0;
+  min-height: 38px;
 
   display: flex;
 
   align-items: center;
   justify-content: space-between;
 
-  margin-top: 4px;
+  gap: 8px;
 
-  padding: 0 10px 0 14px;
+  padding: 6px 12px 6px 14px;
 }
 
 .navigation-section-header__title {
-  color: #7b7876;
+  min-width: 0;
 
-  font-size: 13px;
+  overflow: hidden;
+
+  color: #292929;
+
+  font-size: 16px;
   font-weight: 500;
+  line-height: 1.35;
 
-  user-select: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .navigation-section-header__actions {
-  display: flex;
+  flex: 0 0 auto;
+
+  display: inline-flex;
 
   align-items: center;
 
@@ -178,12 +246,14 @@
 }
 
 /* =========================================================
-   5. Small header actions
+   6. SECTION ACTION BUTTONS
 ========================================================= */
 
 .navigation-icon-button {
   width: 26px;
   height: 26px;
+
+  flex: 0 0 26px;
 
   display: inline-flex;
 
@@ -198,6 +268,7 @@
   background: transparent;
 
   border: 0;
+
   border-radius: 7px;
 
   cursor: pointer;
@@ -205,8 +276,8 @@
   -webkit-app-region: no-drag;
 
   transition:
-    color 100ms ease,
-    background-color 100ms ease;
+    color var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 .navigation-icon-button:hover {
@@ -222,7 +293,7 @@
 }
 
 /* =========================================================
-   6. Expand / collapse chevrons
+   7. EXPAND / COLLAPSE
 ========================================================= */
 
 .navigation-chevron,
@@ -232,11 +303,19 @@
 
 .navigation-chevron {
   display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
 }
 
 /*
- * Base SVG points down.
- * Collapsed tree can be represented pointing right.
+ * Chevron SVG base = down.
+ *
+ * Closed Work:
+ * >
+ *
+ * Open Work:
+ * v
  */
 .navigation-chevron:not(.navigation-chevron--expanded) {
   transform: rotate(-90deg);
@@ -247,7 +326,7 @@
 }
 
 /* =========================================================
-   7. Status indicators
+   8. STATUS INDICATORS
 ========================================================= */
 
 .navigation-status {
@@ -255,6 +334,8 @@
 
   width: 15px;
   height: 15px;
+
+  flex: 0 0 15px;
 
   display: inline-flex;
 
@@ -295,12 +376,12 @@
 .navigation-status--on-hold::after {
   content: '';
 
-  width: 2px;
-  height: 7px;
-
   position: absolute;
 
   top: 2px;
+
+  width: 2px;
+  height: 7px;
 
   background: #ffa500;
 }
@@ -342,10 +423,10 @@
 .navigation-status--dropped::after {
   content: '';
 
+  position: absolute;
+
   width: 8px;
   height: 2px;
-
-  position: absolute;
 
   background: white;
 }
@@ -359,7 +440,7 @@
 }
 
 /* =========================================================
-   8. Tag indicators
+   9. TAG INDICATOR
 ========================================================= */
 
 .navigation-tag-dot {
@@ -367,6 +448,8 @@
 
   width: 13px;
   height: 13px;
+
+  flex: 0 0 13px;
 
   display: inline-block;
 
@@ -378,28 +461,37 @@
 }
 
 /* =========================================================
-   9. Responsive sidebar density
+   10. RESPONSIVE DENSITY
 
-   The Workspace controls sidebar width.
-   These rules only protect internal content.
+   Importante:
+   NO modificamos estructura.
+
+   Solo reducimos ligeramente tipografía cuando
+   la ventana completa es estrecha.
 ========================================================= */
 
 @media (max-width: 1000px) {
   .navigation-row {
-    padding-right: 8px;
+    column-gap: 7px;
+
+    padding-right: 9px;
   }
 
   .navigation-row__label {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .navigation-row__count {
-    font-size: 11px;
+    font-size: 13px;
+  }
+
+  .navigation-section-header__title {
+    font-size: 15px;
   }
 }
 
 /* =========================================================
-   10. Reduced motion
+   11. REDUCED MOTION
 ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {

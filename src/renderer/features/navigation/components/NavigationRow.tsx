@@ -2,15 +2,21 @@ import type { CSSProperties, ReactNode } from 'react';
 
 type NavigationRowProps = {
   label: string;
-  icon?: ReactNode;
+
+  icon: ReactNode;
+
   prefix?: ReactNode;
+
   count?: number;
+
   depth?: number;
+
   selected?: boolean;
+
   onClick?: () => void;
 };
 
-export const NavigationRow = ({
+export function NavigationRow({
   label,
   icon,
   prefix,
@@ -18,31 +24,39 @@ export const NavigationRow = ({
   depth = 0,
   selected = false,
   onClick,
-}: NavigationRowProps) => {
+}: NavigationRowProps) {
+  const className = [
+    'navigation-row',
+    selected ? 'navigation-row--selected' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   const style = {
     '--navigation-depth': depth,
   } as CSSProperties;
+
   return (
-    <>
-      <button
-        className={[
-          'navigation-row',
-          selected ? 'navigation-row--selected' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        type="button"
-        style={style}
-        onClick={onClick}
-        aria-current={selected ? 'page' : undefined}
-      >
-        {prefix && <span className="navigation-row__prefix">{prefix}</span>}
-        {icon && <span className="navigation-row__icon">{icon}</span>}
-        <span className="navigation-row__label">{label}</span>
-        {count !== undefined && (
-          <span className="navigation-row__count">{count}</span>
-        )}
-      </button>
-    </>
+    <button
+      type="button"
+      className={className}
+      style={style}
+      onClick={onClick}
+      aria-current={selected ? 'page' : undefined}
+    >
+      <span className="navigation-row__leading">
+        {prefix ? (
+          <span className="navigation-row__prefix">{prefix}</span>
+        ) : null}
+
+        <span className="navigation-row__icon">{icon}</span>
+      </span>
+
+      <span className="navigation-row__label">{label}</span>
+
+      {count !== undefined ? (
+        <span className="navigation-row__count">{count}</span>
+      ) : null}
+    </button>
   );
-};
+}
