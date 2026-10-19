@@ -65,4 +65,55 @@ export type NavigationSelection = {
   icon: NavigationIcon;
 };
 
+/* =========================================================
+   Expandable sidebar sections
+========================================================= */
+
 export type NavigationSectionId = 'work' | 'status' | 'tags';
+
+export type NavigationSectionsState = Record<NavigationSectionId, boolean>;
+
+/* =========================================================
+   Focused workspace navigation
+========================================================= */
+
+export type NavigationWorkspaceId = 'inbox' | 'work' | 'projects';
+
+export type NavigationScope =
+  | {
+      type: 'library';
+    }
+  | {
+      type: 'workspace';
+      workspaceId: NavigationWorkspaceId;
+    };
+
+/* =========================================================
+   Workspace metadata
+========================================================= */
+
+export type NavigationWorkspaceStatusCount = {
+  destination: NavigationSelection;
+  count: number;
+};
+
+export type NavigationWorkspaceTagCount = {
+  destination: NavigationSelection;
+  count: number;
+};
+
+export type NavigationWorkspaceDefinition = {
+  id: NavigationWorkspaceId;
+
+  rootSelection: NavigationSelection;
+
+  breadcrumbs: NavigationSelection[];
+
+  children: NavigationSelection[];
+
+  allNotesCount: number;
+
+  statuses: NavigationWorkspaceStatusCount[];
+
+  tags: NavigationWorkspaceTagCount[];
+};
