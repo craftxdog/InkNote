@@ -1,5 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react';
 
+type NavigationRowAction = {
+  label: string;
+  title: string;
+  onClick: () => void;
+};
+
 type NavigationRowProps = {
   label: string;
 
@@ -14,6 +20,8 @@ type NavigationRowProps = {
   selected?: boolean;
 
   onClick?: () => void;
+
+  action?: NavigationRowAction;
 };
 
 export function NavigationRow({
@@ -24,10 +32,14 @@ export function NavigationRow({
   depth = 0,
   selected = false,
   onClick,
+  action,
 }: NavigationRowProps) {
   const className = [
     'navigation-row',
+
     selected ? 'navigation-row--selected' : '',
+
+    action ? 'navigation-row--has-action' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -37,26 +49,49 @@ export function NavigationRow({
   } as CSSProperties;
 
   return (
-    <button
-      type="button"
-      className={className}
-      style={style}
-      onClick={onClick}
-      aria-current={selected ? 'page' : undefined}
-    >
-      <span className="navigation-row__leading">
-        {prefix ? (
-          <span className="navigation-row__prefix">{prefix}</span>
-        ) : null}
+    <div className={className} style={style}>
+      <button
+        type="button"
+        className="navigation-row__primary"
+        onClick={onClick}
+        aria-current={selected ? 'page' : undefined}
+      >
+        <span className="navigation-row__leading">
+          {prefix ? (
+            <span className="navigation-row__prefix">{prefix}</span>
+          ) : null}
 
-        <span className="navigation-row__icon">{icon}</span>
-      </span>
+          <span className="navigation-row__icon">{icon}</span>
+        </span>
 
-      <span className="navigation-row__label">{label}</span>
+        <span className="navigation-row__label">{label}</span>
 
-      {count !== undefined ? (
-        <span className="navigation-row__count">{count}</span>
+        {count !== undefined ? (
+          <span className="navigation-row__count">{count}</span>
+        ) : (
+          <span />
+        )}
+      </button>
+
+      {action ? (
+        <button
+          type="button"
+          className="navigation-row__action"
+          onClick={(event) => {
+            event.stopPropagation();
+
+            action.onClick();
+          }}
+          aria-label={action.title}
+          title={action.title}
+        >
+          <span>{action.label}</span>
+
+          <span className="navigation-row__action-arrow" aria-hidden="true">
+            ›
+          </span>
+        </button>
       ) : null}
-    </button>
+    </div>
   );
 }

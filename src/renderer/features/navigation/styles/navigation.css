@@ -1,19 +1,26 @@
 /* =========================================================
    NAVIGATION FEATURE
 
-   Estilos exclusivos del sidebar izquierdo.
+   Responsabilidad:
 
-   globals.css:
-   - controla geometría del workspace
-   - controla ancho del panel
-
-   navigation.css:
-   - controla contenido interno
-   - filas
-   - secciones
-   - status
+   - contenido interno del sidebar
+   - filas de navegación
+   - selección
+   - botón Detail
+   - section headers
+   - estados
    - tags
-   - interacciones
+   - Workspace View
+   - breadcrumbs
+   - responsive interno
+
+   IMPORTANTE:
+
+   globals.css controla:
+   - ancho del Navigation
+   - columnas generales
+   - navbar
+   - visibilidad de paneles
 ========================================================= */
 
 /* =========================================================
@@ -56,20 +63,57 @@
 /* =========================================================
    2. NAVIGATION ROW
 
-   Estructura:
+   Wrapper visual de una fila.
 
-   leading | label | count
+   Puede contener:
 
-   leading puede contener:
-   prefix + icon
+   primary:
+     navegación normal
 
-   Ejemplo Work:
-   [chevron + briefcase] [Work] [count]
+   action:
+     acción secundaria Detail
+
+   Ambos son botones hermanos.
+   Nunca se anida button dentro de button.
 ========================================================= */
 
 .navigation-row {
   --navigation-depth: 0;
 
+  position: relative;
+
+  width: 100%;
+
+  min-width: 0;
+
+  color: var(--color-text);
+
+  background: transparent;
+
+  transition: background-color 120ms ease;
+}
+
+.navigation-row:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------------------------------------------------------
+   Selected
+--------------------------------------------------------- */
+
+.navigation-row--selected {
+  background: var(--color-navigation-selected);
+}
+
+.navigation-row--selected:hover {
+  background: var(--color-navigation-selected);
+}
+
+/* =========================================================
+   3. PRIMARY ROW ACTION
+========================================================= */
+
+.navigation-row__primary {
   width: 100%;
 
   min-width: 0;
@@ -90,7 +134,7 @@
 
   padding: 6px 12px 6px calc(14px + var(--navigation-depth) * 18px);
 
-  color: var(--color-text);
+  color: inherit;
 
   background: transparent;
 
@@ -103,28 +147,21 @@
   user-select: none;
 
   -webkit-app-region: no-drag;
-
-  transition: background-color var(--transition-fast);
 }
 
-.navigation-row:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
+.navigation-row__primary:focus-visible {
+  outline: 2px solid var(--color-focus);
 
-/* ---------------------------------------------------------
-   Selected row
---------------------------------------------------------- */
-
-.navigation-row--selected {
-  background: #b9ced7;
-}
-
-.navigation-row--selected:hover {
-  background: #b9ced7;
+  outline-offset: -2px;
 }
 
 /* =========================================================
-   3. ROW LEADING CONTENT
+   4. LEADING CONTENT
+
+   prefix + icon
+
+   Prefix se utiliza actualmente para el chevron
+   del árbol Work.
 ========================================================= */
 
 .navigation-row__leading {
@@ -160,8 +197,16 @@
   height: 20px;
 }
 
+.navigation-row__icon > svg,
+.navigation-row__prefix > svg {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+}
+
 /* =========================================================
-   4. ROW TEXT
+   5. ROW TEXT
 ========================================================= */
 
 .navigation-row__label {
@@ -196,12 +241,120 @@
 }
 
 /* =========================================================
-   5. SECTION HEADER
+   6. DETAIL ACTION
 
-   Ejemplos:
-   Notebooks
-   Status
-   Tags
+   Estado normal:
+   - invisible
+   - desplazado ligeramente hacia la derecha
+
+   Hover / keyboard:
+   - aparece
+   - entra suavemente
+   - no modifica la geometría de la fila
+========================================================= */
+
+.navigation-row__action {
+  position: absolute;
+
+  top: 50%;
+  right: 8px;
+
+  min-width: 0;
+  height: 28px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 2px;
+
+  margin: 0;
+
+  padding: 0 8px 0 10px;
+
+  color: #686765;
+
+  background: rgba(214, 211, 208, 0.96);
+
+  border: 1px solid rgba(69, 69, 69, 0.55);
+
+  border-radius: 999px;
+
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  opacity: 0;
+
+  transform: translate(7px, -50%) scale(0.96);
+
+  pointer-events: none;
+
+  cursor: pointer;
+
+  user-select: none;
+
+  -webkit-app-region: no-drag;
+
+  transition:
+    opacity 120ms ease,
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+/* Mouse + keyboard */
+
+.navigation-row:hover .navigation-row__action,
+.navigation-row:focus-within .navigation-row__action {
+  opacity: 1;
+
+  transform: translate(0, -50%) scale(1);
+
+  pointer-events: auto;
+}
+
+.navigation-row__action:hover {
+  color: #444341;
+
+  background: #dedbd8;
+
+  border-color: rgba(45, 45, 45, 0.7);
+}
+
+.navigation-row__action:active {
+  transform: translate(0, -50%) scale(0.97);
+}
+
+.navigation-row__action:focus-visible {
+  opacity: 1;
+
+  pointer-events: auto;
+
+  transform: translate(0, -50%) scale(1);
+
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: 1px;
+}
+
+.navigation-row__action-arrow {
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 0.8;
+}
+
+/* =========================================================
+   7. SECTION HEADER
+
+   Utilizado por:
+   - Notebooks
+   - Status
+   - Tags
 ========================================================= */
 
 .navigation-section-header {
@@ -246,7 +399,7 @@
 }
 
 /* =========================================================
-   6. SECTION ACTION BUTTONS
+   8. SECTION ACTION BUTTONS
 ========================================================= */
 
 .navigation-icon-button {
@@ -273,17 +426,23 @@
 
   cursor: pointer;
 
+  user-select: none;
+
   -webkit-app-region: no-drag;
 
   transition:
-    color var(--transition-fast),
-    background-color var(--transition-fast);
+    color 120ms ease,
+    background-color 120ms ease;
 }
 
 .navigation-icon-button:hover {
   color: #383736;
 
   background: rgba(0, 0, 0, 0.05);
+}
+
+.navigation-icon-button:active {
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .navigation-icon-button:focus-visible {
@@ -293,7 +452,7 @@
 }
 
 /* =========================================================
-   7. EXPAND / COLLAPSE
+   9. EXPAND / COLLAPSE
 ========================================================= */
 
 .navigation-chevron,
@@ -309,24 +468,27 @@
 }
 
 /*
- * Chevron SVG base = down.
+ * Chevron base apunta hacia abajo.
  *
- * Closed Work:
- * >
- *
- * Open Work:
- * v
+ * Cerrado -> derecha
+ * Abierto -> abajo
  */
+
 .navigation-chevron:not(.navigation-chevron--expanded) {
   transform: rotate(-90deg);
 }
+
+/*
+ * SectionHeader utiliza la orientación inversa
+ * en Status y Tags.
+ */
 
 .navigation-section-toggle--expanded {
   transform: rotate(180deg);
 }
 
 /* =========================================================
-   8. STATUS INDICATORS
+   10. STATUS INDICATORS
 ========================================================= */
 
 .navigation-status {
@@ -345,7 +507,9 @@
   border-radius: 50%;
 }
 
-/* Active */
+/* ---------------------------------------------------------
+   Active
+--------------------------------------------------------- */
 
 .navigation-status--active {
   background: #a9bfd9;
@@ -360,13 +524,14 @@
   margin-left: 2px;
 
   border-top: 4px solid transparent;
-
   border-bottom: 4px solid transparent;
 
   border-left: 6px solid white;
 }
 
-/* On Hold */
+/* ---------------------------------------------------------
+   On Hold
+--------------------------------------------------------- */
 
 .navigation-status--on-hold {
   border: 2px solid #ffa500;
@@ -394,7 +559,9 @@
   right: 3px;
 }
 
-/* Completed */
+/* ---------------------------------------------------------
+   Completed
+--------------------------------------------------------- */
 
 .navigation-status--completed {
   background: #20c997;
@@ -407,13 +574,14 @@
   height: 3px;
 
   border-left: 2px solid white;
-
   border-bottom: 2px solid white;
 
   transform: translateY(-1px) rotate(-45deg);
 }
 
-/* Dropped */
+/* ---------------------------------------------------------
+   Dropped
+--------------------------------------------------------- */
 
 .navigation-status--dropped {
   background: #ff7285;
@@ -440,7 +608,7 @@
 }
 
 /* =========================================================
-   9. TAG INDICATOR
+   11. TAG INDICATOR
 ========================================================= */
 
 .navigation-tag-dot {
@@ -453,25 +621,311 @@
 
   display: inline-block;
 
+  background: color-mix(in srgb, var(--tag-color) 30%, transparent);
+
   border: 2px solid var(--tag-color);
 
   border-radius: 50%;
-
-  background: color-mix(in srgb, var(--tag-color) 30%, transparent);
 }
 
 /* =========================================================
-   10. RESPONSIVE DENSITY
+   12. WORKSPACE VIEW HEADER
 
-   Importante:
-   NO modificamos estructura.
+   Contexto simple:
 
-   Solo reducimos ligeramente tipografía cuando
-   la ventana completa es estrecha.
+   Library > Work
+
+   Contexto anidado:
+
+   Library > Work >
+             Projects
+
+   La segunda línea evita comprimir Projects
+   cuando el sidebar es estrecho.
+========================================================= */
+
+.navigation-workspace-header {
+  width: 100%;
+
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  gap: 4px;
+
+  padding: 9px 14px;
+
+  border-bottom: 1px solid var(--color-divider);
+}
+
+/* ---------------------------------------------------------
+   Breadcrumb first line
+--------------------------------------------------------- */
+
+.navigation-workspace-header__trail {
+  width: 100%;
+
+  min-width: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------
+   Library button
+--------------------------------------------------------- */
+
+.navigation-workspace-header__library {
+  width: 28px;
+  height: 28px;
+
+  flex: 0 0 28px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  color: #292929;
+
+  background: transparent;
+
+  border: 0;
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  -webkit-app-region: no-drag;
+
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.navigation-workspace-header__library:hover {
+  color: #111;
+
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.navigation-workspace-header__library:focus-visible {
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: -1px;
+}
+
+.navigation-workspace-header__library > svg {
+  width: 22px;
+  height: 22px;
+
+  display: block;
+}
+
+/* ---------------------------------------------------------
+   Breadcrumb separator
+--------------------------------------------------------- */
+
+.navigation-workspace-header__chevron {
+  width: 12px;
+
+  flex: 0 0 12px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  color: #8b8987;
+
+  line-height: 0;
+
+  transform: rotate(-90deg);
+}
+
+.navigation-workspace-header__chevron > svg {
+  width: 12px;
+  height: 12px;
+
+  display: block;
+}
+
+/* ---------------------------------------------------------
+   Ancestor segment
+--------------------------------------------------------- */
+
+.navigation-workspace-header__segment {
+  min-width: 0;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 4px;
+}
+
+/* ---------------------------------------------------------
+   Breadcrumb context
+--------------------------------------------------------- */
+
+.navigation-workspace-header__context {
+  min-width: 0;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin: 0;
+  padding: 3px 4px;
+
+  overflow: hidden;
+
+  color: #292929;
+
+  background: transparent;
+
+  border: 0;
+  border-radius: 6px;
+
+  font-size: 16px;
+  font-weight: 450;
+  line-height: 1.3;
+
+  cursor: pointer;
+
+  -webkit-app-region: no-drag;
+
+  transition: background-color 120ms ease;
+}
+
+.navigation-workspace-header__context:not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.navigation-workspace-header__context:not(:disabled):focus-visible {
+  outline: 2px solid var(--color-focus);
+
+  outline-offset: -1px;
+}
+
+.navigation-workspace-header__context:disabled,
+.navigation-workspace-header__context--current {
+  opacity: 1;
+
+  cursor: default;
+}
+
+.navigation-workspace-header__context-icon {
+  width: 20px;
+  height: 20px;
+
+  flex: 0 0 20px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  line-height: 0;
+}
+
+.navigation-workspace-header__context-icon > svg {
+  width: 20px;
+  height: 20px;
+
+  display: block;
+}
+
+.navigation-workspace-header__context-label {
+  min-width: 0;
+
+  overflow: hidden;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------
+   Current nested workspace
+
+   Projects se renderiza en una segunda línea,
+   evitando que el breadcrumb superior lo comprima.
+--------------------------------------------------------- */
+
+.navigation-workspace-header__current {
+  width: 100%;
+
+  min-width: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  padding-left: 1px;
+}
+
+.navigation-workspace-header__current-icon {
+  width: 22px;
+  height: 22px;
+
+  flex: 0 0 22px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  line-height: 0;
+}
+
+.navigation-workspace-header__current-icon > svg {
+  width: 22px;
+  height: 22px;
+
+  display: block;
+}
+
+.navigation-workspace-header__current-label {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #292929;
+
+  font-size: 16px;
+  font-weight: 450;
+  line-height: 1.3;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* =========================================================
+   13. RESPONSIVE INTERNAL DENSITY
+
+   No cambia el ancho del sidebar.
+
+   globals.css continúa controlando
+   la geometría exterior.
 ========================================================= */
 
 @media (max-width: 1000px) {
-  .navigation-row {
+  .navigation-row__primary {
     column-gap: 7px;
 
     padding-right: 9px;
@@ -488,17 +942,33 @@
   .navigation-section-header__title {
     font-size: 15px;
   }
+
+  .navigation-workspace-header {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .navigation-workspace-header__context {
+    font-size: 15px;
+  }
+
+  .navigation-workspace-header__current-label {
+    font-size: 15px;
+  }
 }
 
 /* =========================================================
-   11. REDUCED MOTION
+   14. REDUCED MOTION
 ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
   .navigation-row,
+  .navigation-row__action,
   .navigation-icon-button,
   .navigation-chevron,
-  .navigation-section-toggle {
+  .navigation-section-toggle,
+  .navigation-workspace-header__library,
+  .navigation-workspace-header__context {
     transition: none;
   }
 }

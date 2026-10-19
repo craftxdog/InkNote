@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
-import type { NavigationSectionId } from '../model/navigation.types';
-
-type NavigationSectionsState = Record<NavigationSectionId, boolean>;
+import type {
+  NavigationSectionId,
+  NavigationSectionsState,
+} from '../model/navigation.types';
 
 const initialSectionsState: NavigationSectionsState = {
   work: true,
@@ -11,14 +12,14 @@ const initialSectionsState: NavigationSectionsState = {
 };
 
 /**
- * Controla únicamente estado visual interno
- * del Navigation:
+ * Estado visual interno del Navigation.
  *
- * - Work abierto/cerrado
- * - Status abierto/cerrado
- * - Tags abierto/cerrado
+ * Controla únicamente:
+ * - Work expandido/colapsado
+ * - Status expandido/colapsado
+ * - Tags expandido/colapsado
  *
- * NO controla qué sección está seleccionada.
+ * No controla selección ni Workspace View.
  */
 export function useNavigationState() {
   const [expandedSections, setExpandedSections] =
@@ -27,7 +28,6 @@ export function useNavigationState() {
   const toggleSection = (section: NavigationSectionId) => {
     setExpandedSections((current) => ({
       ...current,
-
       [section]: !current[section],
     }));
   };

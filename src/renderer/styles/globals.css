@@ -5,16 +5,14 @@
 
    Variables globales de InkNote.
 
-   Aquí centralizamos:
+   Responsabilidad:
    - colores
-   - dimensiones
+   - dimensiones generales
    - tipografía
+   - controles
    - transiciones
 
-   Más adelante estos tokens facilitarán:
-   - dark mode
-   - temas
-   - paneles redimensionables
+   No colocar aquí estilos internos de features.
 ========================================================= */
 
 :root {
@@ -23,9 +21,11 @@
   ------------------------------------------------------- */
 
   --color-text: #202020;
-  --color-text-secondary: #686868;
+  --color-text-secondary: #6f6d6c;
 
-  --color-navigation: #d4cecb;
+  --color-navigation: #c4c0be;
+  --color-navigation-selected: #aebfc7;
+
   --color-notes: #f1efed;
   --color-workspace: #faf9f7;
 
@@ -44,27 +44,13 @@
 
   --color-selection-background: rgba(160, 170, 181, 0.28);
 
-  --color-focus: #8dd3ef;
+  --color-focus: #86ccef;
 
   /* -------------------------------------------------------
-     Workspace dimensions
+     Navbar
   ------------------------------------------------------- */
 
   --navbar-height: 45px;
-
-  /*
-   * Navigation necesita un mínimo real.
-   *
-   * 90px era demasiado pequeño para:
-   * icon + label + counter.
-   */
-  --navigation-width: clamp(220px, 15.5vw, 240px);
-
-  --notes-width: clamp(260px, 20vw, 320px);
-
-  /* -------------------------------------------------------
-     Navbar controls
-  ------------------------------------------------------- */
 
   --navbar-button-size: 38px;
   --navbar-button-radius: 10px;
@@ -110,8 +96,10 @@
 /* =========================================================
    2. GLOBAL RESET
 
-   Electron ocupa siempre todo el viewport.
-   El scroll pertenece a cada panel, no al documento.
+   Electron ocupa todo el viewport.
+
+   El documento nunca hace scroll.
+   Cada feature controla su propio scroll.
 ========================================================= */
 
 *,
@@ -155,22 +143,31 @@ button {
 /* =========================================================
    3. WORKSPACE SHELL
 
-   Estructura principal:
+   Arquitectura:
 
-   ┌───────────────────────────────┐
-   │ Navbar                        │
-   ├───────────────────────────────┤
-   │ Navigation | Notes | Document │
-   └───────────────────────────────┘
+   Navbar
+   ───────────────────────────────────
+   Navigation | Notes | Editor | Preview
+
+   Estas variables son la fuente de verdad
+   de la geometría principal.
 ========================================================= */
 
 .workspace-shell {
   /* -------------------------------------------------------
+     Sidebar columns
+  ------------------------------------------------------- */
+
+  --navigation-width: clamp(220px, 15.5vw, 250px);
+  --notes-width: clamp(260px, 20vw, 320px);
+
+  /* -------------------------------------------------------
      Document columns
 
-     Split:
-       Editor  = 0.95fr
-       Preview = 1.05fr
+     Estado inicial = Split View.
+
+     Editor y Preview reciben únicamente el espacio
+     restante después de Navigation + Notes.
   ------------------------------------------------------- */
 
   --editor-width: 0.95fr;
@@ -196,17 +193,18 @@ button {
 /* =========================================================
    4. WORKSPACE LAYOUT STATES
 
-   Estos estados cambian únicamente dimensiones.
+   Los paneles permanecen montados.
 
-   Los componentes permanecen montados para conservar:
+   Únicamente modificamos sus columnas para conservar:
    - selección
    - filtros
    - scroll
-   - estados internos
+   - editor state
+   - estados internos de React
 ========================================================= */
 
 /* ---------------------------------------------------------
-   Navigation hidden
+   Navigation manually hidden
 --------------------------------------------------------- */
 
 .workspace-shell--navigation-hidden {
@@ -215,14 +213,15 @@ button {
 
 /* ---------------------------------------------------------
    Expanded document workspace
+
+   Navigation y Notes desaparecen.
+
+   Editor / Preview continúan obedeciendo viewMode.
 --------------------------------------------------------- */
 
 .workspace-shell--expanded {
   --navigation-width: 0px;
   --notes-width: 0px;
-
-  --editor-width: 1fr;
-  --preview-width: 1fr;
 }
 
 /* ---------------------------------------------------------
@@ -232,6 +231,15 @@ button {
 .workspace-shell[data-view-mode='editor'] {
   --editor-width: 1fr;
   --preview-width: 0px;
+}
+
+/* ---------------------------------------------------------
+   Split view
+--------------------------------------------------------- */
+
+.workspace-shell[data-view-mode='split'] {
+  --editor-width: 0.95fr;
+  --preview-width: 1.05fr;
 }
 
 /* ---------------------------------------------------------
@@ -246,9 +254,15 @@ button {
 /* =========================================================
    5. WORKSPACE NAVBAR
 
-   Tres zonas:
+   Navbar:
 
    Navigation | Notes | Document
+
+   Document reúne:
+   - expand
+   - history
+   - editor/split/preview
+   - more
 ========================================================= */
 
 .workspace-navbar {
@@ -256,6 +270,7 @@ button {
   height: var(--navbar-height);
 
   min-width: 0;
+  min-height: 0;
 
   display: grid;
 
@@ -273,8 +288,8 @@ button {
   user-select: none;
 
   /*
-   * Las áreas libres permiten arrastrar
-   * la ventana Electron.
+   * El espacio libre del navbar permite mover
+   * la ventana de Electron.
    */
   -webkit-app-region: drag;
 
@@ -287,9 +302,15 @@ button {
    6. WORKSPACE CONTENT GRID
 
    Navigation | Notes | Editor | Preview
+
+   IMPORTANTE:
+   las cuatro variables siempre tienen un valor válido.
 ========================================================= */
 
 .workspace-grid {
+  width: 100%;
+  height: 100%;
+
   min-width: 0;
   min-height: 0;
 
@@ -323,13 +344,6 @@ button {
 
   align-items: center;
 
-  /*
-   * Necesario horizontalmente para impedir que una
-   * zona invada la siguiente.
-   *
-   * El contenido interno utiliza line-height seguro,
-   * evitando recortes verticales.
-   */
   overflow: hidden;
 
   border-right: 1px solid var(--color-divider);
@@ -346,7 +360,10 @@ button {
 /* =========================================================
    8. NAVIGATION NAVBAR ZONE
 
-   Contiene Settings y reserva el área de los traffic lights.
+   Contiene Settings.
+
+   El padding izquierdo reserva espacio para
+   los traffic lights de macOS.
 ========================================================= */
 
 .navbar-zone--navigation {
@@ -360,9 +377,7 @@ button {
 /* =========================================================
    9. NOTES NAVBAR ZONE
 
-   Layout:
-
-   Sidebar button | Context title | New note
+   Sidebar | Context | New note
 ========================================================= */
 
 .navbar-zone--notes {
@@ -386,15 +401,16 @@ button {
    Dynamic navigation context
 
    Ejemplos:
-   All Notes
-   Inbox
-   Work
-   Projects
-   Completed
+   - All Notes
+   - Inbox
+   - Work
+   - Projects
+   - Completed
 --------------------------------------------------------- */
 
 .navbar-context-title {
   width: 100%;
+
   min-width: 0;
 
   display: flex;
@@ -404,11 +420,8 @@ button {
 
   gap: 7px;
 
-  /*
-   * Una sola línea.
-   * Solo se recorta horizontalmente cuando realmente
-   * no existe espacio suficiente.
-   */
+  overflow: hidden;
+
   white-space: nowrap;
 
   pointer-events: none;
@@ -427,25 +440,27 @@ button {
 
   color: #555;
 
-  /*
-   * Evita pequeñas diferencias de baseline
-   * entre SVG y texto.
-   */
   line-height: 0;
+}
+
+.navbar-context-title__icon > svg {
+  width: 100%;
+  height: 100%;
+
+  display: block;
 }
 
 /* ---------------------------------------------------------
    Navbar title
 
-   IMPORTANTE:
-   line-height 1 era la principal causa del clipping.
+   El line-height evita cortar descenders como:
+   g / j / p / q / y.
 --------------------------------------------------------- */
 
 .navbar-title {
   min-width: 0;
 
   margin: 0;
-
   padding: 2px 0;
 
   overflow: hidden;
@@ -467,14 +482,14 @@ button {
 /* =========================================================
    10. DOCUMENT NAVBAR ZONE
 
-   izquierda:
-     Expand / Back / Forward
+   Left:
+   Expand / Back / Forward
 
-   centro:
-     Editor / Split / Preview
+   Center:
+   Editor / Split / Preview
 
-   derecha:
-     More
+   Right:
+   More
 ========================================================= */
 
 .navbar-zone--document {
@@ -492,7 +507,7 @@ button {
 }
 
 /* ---------------------------------------------------------
-   Document navigation
+   Left document controls
 --------------------------------------------------------- */
 
 .navbar-actions {
@@ -515,7 +530,9 @@ button {
    11. NAVBAR VISIBILITY STATES
 ========================================================= */
 
-/* Navigation manually hidden */
+/* ---------------------------------------------------------
+   Navigation hidden
+--------------------------------------------------------- */
 
 .workspace-shell--navigation-hidden .navbar-zone--navigation {
   opacity: 0;
@@ -527,7 +544,9 @@ button {
   border-right: 0;
 }
 
-/* Expanded workspace */
+/* ---------------------------------------------------------
+   Expanded workspace
+--------------------------------------------------------- */
 
 .workspace-shell--expanded .navbar-zone--navigation,
 .workspace-shell--expanded .navbar-zone--notes {
@@ -639,7 +658,6 @@ button {
 
 .view-switcher__button {
   width: var(--view-switcher-button-width);
-
   height: 100%;
 
   display: flex;
@@ -780,7 +798,9 @@ button {
    16. PANEL VISIBILITY STATES
 ========================================================= */
 
-/* Navigation hidden */
+/* ---------------------------------------------------------
+   Navigation hidden
+--------------------------------------------------------- */
 
 .workspace-shell--navigation-hidden .workspace__navigation {
   opacity: 0;
@@ -792,7 +812,9 @@ button {
   border-right: 0;
 }
 
-/* Expanded */
+/* ---------------------------------------------------------
+   Expanded document workspace
+--------------------------------------------------------- */
 
 .workspace-shell--expanded .workspace__navigation,
 .workspace-shell--expanded .workspace__notes {
@@ -805,7 +827,9 @@ button {
   border-right: 0;
 }
 
-/* Editor only */
+/* ---------------------------------------------------------
+   Editor only
+--------------------------------------------------------- */
 
 .workspace-shell[data-view-mode='editor'] .workspace__preview {
   opacity: 0;
@@ -821,7 +845,9 @@ button {
   border-right: 0;
 }
 
-/* Preview only */
+/* ---------------------------------------------------------
+   Preview only
+--------------------------------------------------------- */
 
 .workspace-shell[data-view-mode='preview'] .workspace__editor {
   opacity: 0;
