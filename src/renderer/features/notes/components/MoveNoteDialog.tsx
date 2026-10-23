@@ -7,10 +7,15 @@ import type {
 import { buildNotebookTreeRows } from '../../navigation/model/notebookTree';
 
 type MoveNoteDialogProps = {
-  note: NoteDocument;
+  notes: readonly NoteDocument[];
   notebooks: readonly Notebook[];
-  onMove: (note: NoteDocument, notebookId: string) => Promise<unknown>;
+  onMove: (
+    notes: readonly NoteDocument[],
+    notebookId: string,
+  ) => Promise<unknown>;
   onClose: () => void;
+  actionLabel?: string;
+  allowCurrentDestination?: boolean;
 };
 
 /**
@@ -19,16 +24,21 @@ type MoveNoteDialogProps = {
  * direct Vim-friendly path.
  */
 export function MoveNoteDialog({
-  note,
+  notes,
   notebooks,
   onMove,
   onClose,
+  actionLabel = 'Move',
+  allowCurrentDestination = false,
 }: MoveNoteDialogProps) {
   const options = useMemo(
     () => buildNotebookTreeRows(notebooks, new Map(), ''),
     [notebooks],
   );
-  const [notebookId, setNotebookId] = useState(note.notebookId);
+  const firstNote = notes[0];
+  const [notebookId, setNotebookId] = useState(
+    firstNote?.notebookId ?? 'inbox',
+  );
   const [error, setError] = useState<string | null>(null);
   const selectedIndex = Math.max(
     0,
@@ -36,13 +46,17 @@ export function MoveNoteDialog({
   );
 
   const move = async (): Promise<void> => {
-    if (notebookId === note.notebookId) {
+    if (
+      !allowCurrentDestination &&
+      notes.length === 1 &&
+      notebookId === firstNote?.notebookId
+    ) {
       onClose();
       return;
     }
 
     try {
-      await onMove(note, notebookId);
+      await onMove(notes, notebookId);
       onClose();
     } catch {
       setError('The note could not be moved.');
@@ -92,7 +106,7 @@ export function MoveNoteDialog({
       />
       <form
         className="notes-move-dialog"
-        aria-label={`Move ${note.title || 'Untitled'} to notebook`}
+        aria-label={`Move ${notes.length} ${notes.length === 1 ? 'note' : 'notes'} to notebook`}
         onSubmit={submit}
       >
         <h2>Move to notebook</h2>
@@ -118,7 +132,7 @@ export function MoveNoteDialog({
           <button type="button" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit">Move</button>
+          <button type="submit">{actionLabel}</button>
         </div>
       </form>
     </div>

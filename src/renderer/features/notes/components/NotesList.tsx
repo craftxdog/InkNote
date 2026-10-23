@@ -1,3 +1,5 @@
+import type { MouseEvent } from 'react';
+
 import type { NoteSummary } from '../model/note.types';
 
 import { NoteListItem } from './NoteListItem';
@@ -8,7 +10,14 @@ type NotesListProps = {
 
   selectedNoteId: string | null;
 
-  onSelectNote: (noteId: string) => void;
+  selectedNoteIds?: readonly string[];
+
+  onSelectNote: (noteId: string, isAdditive: boolean) => void;
+
+  onContextMenu?: (
+    noteId: string,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => void;
 
   onArchiveNote?: (noteId: string) => void;
 
@@ -18,7 +27,9 @@ type NotesListProps = {
 export function NotesList({
   notes,
   selectedNoteId,
+  selectedNoteIds = [],
   onSelectNote,
+  onContextMenu,
   onArchiveNote,
   onMoveNote,
 }: NotesListProps) {
@@ -38,8 +49,19 @@ export function NotesList({
         <div key={note.id} role="listitem" className="note-tree-row">
           <NoteListItem
             note={note}
-            selected={selectedNoteId === note.id}
-            onSelect={onSelectNote}
+            selected={
+              selectedNoteIds.length > 0
+                ? selectedNoteIds.includes(note.id)
+                : selectedNoteId === note.id
+            }
+            onSelect={(noteId, event) =>
+              onSelectNote(noteId, event.metaKey || event.ctrlKey)
+            }
+            onContextMenu={
+              onContextMenu === undefined
+                ? undefined
+                : (noteId, event) => onContextMenu(noteId, event)
+            }
             onMove={onMoveNote}
           />
           {onArchiveNote !== undefined && (

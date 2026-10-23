@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react';
 
 import type { NoteSummary } from '../model/note.types';
 
@@ -9,7 +9,12 @@ type NoteListItemProps = {
 
   selected: boolean;
 
-  onSelect: (noteId: string) => void;
+  onSelect: (noteId: string, event: MouseEvent<HTMLButtonElement>) => void;
+
+  onContextMenu?: (
+    noteId: string,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => void;
 
   onMove?: (noteId: string) => void;
 };
@@ -25,6 +30,7 @@ export function NoteListItem({
   note,
   selected,
   onSelect,
+  onContextMenu,
   onMove,
 }: NoteListItemProps) {
   const visibleTags = note.tags.slice(0, 2);
@@ -40,7 +46,15 @@ export function NoteListItem({
       className={['note-list-item', selected ? 'note-list-item--selected' : '']
         .filter(Boolean)
         .join(' ')}
-      onClick={() => onSelect(note.id)}
+      onClick={(event) => onSelect(note.id, event)}
+      onContextMenu={(event) => {
+        if (onContextMenu === undefined) {
+          return;
+        }
+
+        event.preventDefault();
+        onContextMenu(note.id, event);
+      }}
       onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
         if (event.key !== 'm' || onMove === undefined) {
           return;
