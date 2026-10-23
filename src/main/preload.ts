@@ -4,6 +4,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 import type { InknoteApi } from '../shared/bridge';
+import type {
+  CreateNotebookInput,
+  DeleteNotebookInput,
+  DocumentMutation,
+} from '../shared/documents/document.types';
+import type { DirectorySelectionPurpose } from '../shared/data/data.types';
 import { IPC_CHANNELS } from '../shared/ipc/channels';
 
 const inknoteApi: InknoteApi = {
@@ -16,6 +22,30 @@ const inknoteApi: InknoteApi = {
 
       return Boolean(result);
     },
+  },
+  documents: {
+    get: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.documents.get, id),
+    apply: (mutation: DocumentMutation) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.apply, mutation),
+    listActive: () => ipcRenderer.invoke(IPC_CHANNELS.documents.listActive),
+    listArchived: () => ipcRenderer.invoke(IPC_CHANNELS.documents.listArchived),
+    listNotebooks: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.listNotebooks),
+    createNotebook: (input: CreateNotebookInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.createNotebook, input),
+    deleteNotebook: (input: DeleteNotebookInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.deleteNotebook, input),
+  },
+  data: {
+    getInfo: () => ipcRenderer.invoke(IPC_CHANNELS.data.getInfo),
+    chooseDirectory: (purpose: DirectorySelectionPurpose) =>
+      ipcRenderer.invoke(IPC_CHANNELS.data.chooseDirectory, purpose),
+    configureBackup: (directory: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.data.configureBackup, directory),
+    restoreBackup: (directory: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.data.restoreBackup, directory),
+    exportMarkdown: (directory: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.data.exportMarkdown, directory),
   },
 };
 

@@ -25,6 +25,10 @@ type WorkspaceNavbarProps = {
 
   onViewModeChange: (mode: WorkspaceViewMode) => void;
 
+  onCreateNote: () => void;
+
+  onOpenPreferences: () => void;
+
   onToggleNavigation: () => void;
   onToggleWorkspaceExpanded: () => void;
 };
@@ -35,6 +39,8 @@ export const WorkspaceNavbar = ({
   navigationSelection,
   viewMode,
   onViewModeChange,
+  onCreateNote,
+  onOpenPreferences,
   onToggleNavigation,
   onToggleWorkspaceExpanded,
 }: WorkspaceNavbarProps) => {
@@ -49,7 +55,8 @@ export const WorkspaceNavbar = ({
           type="button"
           className="navbar-button navbar-settings"
           aria-label="Settings"
-          title="Settings"
+          title="Settings (⌘/Ctrl+,)"
+          onClick={onOpenPreferences}
         >
           <SettingsIcon />
         </button>
@@ -69,7 +76,7 @@ export const WorkspaceNavbar = ({
               ? 'Hide navigation sidebar'
               : 'Show navigation sidebar'
           }
-          title={isNavigationVisible ? 'Hide sidebar' : 'Show sidebar'}
+          title={`${isNavigationVisible ? 'Hide' : 'Show'} sidebar (⌘/Ctrl+/)`}
         >
           <SidebarIcon />
         </button>
@@ -87,8 +94,9 @@ export const WorkspaceNavbar = ({
         <button
           type="button"
           className="navbar-button"
+          onClick={onCreateNote}
           aria-label="Create note"
-          title="Create note"
+          title="Create note (⌘/Ctrl+N)"
         >
           <NewNoteIcon />
         </button>
@@ -115,9 +123,7 @@ export const WorkspaceNavbar = ({
               isWorkspaceExpanded ? 'Restore workspace' : 'Expand workspace'
             }
             aria-pressed={isWorkspaceExpanded}
-            title={
-              isWorkspaceExpanded ? 'Restore workspace' : 'Expand workspace'
-            }
+            title={`${isWorkspaceExpanded ? 'Restore workspace' : 'Expand workspace'} (⌘/Ctrl+⇧D)`}
           >
             {isWorkspaceExpanded ? <CollapseIcon /> : <ExpandIcon />}
           </button>
@@ -171,7 +177,7 @@ export const WorkspaceNavbar = ({
             onClick={() => onViewModeChange('split')}
             aria-label="Split view"
             aria-pressed={viewMode === 'split'}
-            title="Split view"
+            title="Split view (⌘/Ctrl+P)"
           >
             <SplitViewIcon />
           </button>
@@ -187,7 +193,7 @@ export const WorkspaceNavbar = ({
             onClick={() => onViewModeChange('preview')}
             aria-label="Preview only"
             aria-pressed={viewMode === 'preview'}
-            title="Preview only"
+            title="Preview only (⌘/Ctrl+E)"
           >
             <PreviewIcon />
           </button>

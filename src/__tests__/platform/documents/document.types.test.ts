@@ -9,10 +9,12 @@ import {
   createReplaceBodyMutation,
   createRevision,
   createRestoreMutation,
+  createUpdateTagsMutation,
   createUpdateTitleMutation,
+  validateNoteDocument,
   type NoteId,
-} from '../../../renderer/platform/documents/document.types';
-import { DocumentDomainError } from '../../../renderer/platform/documents/document.errors';
+} from '../../../shared/documents/document.types';
+import { DocumentDomainError } from '../../../shared/documents/document.errors';
 
 const getThrownError = (operation: () => void): unknown => {
   try {
@@ -92,6 +94,23 @@ describe('document primitives', () => {
     expect(createRestoreMutation(common)).toMatchObject({ kind: 'restore' });
   });
 
+  it('normalizes tags into a unique local-first mutation', () => {
+    const mutation = createUpdateTagsMutation({
+      id: createMutationId('mutation-tags'),
+      documentId: createNoteId('note-1'),
+      baseRevision: createRevision('revision-1'),
+      source: 'editor',
+      tags: [' Work ', 'work', 'Investigación', ''],
+      occurredAt: '2026-10-21T12:00:00.000Z',
+    });
+
+    expect(mutation).toMatchObject({
+      kind: 'update-tags',
+      tags: ['work', 'investigación'],
+    });
+    expect(Object.isFrozen(mutation.tags)).toBe(true);
+  });
+
   it('requires the initial revision when it creates a document', () => {
     expect.hasAssertions();
 
@@ -140,6 +159,51 @@ describe('document primitives', () => {
         source: 'invalid-source' as 'editor',
         title: 'Title',
         occurredAt: '2026-10-20T12:00:00.000Z',
+      }),
+    );
+  });
+
+  it('rebuilds a canonical immutable document projection from a plain DTO', () => {
+    const document = validateNoteDocument({
+      id: 'note-1',
+      title: 'Title',
+      body: 'Body',
+      notebookId: 'inbox',
+      status: 'active',
+      tags: [],
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:01:00.000Z',
+      deletedAt: null,
+      revision: 'local-2',
+    });
+
+    expect(document).toEqual({
+      id: 'note-1',
+      title: 'Title',
+      body: 'Body',
+      notebookId: 'inbox',
+      status: 'active',
+      tags: [],
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:01:00.000Z',
+      deletedAt: null,
+      revision: 'local-2',
+    });
+    expect(Object.isFrozen(document)).toBe(true);
+  });
+
+  it('rejects malformed document projections at a runtime boundary', () => {
+    expect.hasAssertions();
+
+    expectInvalidMutation(() =>
+      validateNoteDocument({
+        id: 'note-1',
+        title: 'Title',
+        body: 'Body',
+        createdAt: '2026-10-21T12:00:00.000Z',
+        updatedAt: '2026-10-21T12:01:00.000Z',
+        deletedAt: 42,
+        revision: 'local-2',
       }),
     );
   });

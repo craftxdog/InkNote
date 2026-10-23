@@ -1,6 +1,7 @@
 import type { NoteSummary } from '../model/note.types';
 
 import { NoteListItem } from './NoteListItem';
+import { ArchiveNoteIcon } from './NotesIcons';
 
 type NotesListProps = {
   notes: NoteSummary[];
@@ -8,12 +9,18 @@ type NotesListProps = {
   selectedNoteId: string | null;
 
   onSelectNote: (noteId: string) => void;
+
+  onArchiveNote?: (noteId: string) => void;
+
+  onMoveNote?: (noteId: string) => void;
 };
 
 export function NotesList({
   notes,
   selectedNoteId,
   onSelectNote,
+  onArchiveNote,
+  onMoveNote,
 }: NotesListProps) {
   if (notes.length === 0) {
     return (
@@ -26,14 +33,27 @@ export function NotesList({
   }
 
   return (
-    <div className="notes-list">
+    <div className="notes-list" role="list" aria-label="Notes">
       {notes.map((note) => (
-        <NoteListItem
-          key={note.id}
-          note={note}
-          selected={selectedNoteId === note.id}
-          onSelect={onSelectNote}
-        />
+        <div key={note.id} role="listitem" className="note-tree-row">
+          <NoteListItem
+            note={note}
+            selected={selectedNoteId === note.id}
+            onSelect={onSelectNote}
+            onMove={onMoveNote}
+          />
+          {onArchiveNote !== undefined && (
+            <button
+              type="button"
+              className="note-tree-row__archive"
+              aria-label={`Move ${note.title} to Trash`}
+              title="Move note to Trash"
+              onClick={() => onArchiveNote(note.id)}
+            >
+              <ArchiveNoteIcon />
+            </button>
+          )}
+        </div>
       ))}
     </div>
   );

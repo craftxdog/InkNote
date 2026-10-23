@@ -12,13 +12,37 @@
  */
 
 import path from 'path';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  shell,
+  type WebContents,
+} from 'electron';
+
+import Database from 'better-sqlite3';
 
 import log from 'electron-log';
 
 import { IPC_CHANNELS } from '../shared/ipc/channels';
+import {
+  createDataIpcFailure,
+  runDataIpcOperation,
+} from '../shared/data/data.ipc';
+import {
+  validateAbsolutePath,
+  validateDirectorySelectionPurpose,
+} from '../shared/data/data.types';
+import { createDocumentIpcFailure } from '../shared/documents/document.ipc';
 
+import { DataManagementService } from './data/DataManagementService';
+import { MarkdownExportService } from './data/MarkdownExportService';
+import { RestoreDatabaseService } from './data/RestoreDatabaseService';
+import { DocumentIpcService } from './documents/DocumentIpcService';
+import { LocalDocumentStore } from './documents/LocalDocumentStore';
 import MenuBuilder from './menu';
+import { isAllowedExternalUrl, secureRendererPreferences } from './security';
 import startAutoUpdates from './updates';
 import { resolveHtmlPath } from './util';
 
@@ -27,6 +51,10 @@ import { resolveHtmlPath } from './util';
 ========================================================= */
 
 let mainWindow: BrowserWindow | null = null;
+
+let localDocumentStore: LocalDocumentStore | null = null;
+
+let dataManagementService: DataManagementService | null = null;
 
 /* =========================================================
    Legacy IPC example
@@ -83,6 +111,10 @@ function registerWindowIpcHandlers() {
     IPC_CHANNELS.window.setTrafficLightsVisibility,
 
     (event, visible: unknown) => {
+      if (!isMainWindowSender(event.sender)) {
+        return false;
+      }
+
       if (typeof visible !== 'boolean') {
         throw new TypeError('Traffic light visibility must be a boolean');
       }
@@ -118,6 +150,223 @@ function registerWindowIpcHandlers() {
     },
   );
 }
+
+function registerDocumentIpcHandlers(getService: () => DocumentIpcService) {
+  ipcMain.handle(IPC_CHANNELS.documents.listActive, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return getService().listActive();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.documents.listArchived, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return getService().listArchived();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.documents.listNotebooks, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return getService().listNotebooks();
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.documents.createNotebook,
+    async (event, input) => {
+      if (!isMainWindowSender(event.sender)) {
+        return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+      }
+
+      const result = await getService().createNotebook(input);
+      await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+      return result;
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.documents.deleteNotebook,
+    async (event, input) => {
+      if (!isMainWindowSender(event.sender)) {
+        return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+      }
+
+      const result = await getService().deleteNotebook(input);
+      await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+      return result;
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.documents.get, (event, id: unknown) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return getService().get(id);
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.documents.apply,
+    async (event, mutation: unknown) => {
+      if (!isMainWindowSender(event.sender)) {
+        return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+      }
+
+      const result = await getService().apply(mutation);
+      await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+      return result;
+    },
+  );
+}
+
+function registerDataIpcHandlers() {
+  ipcMain.handle(IPC_CHANNELS.data.getInfo, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDataIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return runDataIpcOperation(() => getDataManagementService().getInfo());
+  });
+
+  ipcMain.handle(IPC_CHANNELS.data.chooseDirectory, async (event, purpose) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDataIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return runDataIpcOperation(async () => {
+      const selectionPurpose = validateDirectorySelectionPurpose(purpose);
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (targetWindow === null || targetWindow.isDestroyed()) {
+        throw new Error('The calling window is unavailable.');
+      }
+
+      const result = await dialog.showOpenDialog(targetWindow, {
+        title: directoryDialogTitleFor(selectionPurpose),
+        properties: ['openDirectory', 'createDirectory'],
+      });
+
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.data.configureBackup, (event, directory) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDataIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return runDataIpcOperation(() =>
+      getDataManagementService().configureBackup(
+        validateAbsolutePath(directory, 'Backup directory'),
+      ),
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.data.restoreBackup, (event, directory) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDataIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return runDataIpcOperation(async () => {
+      const backupFile = await getDataManagementService().backupFileForRestore(
+        validateAbsolutePath(directory, 'Backup directory'),
+      );
+      const activeStore = getLocalDocumentStore();
+      const restoreService = new RestoreDatabaseService({
+        dataDirectory: app.getPath('userData'),
+        databasePath: getDatabasePath(),
+        snapshotDatabase: (destination) => activeStore.backupTo(destination),
+        closeDatabase: () => {
+          activeStore.close();
+
+          if (localDocumentStore === activeStore) {
+            localDocumentStore = null;
+          }
+        },
+      });
+
+      return restoreService.restoreFrom(backupFile);
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.data.exportMarkdown, (event, directory) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDataIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return runDataIpcOperation(() =>
+      new MarkdownExportService({
+        listActive: () => getLocalDocumentStore().listActive(),
+        listNotebooks: () => getLocalDocumentStore().listNotebooks(),
+      }).exportMarkdown(validateAbsolutePath(directory, 'Export directory')),
+    );
+  });
+}
+
+function getLocalDocumentStore(): LocalDocumentStore {
+  if (localDocumentStore === null) {
+    localDocumentStore = new LocalDocumentStore(
+      new Database(getDatabasePath()),
+    );
+  }
+
+  return localDocumentStore;
+}
+
+function getDataManagementService(): DataManagementService {
+  if (dataManagementService === null) {
+    dataManagementService = new DataManagementService({
+      dataDirectory: app.getPath('userData'),
+      snapshotDatabase: (destination) =>
+        getLocalDocumentStore().backupTo(destination),
+    });
+  }
+
+  return dataManagementService;
+}
+
+const getDatabasePath = (): string =>
+  path.join(app.getPath('userData'), 'inknote.sqlite');
+
+const directoryDialogTitleFor = (
+  purpose: 'backup' | 'restore' | 'export',
+): string => {
+  switch (purpose) {
+    case 'backup':
+      return 'Choose backup folder';
+    case 'restore':
+      return 'Choose InkNote backup folder';
+    case 'export':
+      return 'Choose Markdown export folder';
+  }
+};
+
+const refreshConfiguredBackupAfterDocumentChange = async (
+  didChange: boolean,
+): Promise<void> => {
+  if (!didChange) {
+    return;
+  }
+
+  try {
+    await getDataManagementService().refreshConfiguredBackup();
+  } catch (error) {
+    log.warn('Failed to refresh the configured local backup', error);
+  }
+};
+
+const isMainWindowSender = (sender: WebContents): boolean =>
+  mainWindow !== null &&
+  !mainWindow.isDestroyed() &&
+  mainWindow.webContents.id === sender.id;
 
 /* =========================================================
    Window creation
@@ -163,6 +412,7 @@ const createWindow = async () => {
     trafficLightPosition: TRAFFIC_LIGHT_POSITION,
 
     webPreferences: {
+      ...secureRendererPreferences,
       preload: path.join(__dirname, '../preload/preload.js'),
     },
   });
@@ -200,11 +450,19 @@ const createWindow = async () => {
   ------------------------------------------------------- */
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url).catch((error: unknown) => {
+        log.warn('Failed to open an approved external URL', error);
+      });
+    }
 
     return {
       action: 'deny',
     };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event) => {
+    event.preventDefault();
   });
 
   /* -------------------------------------------------------
@@ -257,6 +515,12 @@ app.on('window-all-closed', () => {
   }
 });
 
+app.on('before-quit', () => {
+  localDocumentStore?.close();
+  localDocumentStore = null;
+  dataManagementService = null;
+});
+
 app
   .whenReady()
   .then(async () => {
@@ -267,6 +531,10 @@ app
      * main process, before the renderer starts using them.
      */
     registerWindowIpcHandlers();
+    registerDocumentIpcHandlers(
+      () => new DocumentIpcService(getLocalDocumentStore()),
+    );
+    registerDataIpcHandlers();
 
     await createWindow();
 

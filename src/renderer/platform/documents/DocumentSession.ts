@@ -1,13 +1,19 @@
 import {
   DocumentDomainError,
   createDocumentNotFoundError,
-} from './document.errors';
-import type { DocumentRepository } from './document.repository';
-import type { DocumentMutation, NoteDocument, NoteId } from './document.types';
+} from '../../../shared/documents/document.errors';
+import type { DocumentRepository } from '../../../shared/documents/document.repository';
+import type {
+  DocumentMutation,
+  NoteDocument,
+  NoteId,
+} from '../../../shared/documents/document.types';
 
 export type DocumentSessionSnapshot = Readonly<{
+  selectedDocumentId: NoteId | null;
   document: NoteDocument | null;
   lastError: DocumentDomainError | null;
+  isLoading: boolean;
 }>;
 
 export type DocumentSubscription = Readonly<{
@@ -33,7 +39,14 @@ export class DocumentSession {
 
   private selectionGeneration = 0;
 
-  private snapshot: DocumentSessionSnapshot = createSnapshot(null, null);
+  private readonly acceptedMutationEpochs = new Map<NoteId, number>();
+
+  private snapshot: DocumentSessionSnapshot = createSnapshot(
+    null,
+    null,
+    null,
+    false,
+  );
 
   constructor(
     private readonly repository: DocumentRepository,
@@ -63,6 +76,7 @@ export class DocumentSession {
 
   async open(id: NoteId): Promise<NoteDocument> {
     const selectionGeneration = this.selectDocument(id);
+    const mutationEpoch = this.getAcceptedMutationEpoch(id);
 
     try {
       const document = await this.repository.get(id);
@@ -71,16 +85,29 @@ export class DocumentSession {
         throw createDocumentNotFoundError(id);
       }
 
-      const snapshot = createSnapshot(document, null);
-
       if (this.isCurrentSelection(id, selectionGeneration)) {
-        this.publish(snapshot);
+        if (this.getAcceptedMutationEpoch(id) === mutationEpoch) {
+          const snapshot = createSnapshot(id, document, null, false);
+
+          this.publish(snapshot);
+
+          return snapshot.document ?? document;
+        }
+
+        const acceptedDocument = this.getCurrentSelectedDocument(id);
+
+        if (acceptedDocument !== null) {
+          return acceptedDocument;
+        }
       }
 
-      return snapshot.document ?? document;
+      return document;
     } catch (error) {
-      if (this.isCurrentSelection(id, selectionGeneration)) {
-        this.publishDomainError(null, error);
+      if (
+        this.isCurrentSelection(id, selectionGeneration) &&
+        this.getAcceptedMutationEpoch(id) === mutationEpoch
+      ) {
+        this.publishDomainError(id, null, error);
       }
 
       throw error;
@@ -88,29 +115,50 @@ export class DocumentSession {
   }
 
   async apply(mutation: DocumentMutation): Promise<NoteDocument> {
-    const selectionGeneration = this.selectionGeneration;
-
     try {
       const document = await this.repository.apply(mutation);
-      const snapshot = createSnapshot(document, null);
+      this.incrementAcceptedMutationEpoch(mutation.documentId);
 
-      if (this.isCurrentSelection(mutation.documentId, selectionGeneration)) {
+      if (this.selectedDocumentId === mutation.documentId) {
+        const snapshot = createSnapshot(
+          mutation.documentId,
+          document,
+          null,
+          false,
+        );
+
         this.publish(snapshot);
+
+        return snapshot.document ?? document;
       }
 
-      return snapshot.document ?? document;
+      return document;
     } catch (error) {
-      if (this.isCurrentSelection(mutation.documentId, selectionGeneration)) {
-        this.publishDomainError(this.snapshot.document, error);
+      if (this.selectedDocumentId === mutation.documentId) {
+        this.publishDomainError(
+          mutation.documentId,
+          this.snapshot.document,
+          error,
+        );
       }
 
       throw error;
     }
   }
 
+  clear(): void {
+    this.selectedDocumentId = null;
+    this.selectionGeneration += 1;
+    this.publish(createSnapshot(null, null, null, false));
+  }
+
   private selectDocument(id: NoteId): number {
     this.selectedDocumentId = id;
     this.selectionGeneration += 1;
+
+    const retainedDocument = this.getCurrentSelectedDocument(id);
+
+    this.publish(createSnapshot(id, retainedDocument, null, true));
 
     return this.selectionGeneration;
   }
@@ -120,6 +168,18 @@ export class DocumentSession {
       this.selectedDocumentId === id &&
       this.selectionGeneration === selectionGeneration
     );
+  }
+
+  private getAcceptedMutationEpoch(id: NoteId): number {
+    return this.acceptedMutationEpochs.get(id) ?? 0;
+  }
+
+  private incrementAcceptedMutationEpoch(id: NoteId): void {
+    this.acceptedMutationEpochs.set(id, this.getAcceptedMutationEpoch(id) + 1);
+  }
+
+  private getCurrentSelectedDocument(id: NoteId): NoteDocument | null {
+    return this.snapshot.document?.id === id ? this.snapshot.document : null;
   }
 
   private publish(snapshot: DocumentSessionSnapshot): void {
@@ -139,11 +199,12 @@ export class DocumentSession {
   }
 
   private publishDomainError(
+    selectedDocumentId: NoteId,
     document: NoteDocument | null,
     error: unknown,
   ): void {
     if (error instanceof DocumentDomainError) {
-      this.publish(createSnapshot(document, error));
+      this.publish(createSnapshot(selectedDocumentId, document, error, false));
     }
   }
 
@@ -157,10 +218,14 @@ export class DocumentSession {
 }
 
 const createSnapshot = (
+  selectedDocumentId: NoteId | null,
   document: NoteDocument | null,
   lastError: DocumentDomainError | null,
+  isLoading: boolean,
 ): DocumentSessionSnapshot =>
   Object.freeze({
+    selectedDocumentId,
     document: document === null ? null : Object.freeze({ ...document }),
     lastError,
+    isLoading,
   });
