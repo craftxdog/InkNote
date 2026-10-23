@@ -4,7 +4,10 @@ import {
   createRevisionConflictError,
 } from '../../shared/documents/document.errors';
 
-import type { DocumentRepository } from '../../shared/documents/document.repository';
+import type {
+  DocumentDeletionRepository,
+  DocumentRepository,
+} from '../../shared/documents/document.repository';
 import type {
   DocumentQueryRepository,
   NotebookRepository,
@@ -16,6 +19,8 @@ import {
   createNotebook,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
+  type PermanentlyDeleteNotesInput,
+  type PermanentlyDeleteNotesResult,
   createRevision,
   validateDocumentMutation,
   type CreateDocumentMutation,
@@ -33,7 +38,11 @@ import {
  * idempotency; that behavior belongs to the SQLite/outbox implementation.
  */
 export class InMemoryDocumentRepository
-  implements DocumentRepository, DocumentQueryRepository, NotebookRepository
+  implements
+    DocumentRepository,
+    DocumentDeletionRepository,
+    DocumentQueryRepository,
+    NotebookRepository
 {
   private readonly documents = new Map<NoteId, NoteDocument>();
 
@@ -174,6 +183,34 @@ export class InMemoryDocumentRepository
     });
   }
 
+  async deletePermanently(
+    input: PermanentlyDeleteNotesInput,
+  ): Promise<PermanentlyDeleteNotesResult> {
+    const notes = input.noteIds.map((noteId) => {
+      const note = this.documents.get(noteId);
+
+      if (note === undefined) {
+        throw createDocumentNotFoundError(noteId);
+      }
+
+      if (note.deletedAt === null) {
+        throw createInvalidMutationError(
+          'Only notes in Trash can be deleted permanently.',
+        );
+      }
+
+      return note;
+    });
+
+    for (const note of notes) {
+      this.documents.delete(note.id);
+    }
+
+    return Object.freeze({
+      deletedNoteIds: Object.freeze(notes.map((note) => note.id)),
+    });
+  }
+
   async apply(mutation: DocumentMutation): Promise<NoteDocument> {
     const acceptedMutation = validateDocumentMutation(mutation);
 
@@ -262,7 +299,13 @@ export class InMemoryDocumentRepository
       case 'archive':
         return freezeDocument({ ...revised, deletedAt: mutation.occurredAt });
       case 'restore':
-        return freezeDocument({ ...revised, deletedAt: null });
+        return freezeDocument({
+          ...revised,
+          deletedAt: null,
+          ...(mutation.notebookId === undefined
+            ? {}
+            : { notebookId: mutation.notebookId }),
+        });
     }
   }
 

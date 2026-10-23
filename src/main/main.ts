@@ -204,6 +204,20 @@ function registerDocumentIpcHandlers(getService: () => DocumentIpcService) {
     },
   );
 
+  ipcMain.handle(
+    IPC_CHANNELS.documents.deletePermanently,
+    async (event, input) => {
+      if (!isMainWindowSender(event.sender)) {
+        return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+      }
+
+      const result = await getService().deletePermanently(input);
+      await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+      return result;
+    },
+  );
+
   ipcMain.handle(IPC_CHANNELS.documents.get, (event, id: unknown) => {
     if (!isMainWindowSender(event.sender)) {
       return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));

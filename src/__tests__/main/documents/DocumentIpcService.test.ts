@@ -3,6 +3,7 @@
 import { DocumentIpcService } from '../../../main/documents/DocumentIpcService';
 import {
   INITIAL_DOCUMENT_REVISION,
+  createArchiveMutation,
   createCreateDocumentMutation,
   createMutationId,
   createNoteId,
@@ -70,6 +71,39 @@ describe('DocumentIpcService', () => {
         updatedAt: '2026-10-21T12:00:00.000Z',
         revision: 'local-1',
         deletedAt: null,
+      },
+    });
+  });
+
+  it('only allows permanently deleting a note after it has been moved to Trash', async () => {
+    const repository = new InMemoryDocumentRepository();
+    const service = new DocumentIpcService(repository);
+    const created = await repository.apply(createMutation());
+
+    const archived = await service.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive'),
+        documentId: noteId,
+        baseRevision: created.revision,
+        source: 'command',
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+
+    expect(archived).toMatchObject({ ok: true });
+    await expect(
+      service.deletePermanently({ noteIds: [noteId] }),
+    ).resolves.toEqual({ ok: true, value: { deletedNoteIds: [noteId] } });
+    await expect(service.get(noteId)).resolves.toEqual({
+      ok: true,
+      value: null,
+    });
+
+    await expect(service.deletePermanently({ noteIds: [] })).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'INVALID_MUTATION',
+        message: 'Permanent note deletion requires at least one note ID.',
       },
     });
   });

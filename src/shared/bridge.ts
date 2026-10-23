@@ -12,6 +12,8 @@ import type {
   CreateNotebookInput,
   DeleteNotebookInput,
   DeleteNotebookResult,
+  PermanentlyDeleteNotesInput,
+  PermanentlyDeleteNotesResult,
   Notebook,
   NoteDocument,
 } from './documents/document.types';
@@ -34,6 +36,9 @@ export type DocumentApi = {
   deleteNotebook: (
     input: DeleteNotebookInput,
   ) => Promise<DocumentIpcResult<DeleteNotebookResult>>;
+  deletePermanently: (
+    input: PermanentlyDeleteNotesInput,
+  ) => Promise<DocumentIpcResult<PermanentlyDeleteNotesResult>>;
 };
 
 /**

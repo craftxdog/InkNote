@@ -5,14 +5,20 @@ import type {
   DocumentQueryRepository,
   NotebookRepository,
 } from '../../../shared/documents/document.query';
-import type { DocumentRepository } from '../../../shared/documents/document.repository';
+import type {
+  DocumentDeletionRepository,
+  DocumentRepository,
+} from '../../../shared/documents/document.repository';
 import {
+  createNoteId,
   validateNoteDocument,
   validateNotebook,
   type CreateNotebookInput,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
   type DocumentMutation,
+  type PermanentlyDeleteNotesInput,
+  type PermanentlyDeleteNotesResult,
   type NoteDocument,
   type NoteId,
 } from '../../../shared/documents/document.types';
@@ -22,7 +28,11 @@ import {
  * reconstructs canonical values after Electron has structured-cloned them.
  */
 export class IpcDocumentRepository
-  implements DocumentRepository, DocumentQueryRepository, NotebookRepository
+  implements
+    DocumentRepository,
+    DocumentDeletionRepository,
+    DocumentQueryRepository,
+    NotebookRepository
 {
   constructor(private readonly api: DocumentApi) {}
 
@@ -98,6 +108,14 @@ export class IpcDocumentRepository
     return unwrapDocumentIpcResult(result, validateNotebookDeletionResult);
   }
 
+  async deletePermanently(
+    input: PermanentlyDeleteNotesInput,
+  ): Promise<PermanentlyDeleteNotesResult> {
+    const result = await this.api.deletePermanently(input);
+
+    return unwrapDocumentIpcResult(result, validatePermanentDeletionResult);
+  }
+
   async apply(mutation: DocumentMutation): Promise<NoteDocument> {
     const result = await this.api.apply(mutation);
     const document = unwrapDocumentIpcResult(result, validateNoteDocument);
@@ -154,5 +172,37 @@ const validateNotebookDeletionResult = (
     deletedNotebookId: candidate.deletedNotebookId,
     archivedNoteIds: Object.freeze(candidate.archivedNoteIds),
     reparentedNotebookIds: Object.freeze(candidate.reparentedNotebookIds),
+  });
+};
+
+const validatePermanentDeletionResult = (
+  value: unknown,
+): PermanentlyDeleteNotesResult => {
+  if (typeof value !== 'object' || value === null) {
+    throw new DocumentTransportError(
+      'INVALID_IPC_RESPONSE',
+      'The permanent deletion response has an invalid shape.',
+    );
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const deletedNoteIds = candidate.deletedNoteIds;
+
+  if (
+    !Array.isArray(deletedNoteIds) ||
+    deletedNoteIds.some(
+      (id) => typeof id !== 'string' || id.trim().length === 0,
+    )
+  ) {
+    throw new DocumentTransportError(
+      'INVALID_IPC_RESPONSE',
+      'The permanent deletion response has an invalid shape.',
+    );
+  }
+
+  return Object.freeze({
+    deletedNoteIds: Object.freeze(
+      (deletedNoteIds as string[]).map((noteId) => createNoteId(noteId)),
+    ),
   });
 };

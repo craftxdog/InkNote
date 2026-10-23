@@ -8,6 +8,7 @@ import type {
   CreateNotebookInput,
   DeleteNotebookInput,
   DocumentMutation,
+  PermanentlyDeleteNotesInput,
 } from '../shared/documents/document.types';
 import type { DirectorySelectionPurpose } from '../shared/data/data.types';
 import { IPC_CHANNELS } from '../shared/ipc/channels';
@@ -35,6 +36,8 @@ const inknoteApi: InknoteApi = {
       ipcRenderer.invoke(IPC_CHANNELS.documents.createNotebook, input),
     deleteNotebook: (input: DeleteNotebookInput) =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.deleteNotebook, input),
+    deletePermanently: (input: PermanentlyDeleteNotesInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.deletePermanently, input),
   },
   data: {
     getInfo: () => ipcRenderer.invoke(IPC_CHANNELS.data.getInfo),

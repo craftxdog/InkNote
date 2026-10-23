@@ -49,6 +49,9 @@ const unusedNotebookApi = {
   deleteNotebook: async () => {
     throw new Error('not used');
   },
+  deletePermanently: async () => {
+    throw new Error('not used');
+  },
 };
 
 describe('IpcDocumentRepository', () => {
@@ -155,5 +158,25 @@ describe('IpcDocumentRepository', () => {
       archivedNoteIds: [noteId],
       reparentedNotebookIds: ['projects'],
     });
+  });
+
+  it('validates a permanent deletion result from the preload boundary', async () => {
+    const api: DocumentApi = {
+      get: async () => ({ ok: true, value: null }),
+      listActive: async () => ({ ok: true, value: [] }),
+      ...unusedNotebookApi,
+      deletePermanently: async () => ({
+        ok: true,
+        value: { deletedNoteIds: [noteId] },
+      }),
+      apply: async () => {
+        throw new Error('not used');
+      },
+    };
+    const repository = new IpcDocumentRepository(api);
+
+    await expect(
+      repository.deletePermanently({ noteIds: [noteId] }),
+    ).resolves.toEqual({ deletedNoteIds: [noteId] });
   });
 });

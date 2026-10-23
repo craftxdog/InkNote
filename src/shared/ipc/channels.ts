@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
     listNotebooks: 'documents:list-notebooks',
     createNotebook: 'documents:create-notebook',
     deleteNotebook: 'documents:delete-notebook',
+    deletePermanently: 'documents:delete-permanently',
   },
   window: {
     setTrafficLightsVisibility: 'window:set-traffic-lights-visibility',

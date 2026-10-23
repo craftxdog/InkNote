@@ -86,6 +86,18 @@ export type DeleteNotebookResult = Readonly<{
   reparentedNotebookIds: readonly string[];
 }>;
 
+/**
+ * Destructive lifecycle operation reserved for documents already in Trash.
+ * A separate contract prevents an active note from being removed accidentally.
+ */
+export type PermanentlyDeleteNotesInput = Readonly<{
+  noteIds: readonly NoteId[];
+}>;
+
+export type PermanentlyDeleteNotesResult = Readonly<{
+  deletedNoteIds: readonly NoteId[];
+}>;
+
 export type NoteDocument = Readonly<{
   id: NoteId;
   title: string;
@@ -153,6 +165,8 @@ export type ArchiveDocumentMutation = DocumentMutationBase &
 export type RestoreDocumentMutation = DocumentMutationBase &
   Readonly<{
     kind: 'restore';
+    /** Optional target used when restoring a Trash selection. */
+    notebookId?: string;
   }>;
 
 export type DocumentMutation =
@@ -203,7 +217,10 @@ export type UpdateOrganizationMutationInput = DocumentMutationInputBase &
   }>;
 
 export type ArchiveDocumentMutationInput = DocumentMutationInputBase;
-export type RestoreDocumentMutationInput = DocumentMutationInputBase;
+export type RestoreDocumentMutationInput = DocumentMutationInputBase &
+  Readonly<{
+    notebookId?: string;
+  }>;
 
 export const createNoteId = (value: string): NoteId =>
   createOpaqueIdentifier<NoteId>(value, 'Note ID');
@@ -255,6 +272,36 @@ export const validateDeleteNotebookInput = (
       candidate.occurredAt,
       'Notebook deletion timestamp',
     ),
+  });
+};
+
+export const validatePermanentlyDeleteNotesInput = (
+  value: unknown,
+): PermanentlyDeleteNotesInput => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError(
+      'A permanent note deletion must be an object.',
+    );
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  if (!Array.isArray(candidate.noteIds) || candidate.noteIds.length === 0) {
+    throw createInvalidMutationError(
+      'Permanent note deletion requires at least one note ID.',
+    );
+  }
+
+  if (candidate.noteIds.some((id) => typeof id !== 'string')) {
+    throw createInvalidMutationError(
+      'Every permanently deleted note requires a valid note ID.',
+    );
+  }
+
+  return Object.freeze({
+    noteIds: Object.freeze([
+      ...new Set(candidate.noteIds.map((id) => createNoteId(id))),
+    ]),
   });
 };
 
@@ -362,6 +409,9 @@ export const createRestoreMutation = (
   freezeMutation({
     ...createMutationBase(input),
     kind: 'restore',
+    ...(input.notebookId === undefined
+      ? {}
+      : { notebookId: normalizeNotebookId(input.notebookId) }),
   });
 
 export const validateDocumentMutation = (
