@@ -10,7 +10,10 @@ import type {
   DocumentQueryRepository,
   NotebookRepository,
 } from '../../shared/documents/document.query';
-import type { DocumentRepository } from '../../shared/documents/document.repository';
+import type {
+  DocumentDeletionRepository,
+  DocumentRepository,
+} from '../../shared/documents/document.repository';
 import {
   INITIAL_DOCUMENT_REVISION,
   INBOX_NOTEBOOK_ID,
@@ -25,6 +28,8 @@ import {
   type CreateNotebookInput,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
+  type PermanentlyDeleteNotesInput,
+  type PermanentlyDeleteNotesResult,
   type Notebook,
   type NotebookIconName,
   type NoteDocument,
@@ -104,7 +109,11 @@ export type RemoteDocumentUpdate = Readonly<{
  * same SQLite transaction before the operation is acknowledged.
  */
 export class LocalDocumentStore
-  implements DocumentRepository, DocumentQueryRepository, NotebookRepository
+  implements
+    DocumentRepository,
+    DocumentDeletionRepository,
+    DocumentQueryRepository,
+    NotebookRepository
 {
   private readonly applyLocalTransaction: (
     mutation: DocumentMutation,
@@ -118,6 +127,10 @@ export class LocalDocumentStore
     input: DeleteNotebookInput,
   ) => DeleteNotebookResult;
 
+  private readonly deletePermanentlyTransaction: (
+    input: PermanentlyDeleteNotesInput,
+  ) => PermanentlyDeleteNotesResult;
+
   constructor(private readonly database: Database.Database) {
     this.configureDatabase();
     this.migrate();
@@ -129,6 +142,9 @@ export class LocalDocumentStore
     );
     this.deleteNotebookTransaction = this.database.transaction((input) =>
       this.deleteNotebookAndArchiveDirectNotes(input),
+    );
+    this.deletePermanentlyTransaction = this.database.transaction((input) =>
+      this.deleteArchivedNotesPermanently(input),
     );
   }
 
@@ -213,6 +229,12 @@ export class LocalDocumentStore
     input: DeleteNotebookInput,
   ): Promise<DeleteNotebookResult> {
     return this.deleteNotebookTransaction(input);
+  }
+
+  async deletePermanently(
+    input: PermanentlyDeleteNotesInput,
+  ): Promise<PermanentlyDeleteNotesResult> {
+    return this.deletePermanentlyTransaction(input);
   }
 
   async apply(mutation: DocumentMutation): Promise<NoteDocument> {
@@ -593,6 +615,59 @@ export class LocalDocumentStore
       deletedNotebookId: notebook.id,
       archivedNoteIds: Object.freeze(archivedNoteIds),
       reparentedNotebookIds: Object.freeze(reparentedNotebookIds),
+    });
+  }
+
+  /**
+   * Purges every durable record owned by archived notes. The preflight runs
+   * before the first delete so a mixed active/archived selection rolls back
+   * as one SQLite transaction instead of partially deleting user data.
+   */
+  private deleteArchivedNotesPermanently(
+    input: PermanentlyDeleteNotesInput,
+  ): PermanentlyDeleteNotesResult {
+    const notes = input.noteIds.map((noteId) => {
+      const note = this.readDocument(noteId);
+
+      if (note === null) {
+        throw createDocumentNotFoundError(noteId);
+      }
+
+      if (note.deletedAt === null) {
+        throw createInvalidMutationError(
+          'Only notes in Trash can be deleted permanently.',
+        );
+      }
+
+      return note;
+    });
+
+    const deleteOutbox = this.database.prepare<[string]>(
+      'DELETE FROM sync_outbox WHERE note_id = ?',
+    );
+    const deleteUpdates = this.database.prepare<[string]>(
+      'DELETE FROM note_crdt_updates WHERE note_id = ?',
+    );
+    const deleteSnapshots = this.database.prepare<[string]>(
+      'DELETE FROM note_crdt_snapshots WHERE note_id = ?',
+    );
+    const deleteTags = this.database.prepare<[string]>(
+      'DELETE FROM note_tags WHERE note_id = ?',
+    );
+    const deleteNote = this.database.prepare<[string]>(
+      'DELETE FROM notes WHERE id = ?',
+    );
+
+    for (const note of notes) {
+      deleteOutbox.run(note.id);
+      deleteUpdates.run(note.id);
+      deleteSnapshots.run(note.id);
+      deleteTags.run(note.id);
+      deleteNote.run(note.id);
+    }
+
+    return Object.freeze({
+      deletedNoteIds: Object.freeze(notes.map((note) => note.id)),
     });
   }
 
@@ -1060,6 +1135,9 @@ const applyMutationToYDocument = (
         break;
       case 'restore':
         metadata.set('deletedAt', null);
+        if (mutation.notebookId !== undefined) {
+          metadata.set('notebookId', mutation.notebookId);
+        }
         break;
     }
 

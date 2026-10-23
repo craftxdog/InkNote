@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { NavigationSelection } from '../../navigation/model/navigation.types';
 import { descendantNotebookIds } from '../../navigation/model/notebookTree';
@@ -28,9 +28,31 @@ type NotesPanelProps = {
   error: unknown;
   onSelectNote: (noteId: NoteId) => void;
   onArchiveNote?: (note: NoteDocument) => Promise<unknown>;
+  onArchiveNotes?: (notes: readonly NoteDocument[]) => Promise<unknown>;
   onMoveNote?: (note: NoteDocument, notebookId: string) => Promise<unknown>;
+  onRestoreNotes?: (
+    notes: readonly NoteDocument[],
+    notebookId: string,
+  ) => Promise<unknown>;
+  onDeletePermanently?: (notes: readonly NoteDocument[]) => Promise<unknown>;
+  onDuplicateNote?: (note: NoteDocument) => Promise<unknown>;
 };
 
+type MoveRequest = Readonly<{
+  notes: readonly NoteDocument[];
+  mode: 'move' | 'restore';
+}>;
+
+type ContextMenuPosition = Readonly<{
+  left: number;
+  top: number;
+}>;
+
+/**
+ * The list keeps a local multi-selection independent from the document
+ * session. One selected note still drives the editor; the selection set is
+ * only for list-level Inkdrop actions such as Trash, restore and duplicate.
+ */
 export function NotesPanel({
   navigationSelection,
   documents,
@@ -40,10 +62,23 @@ export function NotesPanel({
   error,
   onSelectNote,
   onArchiveNote,
+  onArchiveNotes,
   onMoveNote,
+  onRestoreNotes,
+  onDeletePermanently,
+  onDuplicateNote,
 }: NotesPanelProps) {
   const [filterQuery, setFilterQuery] = useState('');
-  const [moveNoteId, setMoveNoteId] = useState<NoteId | null>(null);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<readonly NoteId[]>([]);
+  const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
+  const [contextNoteId, setContextNoteId] = useState<NoteId | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] =
+    useState<ContextMenuPosition | null>(null);
+  const [
+    isPermanentDeleteConfirmationOpen,
+    setPermanentDeleteConfirmationOpen,
+  ] = useState(false);
+  const isTrash = navigationSelection.view.type === 'trash';
   const scopedDocuments = useMemo(
     () =>
       filterDocumentsForNavigation(documents, navigationSelection, notebooks),
@@ -54,24 +89,199 @@ export function NotesPanel({
     [scopedDocuments],
   );
   const filteredNotes = useNotesFilter(notes, filterQuery);
-  const archiveNote = (id: string): void => {
-    const note = scopedDocuments.find((document) => document.id === id);
+  const scopedNotesById = useMemo(
+    () => new Map(scopedDocuments.map((note) => [note.id, note])),
+    [scopedDocuments],
+  );
 
-    if (note === undefined || onArchiveNote === undefined) {
+  const selection = useMemo(() => {
+    const localSelection = selectedNoteIds
+      .map((noteId) => scopedNotesById.get(noteId))
+      .filter((note): note is NoteDocument => note !== undefined);
+
+    if (localSelection.length > 0) {
+      return localSelection;
+    }
+
+    if (selectedNoteId === null) {
+      return [];
+    }
+
+    const selected = scopedNotesById.get(selectedNoteId);
+
+    return selected === undefined ? [] : [selected];
+  }, [scopedNotesById, selectedNoteId, selectedNoteIds]);
+  const contextNote =
+    contextNoteId === null
+      ? null
+      : (scopedNotesById.get(contextNoteId) ?? null);
+
+  const selectNote = (noteId: string, isAdditive: boolean): void => {
+    const typedNoteId = noteId as NoteId;
+
+    setSelectedNoteIds((current) => {
+      if (!isAdditive) {
+        return [typedNoteId];
+      }
+
+      return current.includes(typedNoteId)
+        ? current.filter((selectedId) => selectedId !== typedNoteId)
+        : [...current, typedNoteId];
+    });
+    onSelectNote(typedNoteId);
+  };
+
+  const archiveNotes = useCallback(
+    async (notesToArchive: readonly NoteDocument[]) => {
+      if (notesToArchive.length === 0) {
+        return;
+      }
+
+      if (onArchiveNotes !== undefined) {
+        await onArchiveNotes(notesToArchive);
+      } else if (onArchiveNote !== undefined) {
+        for (const note of notesToArchive) {
+          await onArchiveNote(note);
+        }
+      } else {
+        return;
+      }
+
+      setSelectedNoteIds([]);
+      setContextNoteId(null);
+    },
+    [onArchiveNote, onArchiveNotes],
+  );
+
+  const duplicateNote = useCallback(
+    async (note: NoteDocument): Promise<void> => {
+      if (onDuplicateNote === undefined) {
+        return;
+      }
+
+      await onDuplicateNote(note);
+      setSelectedNoteIds([]);
+      setContextNoteId(null);
+      setContextMenuPosition(null);
+    },
+    [onDuplicateNote],
+  );
+
+  const restoreNotes = async (
+    notesToRestore: readonly NoteDocument[],
+    notebookId: string,
+  ): Promise<void> => {
+    if (onRestoreNotes === undefined) {
       return;
     }
 
-    const description = `Move “${note.title || 'Untitled'}” to Trash?`;
-
-    if (globalThis.confirm(description)) {
-      void onArchiveNote(note);
-    }
+    await onRestoreNotes(notesToRestore, notebookId);
+    setSelectedNoteIds([]);
+    setMoveRequest(null);
   };
-  const noteToMove =
-    moveNoteId === null
-      ? null
-      : (scopedDocuments.find((document) => document.id === moveNoteId) ??
-        null);
+
+  const permanentlyDeleteNotes = async (): Promise<void> => {
+    if (onDeletePermanently === undefined) {
+      return;
+    }
+
+    await onDeletePermanently(selection);
+    setSelectedNoteIds([]);
+    setContextNoteId(null);
+    setPermanentDeleteConfirmationOpen(false);
+  };
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent): void => {
+      if (
+        event.defaultPrevented ||
+        isEditableTarget(event.target) ||
+        moveRequest !== null ||
+        isPermanentDeleteConfirmationOpen
+      ) {
+        return;
+      }
+
+      const deletesSelection =
+        event.key === 'Delete' ||
+        (event.key === 'Backspace' && (event.metaKey || event.ctrlKey));
+
+      if (deletesSelection && !isTrash) {
+        event.preventDefault();
+        void archiveNotes(selection);
+        return;
+      }
+
+      if (
+        event.key.toLocaleLowerCase() === 'd' &&
+        (event.metaKey || event.ctrlKey) &&
+        selection.length === 1 &&
+        !isTrash
+      ) {
+        event.preventDefault();
+        void duplicateNote(selection[0]);
+      }
+    };
+
+    window.addEventListener('keydown', handleShortcut, true);
+
+    return () => window.removeEventListener('keydown', handleShortcut, true);
+  }, [
+    archiveNotes,
+    duplicateNote,
+    isPermanentDeleteConfirmationOpen,
+    isTrash,
+    moveRequest,
+    selection,
+  ]);
+
+  const renderSelectionActions = () => {
+    if (selection.length === 0) {
+      return null;
+    }
+
+    const noteLabel = selection.length === 1 ? 'note' : 'notes';
+
+    if (isTrash) {
+      return (
+        <div
+          className="notes-panel__selection-actions"
+          role="region"
+          aria-label="Trash selection actions"
+        >
+          <span>{selection.length} selected</span>
+          <button
+            type="button"
+            onClick={() =>
+              setMoveRequest({ notes: selection, mode: 'restore' })
+            }
+          >
+            Move {selection.length} {noteLabel} to notebook
+          </button>
+          <button
+            type="button"
+            className="notes-panel__destructive-action"
+            onClick={() => setPermanentDeleteConfirmationOpen(true)}
+          >
+            Delete {selection.length} {noteLabel} permanently
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="notes-panel__selection-actions"
+        role="region"
+        aria-label="Selected note actions"
+      >
+        <span>{selection.length} selected</span>
+        <button type="button" onClick={() => void archiveNotes(selection)}>
+          Move {selection.length} {noteLabel} to Trash
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -81,6 +291,7 @@ export function NotesPanel({
     >
       <div className="notes-panel__filter">
         <NotesFilter value={filterQuery} onChange={setFilterQuery} />
+        {renderSelectionActions()}
       </div>
 
       <div className="notes-panel__results" aria-live="polite">
@@ -94,33 +305,172 @@ export function NotesPanel({
           <NotesList
             notes={filteredNotes}
             selectedNoteId={selectedNoteId}
-            onSelectNote={(id) => onSelectNote(id as NoteId)}
+            selectedNoteIds={selection.map((note) => note.id)}
+            onSelectNote={selectNote}
+            onContextMenu={(noteId, event) => {
+              const note = scopedNotesById.get(noteId as NoteId);
+
+              if (note === undefined) {
+                return;
+              }
+
+              setSelectedNoteIds([note.id]);
+              setContextNoteId(note.id);
+              setContextMenuPosition({
+                left: event.clientX,
+                top: event.clientY,
+              });
+            }}
             onArchiveNote={
-              onArchiveNote === undefined ||
-              navigationSelection.view.type === 'trash'
+              isTrash || onArchiveNote === undefined
                 ? undefined
-                : archiveNote
+                : (noteId) => {
+                    const note = scopedNotesById.get(noteId as NoteId);
+
+                    if (note !== undefined) {
+                      void archiveNotes([note]);
+                    }
+                  }
             }
             onMoveNote={
-              onMoveNote === undefined ||
-              navigationSelection.view.type === 'trash'
+              isTrash || onMoveNote === undefined
                 ? undefined
-                : (noteId) => setMoveNoteId(noteId as NoteId)
+                : (noteId) => {
+                    const note = scopedNotesById.get(noteId as NoteId);
+
+                    if (note !== undefined) {
+                      setMoveRequest({ notes: [note], mode: 'move' });
+                    }
+                  }
             }
           />
         )}
       </div>
-      {noteToMove !== null && onMoveNote !== undefined && (
+
+      {contextNote !== null && (
+        <div
+          className="notes-context-menu"
+          role="menu"
+          aria-label="Note actions"
+          style={
+            contextMenuPosition === null
+              ? undefined
+              : {
+                  left: contextMenuPosition.left,
+                  top: contextMenuPosition.top,
+                }
+          }
+        >
+          {isTrash ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMoveRequest({ notes: [contextNote], mode: 'restore' });
+                  setContextNoteId(null);
+                  setContextMenuPosition(null);
+                }}
+              >
+                Move to notebook
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setSelectedNoteIds([contextNote.id]);
+                  setContextNoteId(null);
+                  setContextMenuPosition(null);
+                  setPermanentDeleteConfirmationOpen(true);
+                }}
+              >
+                Delete permanently
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => void duplicateNote(contextNote)}
+              >
+                Duplicate
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => void archiveNotes([contextNote])}
+              >
+                Move to Trash
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {moveRequest !== null && (
         <MoveNoteDialog
-          note={noteToMove}
+          notes={moveRequest.notes}
           notebooks={notebooks}
-          onMove={onMoveNote}
-          onClose={() => setMoveNoteId(null)}
+          allowCurrentDestination={moveRequest.mode === 'restore'}
+          onMove={(notesToMove, notebookId) => {
+            if (moveRequest.mode === 'restore') {
+              return restoreNotes(notesToMove, notebookId);
+            }
+
+            if (onMoveNote === undefined || notesToMove.length !== 1) {
+              return Promise.resolve();
+            }
+
+            return (async () => {
+              await onMoveNote(notesToMove[0], notebookId);
+              setMoveRequest(null);
+            })();
+          }}
+          onClose={() => setMoveRequest(null)}
         />
+      )}
+
+      {isPermanentDeleteConfirmationOpen && (
+        <div className="notes-confirm-dialog__backdrop">
+          <section
+            className="notes-confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="permanent-delete-title"
+          >
+            <h2 id="permanent-delete-title">
+              Delete {selection.length}{' '}
+              {selection.length === 1 ? 'note' : 'notes'} permanently?
+            </h2>
+            <p>These notes cannot be restored.</p>
+            <div className="notes-move-dialog__actions">
+              <button
+                type="button"
+                onClick={() => setPermanentDeleteConfirmationOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="notes-confirm-dialog__delete"
+                onClick={() => void permanentlyDeleteNotes()}
+              >
+                Delete permanently
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
 }
+
+const isEditableTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element &&
+  target.closest(
+    'input, textarea, select, [contenteditable="true"], .cm-editor',
+  ) !== null;
 
 export const toNoteSummary = (document: NoteDocument): NoteSummary => {
   const taskProgress = summarizeTaskProgress(document.body);
@@ -265,8 +615,9 @@ export const filterDocumentsForNavigation = (
           (notebookIds === null || notebookIds.has(document.notebookId)),
       );
     }
-    case 'templates':
     case 'trash':
+      return documents;
+    case 'templates':
       return [];
   }
 };

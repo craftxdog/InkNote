@@ -11,6 +11,7 @@ import {
   createRestoreMutation,
   createUpdateTagsMutation,
   createUpdateTitleMutation,
+  validatePermanentlyDeleteNotesInput,
   validateNoteDocument,
   type NoteId,
 } from '../../../shared/documents/document.types';
@@ -91,7 +92,9 @@ describe('document primitives', () => {
       title: 'Renamed',
     });
     expect(createArchiveMutation(common)).toMatchObject({ kind: 'archive' });
-    expect(createRestoreMutation(common)).toMatchObject({ kind: 'restore' });
+    expect(
+      createRestoreMutation({ ...common, notebookId: 'work' }),
+    ).toMatchObject({ kind: 'restore', notebookId: 'work' });
   });
 
   it('normalizes tags into a unique local-first mutation', () => {
@@ -131,6 +134,14 @@ describe('document primitives', () => {
     expect.hasAssertions();
 
     expectInvalidMutation(() => createNoteId('   '));
+  });
+
+  it('rejects a permanent deletion with a non-string note ID', () => {
+    expect.hasAssertions();
+
+    expectInvalidMutation(() =>
+      validatePermanentlyDeleteNotesInput({ noteIds: ['note-1', 42] }),
+    );
   });
 
   it('rejects a non-string Markdown body with a stable domain error code', () => {

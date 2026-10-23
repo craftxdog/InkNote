@@ -3,7 +3,10 @@ import {
   type DocumentIpcResult,
 } from '../../shared/documents/document.ipc';
 import { createInvalidMutationError } from '../../shared/documents/document.errors';
-import type { DocumentRepository } from '../../shared/documents/document.repository';
+import type {
+  DocumentDeletionRepository,
+  DocumentRepository,
+} from '../../shared/documents/document.repository';
 import type {
   DocumentQueryRepository,
   NotebookRepository,
@@ -12,9 +15,11 @@ import {
   createNoteId,
   validateDeleteNotebookInput,
   validateDocumentMutation,
+  validatePermanentlyDeleteNotesInput,
   type DocumentMutation,
   type NoteDocument,
   type Notebook,
+  type PermanentlyDeleteNotesResult,
 } from '../../shared/documents/document.types';
 
 /**
@@ -26,6 +31,7 @@ import {
 export class DocumentIpcService {
   constructor(
     private readonly repository: DocumentRepository &
+      DocumentDeletionRepository &
       DocumentQueryRepository &
       NotebookRepository,
   ) {}
@@ -51,6 +57,16 @@ export class DocumentIpcService {
   async deleteNotebook(input: unknown) {
     return runDocumentIpcOperation(() =>
       this.repository.deleteNotebook(validateDeleteNotebookInput(input)),
+    );
+  }
+
+  async deletePermanently(
+    input: unknown,
+  ): Promise<DocumentIpcResult<PermanentlyDeleteNotesResult>> {
+    return runDocumentIpcOperation(() =>
+      this.repository.deletePermanently(
+        validatePermanentlyDeleteNotesInput(input),
+      ),
     );
   }
 

@@ -15,6 +15,7 @@ import {
   createMutationId,
   createNoteId,
   createReplaceBodyMutation,
+  createRestoreMutation,
   createUpdateTagsMutation,
   type CreateDocumentMutation,
 } from '../../../shared/documents/document.types';
@@ -171,6 +172,70 @@ describe('LocalDocumentStore', () => {
         deletedAt: '2026-10-21T12:02:00.000Z',
       }),
     ]);
+  });
+
+  it('restores an archived note into the selected notebook and permanently removes only archived notes', async () => {
+    const created = await store.apply(
+      createNoteMutation({ tags: ['work', 'reference'] }),
+    );
+    const archived = await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive'),
+        documentId: created.id,
+        baseRevision: created.revision,
+        source: 'command',
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+
+    const restored = await store.apply(
+      createRestoreMutation({
+        id: createMutationId('mutation-restore-to-work'),
+        documentId: archived.id,
+        baseRevision: archived.revision,
+        source: 'command',
+        notebookId: 'work',
+        occurredAt: '2026-10-21T12:02:00.000Z',
+      }),
+    );
+
+    expect(restored).toMatchObject({
+      notebookId: 'work',
+      deletedAt: null,
+      tags: ['reference', 'work'],
+    });
+
+    const rearchived = await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-rearchive'),
+        documentId: restored.id,
+        baseRevision: restored.revision,
+        source: 'command',
+        occurredAt: '2026-10-21T12:03:00.000Z',
+      }),
+    );
+
+    const active = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-active'),
+        documentId: createNoteId('active-note'),
+      }),
+    );
+    await expect(
+      store.deletePermanently({ noteIds: [rearchived.id, active.id] }),
+    ).rejects.toMatchObject({ code: 'INVALID_MUTATION' });
+    await expect(store.get(rearchived.id)).resolves.toEqual(rearchived);
+    await expect(store.get(active.id)).resolves.toEqual(active);
+
+    await expect(
+      store.deletePermanently({ noteIds: [rearchived.id] }),
+    ).resolves.toEqual({ deletedNoteIds: [rearchived.id] });
+    await expect(store.get(rearchived.id)).resolves.toBeNull();
+    expect(countRows(database, 'notes')).toBe(1);
+    expect(countRows(database, 'note_crdt_snapshots')).toBe(1);
+    expect(countRows(database, 'note_crdt_updates')).toBe(1);
+    expect(countRows(database, 'sync_outbox')).toBe(1);
+    expect(countRows(database, 'note_tags')).toBe(0);
   });
 
   it('projects normalized tags from a Yjs mutation through SQLite and a reopen', async () => {

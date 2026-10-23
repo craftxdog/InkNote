@@ -1,4 +1,10 @@
-import type { DocumentMutation, NoteDocument, NoteId } from './document.types';
+import type {
+  DocumentMutation,
+  NoteDocument,
+  NoteId,
+  PermanentlyDeleteNotesInput,
+  PermanentlyDeleteNotesResult,
+} from './document.types';
 
 /**
  * Boundary between document state and its durable local implementation.
@@ -9,4 +15,14 @@ import type { DocumentMutation, NoteDocument, NoteId } from './document.types';
 export interface DocumentRepository {
   get(id: NoteId): Promise<NoteDocument | null>;
   apply(mutation: DocumentMutation): Promise<NoteDocument>;
+}
+
+/**
+ * Explicit destructive write port. Implementations must reject active notes
+ * and atomically remove the archived note with all of its durable history.
+ */
+export interface DocumentDeletionRepository {
+  deletePermanently(
+    input: PermanentlyDeleteNotesInput,
+  ): Promise<PermanentlyDeleteNotesResult>;
 }

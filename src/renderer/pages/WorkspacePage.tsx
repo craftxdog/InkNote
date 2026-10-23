@@ -49,6 +49,7 @@ export function WorkspacePage() {
   const shouldShowTrafficLights = isNavigationVisible && !isWorkspaceExpanded;
   const selectedDocument = documentWorkspace.session.document;
   const isTrashSelected = navigationSelection.view.type === 'trash';
+  const currentNotebookId = notebookIdForSelection(navigationSelection);
   const previewBody =
     selectedDocument === null
       ? undefined
@@ -244,8 +245,16 @@ export function WorkspacePage() {
           onSelectNote={(id) => {
             void documentWorkspace.open(id).catch(() => undefined);
           }}
-          onArchiveNote={documentWorkspace.archive}
+          onArchiveNotes={documentWorkspace.archiveMany}
           onMoveNote={documentWorkspace.move}
+          onRestoreNotes={documentWorkspace.restoreMany}
+          onDeletePermanently={documentWorkspace.deletePermanently}
+          onDuplicateNote={(document) =>
+            documentWorkspace.duplicate(
+              document,
+              currentNotebookId ?? document.notebookId,
+            )
+          }
         />
       }
       editor={
@@ -297,3 +306,23 @@ export function WorkspacePage() {
     />
   );
 }
+
+const notebookIdForSelection = (
+  selection: NavigationSelection,
+): string | null => {
+  switch (selection.view.type) {
+    case 'inbox':
+      return 'inbox';
+    case 'notebook':
+      return selection.view.notebookId;
+    case 'project':
+      return selection.view.projectId;
+    case 'status':
+    case 'tag':
+      return selection.view.notebookId ?? null;
+    case 'all-notes':
+    case 'templates':
+    case 'trash':
+      return null;
+  }
+};

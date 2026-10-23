@@ -4,7 +4,13 @@ import {
   NotesPanel,
 } from '../../../renderer/features/notes/components/NotesPanel';
 import '@testing-library/jest-dom';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import type { NavigationSelection } from '../../../renderer/features/navigation/model/navigation.types';
 import {
   createNoteId,
@@ -230,5 +236,197 @@ describe('NotesPanel move shortcut', () => {
     });
 
     expect(onMoveNote).toHaveBeenCalledWith(documents[0], 'projects');
+  });
+});
+
+describe('NotesPanel note lifecycle actions', () => {
+  const allNotesSelection: NavigationSelection = {
+    id: 'all-notes',
+    label: 'All Notes',
+    view: { type: 'all-notes' },
+    icon: { type: 'all-notes' },
+  };
+
+  const trashSelection: NavigationSelection = {
+    id: 'trash',
+    label: 'Trash',
+    view: { type: 'trash' },
+    icon: { type: 'trash' },
+  };
+
+  const notebooks: readonly Notebook[] = [
+    {
+      id: 'inbox',
+      name: 'Inbox',
+      parentId: null,
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:00:00.000Z',
+    },
+    {
+      id: 'work',
+      name: 'Work',
+      parentId: null,
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:00:00.000Z',
+    },
+  ];
+
+  it('selects multiple notes and moves the exact selection to Trash with Command+Delete', async () => {
+    const onArchiveNotes = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={null}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onArchiveNotes={onArchiveNotes}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Project work/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Personal inbox/i }), {
+      metaKey: true,
+    });
+
+    expect(screen.getByText('2 selected')).toBeVisible();
+
+    fireEvent.keyDown(window, { key: 'Delete', metaKey: true });
+
+    await waitFor(() => expect(onArchiveNotes).toHaveBeenCalledWith(documents));
+  });
+
+  it('moves the selected note to Trash with Command+Backspace on macOS', async () => {
+    const onArchiveNotes = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={documents[0].id}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onArchiveNotes={onArchiveNotes}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: 'Backspace', metaKey: true });
+
+    await waitFor(() =>
+      expect(onArchiveNotes).toHaveBeenCalledWith([documents[0]]),
+    );
+  });
+
+  it('duplicates the selected active note with Command+D', async () => {
+    const onDuplicateNote = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={documents[0].id}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onDuplicateNote={onDuplicateNote}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: 'd', metaKey: true });
+
+    await waitFor(() =>
+      expect(onDuplicateNote).toHaveBeenCalledWith(documents[0]),
+    );
+  });
+
+  it('restores a trash selection into the chosen notebook and requires confirmation before permanent deletion', async () => {
+    const trashedDocuments = documents.map((document) => ({
+      ...document,
+      deletedAt: '2026-10-21T13:00:00.000Z',
+    }));
+    const onRestoreNotes = jest.fn().mockResolvedValue(undefined);
+    const onDeletePermanently = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <NotesPanel
+        navigationSelection={trashSelection}
+        documents={trashedDocuments}
+        notebooks={notebooks}
+        selectedNoteId={null}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onRestoreNotes={onRestoreNotes}
+        onDeletePermanently={onDeletePermanently}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Project work/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Personal inbox/i }), {
+      ctrlKey: true,
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move 2 notes to notebook' }),
+    );
+    fireEvent.change(
+      screen.getByRole('listbox', { name: 'Destination notebook' }),
+      {
+        target: { value: 'work' },
+      },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }));
+
+    await waitFor(() =>
+      expect(onRestoreNotes).toHaveBeenCalledWith(trashedDocuments, 'work'),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Project work/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Personal inbox/i }), {
+      ctrlKey: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete 2 notes permanently' }),
+    );
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'cannot be restored',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+
+    await waitFor(() =>
+      expect(onDeletePermanently).toHaveBeenCalledWith(trashedDocuments),
+    );
+  });
+
+  it('duplicates the selected active note from its context menu', async () => {
+    const onDuplicateNote = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={documents[0].id}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onDuplicateNote={onDuplicateNote}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      screen.getByRole('button', { name: /Project work/i }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+
+    await waitFor(() =>
+      expect(onDuplicateNote).toHaveBeenCalledWith(documents[0]),
+    );
   });
 });

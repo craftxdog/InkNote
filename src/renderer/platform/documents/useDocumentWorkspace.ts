@@ -22,6 +22,7 @@ import {
   type NotebookIconName,
   type NoteDocument,
   type NoteId,
+  type NoteStatus,
 } from '../../../shared/documents/document.types';
 import {
   DocumentSession,
@@ -45,7 +46,11 @@ export type DocumentWorkspaceActions = Readonly<{
   create(
     title?: string,
     body?: string,
-    options?: Readonly<{ notebookId?: string }>,
+    options?: Readonly<{
+      notebookId?: string;
+      status?: NoteStatus;
+      tags?: readonly string[];
+    }>,
   ): Promise<NoteDocument>;
   createNotebook(
     name: string,
@@ -56,7 +61,13 @@ export type DocumentWorkspaceActions = Readonly<{
   move(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
   archive(document: NoteDocument): Promise<NoteDocument>;
   archiveMany(documents: readonly NoteDocument[]): Promise<void>;
-  restore(document: NoteDocument): Promise<NoteDocument>;
+  restore(document: NoteDocument, notebookId?: string): Promise<NoteDocument>;
+  restoreMany(
+    documents: readonly NoteDocument[],
+    notebookId: string,
+  ): Promise<void>;
+  deletePermanently(documents: readonly NoteDocument[]): Promise<void>;
+  duplicate(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
 }>;
 
 /**
@@ -198,7 +209,11 @@ export const useDocumentWorkspace = (
     async (
       title = 'Untitled',
       body = '',
-      options: Readonly<{ notebookId?: string }> = {},
+      options: Readonly<{
+        notebookId?: string;
+        status?: NoteStatus;
+        tags?: readonly string[];
+      }> = {},
     ): Promise<NoteDocument> => {
       const occurredAt = new Date().toISOString();
       const documentId = createNoteId(createRuntimeId());
@@ -213,6 +228,8 @@ export const useDocumentWorkspace = (
           ...(options.notebookId === undefined
             ? {}
             : { notebookId: options.notebookId }),
+          ...(options.status === undefined ? {} : { status: options.status }),
+          ...(options.tags === undefined ? {} : { tags: options.tags }),
           occurredAt,
         }),
       );
@@ -318,13 +335,17 @@ export const useDocumentWorkspace = (
   );
 
   const restore = useCallback(
-    async (document: NoteDocument): Promise<NoteDocument> => {
+    async (
+      document: NoteDocument,
+      notebookId?: string,
+    ): Promise<NoteDocument> => {
       const restored = await apply(
         createRestoreMutation({
           id: createMutationId(createRuntimeId()),
           documentId: document.id,
           baseRevision: document.revision,
           source: 'command',
+          ...(notebookId === undefined ? {} : { notebookId }),
           occurredAt: new Date().toISOString(),
         }),
       );
@@ -345,6 +366,61 @@ export const useDocumentWorkspace = (
     [archive],
   );
 
+  const restoreMany = useCallback(
+    async (
+      notes: readonly NoteDocument[],
+      notebookId: string,
+    ): Promise<void> => {
+      for (const note of notes) {
+        await restore(note, notebookId);
+      }
+    },
+    [restore],
+  );
+
+  const deletePermanently = useCallback(
+    async (notes: readonly NoteDocument[]): Promise<void> => {
+      if (notes.length === 0) {
+        return;
+      }
+
+      try {
+        const result = await repository.deletePermanently({
+          noteIds: notes.map((note) => note.id),
+        });
+        const deletedIds = new Set(result.deletedNoteIds);
+
+        setDocuments((current) =>
+          Object.freeze(current.filter((note) => !deletedIds.has(note.id))),
+        );
+        setArchivedDocuments((current) =>
+          Object.freeze(current.filter((note) => !deletedIds.has(note.id))),
+        );
+
+        const selectedDocumentId = session.getSnapshot().selectedDocumentId;
+
+        if (selectedDocumentId !== null && deletedIds.has(selectedDocumentId)) {
+          session.clear();
+        }
+
+        setLastError(null);
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
+    },
+    [repository, session],
+  );
+
+  const duplicate = useCallback(
+    async (document: NoteDocument, notebookId: string): Promise<NoteDocument> =>
+      create(document.title, document.body, {
+        notebookId,
+        tags: document.tags,
+      }),
+    [create],
+  );
+
   return Object.freeze({
     documents,
     archivedDocuments,
@@ -362,6 +438,9 @@ export const useDocumentWorkspace = (
     archive,
     archiveMany,
     restore,
+    restoreMany,
+    deletePermanently,
+    duplicate,
   });
 };
 
