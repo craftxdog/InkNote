@@ -2,8 +2,9 @@ const assert = require('node:assert/strict');
 const { spawn, spawnSync } = require('node:child_process');
 const { setTimeout: delay } = require('node:timers/promises');
 
-const port = Number(process.env.SMOKE_PORT || 1213);
-const debugPort = Number(process.env.SMOKE_DEBUG_PORT || 9335);
+const portOffset = process.pid % 1000;
+const port = Number(process.env.SMOKE_PORT || 12000 + portOffset);
+const debugPort = Number(process.env.SMOKE_DEBUG_PORT || 9300 + portOffset);
 const windows = process.platform === 'win32';
 const child = spawn(
   windows ? 'npm.cmd' : 'npm',
@@ -113,24 +114,29 @@ async function main() {
   await waitFor(
     () =>
       evaluate(
-        'document.querySelector("h1")?.textContent === "electron-react-boilerplate" && document.querySelector("img")?.naturalWidth > 0',
+        'typeof window.inknote?.windowControls?.setTrafficLightsVisible === "function" && typeof window.inknote?.documents?.listActive === "function" && document.querySelector(".navigation-row__primary[aria-current=page] .navigation-row__label")?.textContent?.trim() === "All Notes" && (document.querySelector(".cm-content[role=textbox]") !== null || document.body.textContent?.includes("Markdown Editor") === true) && (document.querySelector(".markdown-preview") !== null || document.body.textContent?.includes("Markdown Preview") === true)',
       ),
-    'home page and image',
+    'InkNote workspace and preload bridge',
   );
   assert.equal(
     await evaluate('Boolean(document.querySelector("vite-error-overlay"))'),
     false,
   );
-  assert.equal(await evaluate('document.querySelectorAll("a").length'), 2);
   assert.equal(
     await evaluate(
-      'new Promise((resolve) => { window.electron.ipcRenderer.once("ipc-example", resolve); window.electron.ipcRenderer.sendMessage("ipc-example", ["smoke-test"]); })',
+      'window.inknote.windowControls.setTrafficLightsVisible(true).then((value) => typeof value === "boolean")',
     ),
-    'IPC test: pong',
+    true,
+  );
+  assert.equal(
+    await evaluate(
+      'window.inknote.documents.listActive().then((result) => result.ok === true && Array.isArray(result.value))',
+    ),
+    true,
   );
   assert.deepEqual(exceptions, []);
   console.log(
-    'Electron startup passed: home route, image, links, preload IPC, and no renderer exceptions.',
+    'Electron startup passed: InkNote workspace, restricted preload bridge, and no renderer exceptions.',
   );
 }
 

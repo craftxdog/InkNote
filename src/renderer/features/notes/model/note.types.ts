@@ -1,3 +1,5 @@
+import type { NoteStatus } from '../../../../shared/documents/document.types';
+
 export type NoteTag = {
   id: string;
   label: string;
@@ -10,6 +12,7 @@ export type NoteSummary = {
   excerpt: string;
   updatedLabel: string;
   pinned?: boolean;
+  status?: NoteStatus;
   completedTasks?: number;
   totalTasks?: number;
   tags: NoteTag[];

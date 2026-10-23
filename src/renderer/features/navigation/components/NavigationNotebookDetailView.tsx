@@ -1,0 +1,425 @@
+import { useMemo, useState, type CSSProperties, type FormEvent } from 'react';
+
+import {
+  NOTE_STATUSES,
+  type Notebook,
+  type NotebookIconName,
+  type NoteDocument,
+  type NoteStatus,
+} from '../../../../shared/documents/document.types';
+import { colorForTag, tagColorHex } from '../../notes/model/notePresentation';
+
+import type {
+  NavigationSectionId,
+  NavigationSectionsState,
+  NavigationSelection,
+} from '../model/navigation.types';
+import {
+  selectionForNotebookDetail,
+  selectionForNotebook,
+  selectionForNotebookStatus,
+  selectionForNotebookTag,
+  STATUS_LABELS,
+} from '../model/navigation.selections';
+import {
+  buildNotebookTreeRows,
+  descendantNotebookIds,
+  notebookBreadcrumbs,
+} from '../model/notebookTree';
+
+import {
+  ChevronIcon,
+  LibraryIcon,
+  NotesIcon,
+  SearchIcon,
+} from './NavigationIcons';
+import { NavigationHeader } from './NavigationSectionHeader';
+import { NOTEBOOK_ICON_OPTIONS } from './NavigationLibraryView';
+import { NavigationNotebookIcon } from './NavigationNotebookIcon';
+import { NavigationRow } from './NavigationRow';
+
+type NavigationNotebookDetailViewProps = {
+  notebook: Notebook;
+  notebooks: readonly Notebook[];
+  documents: readonly NoteDocument[];
+  selection: NavigationSelection;
+  expandedSections: NavigationSectionsState;
+  onSelectionChange: (selection: NavigationSelection) => void;
+  onToggleSection: (section: NavigationSectionId) => void;
+  onCreateNotebook: (
+    name: string,
+    parentId?: string | null,
+    icon?: NotebookIconName,
+  ) => Promise<Notebook>;
+  onOpenNotebookDetail: (notebook: Notebook) => void;
+  onExit: () => void;
+};
+
+/**
+ * A focused projection of one persisted notebook. Counts and destinations
+ * deliberately derive from the scoped documents, so this view remains useful
+ * as the local store changes instead of relying on a sample workspace tree.
+ */
+export function NavigationNotebookDetailView({
+  notebook,
+  notebooks,
+  documents,
+  selection,
+  expandedSections,
+  onSelectionChange,
+  onToggleSection,
+  onCreateNotebook,
+  onOpenNotebookDetail,
+  onExit,
+}: NavigationNotebookDetailViewProps) {
+  const [tagQuery, setTagQuery] = useState('');
+  const [isTagSearchVisible, setIsTagSearchVisible] = useState(false);
+  const [isCreatingChild, setIsCreatingChild] = useState(false);
+  const [childName, setChildName] = useState('');
+  const [childIcon, setChildIcon] = useState<NotebookIconName | undefined>(
+    undefined,
+  );
+  const [createError, setCreateError] = useState<string | null>(null);
+  const scopedNotebookIds = useMemo(
+    () => descendantNotebookIds(notebooks, notebook.id),
+    [notebooks, notebook.id],
+  );
+  const scopedDocuments = useMemo(
+    () =>
+      documents.filter((document) =>
+        scopedNotebookIds.has(document.notebookId),
+      ),
+    [documents, scopedNotebookIds],
+  );
+  const breadcrumbs = useMemo(
+    () => notebookBreadcrumbs(notebooks, notebook.id),
+    [notebooks, notebook.id],
+  );
+  const childNotebookRows = useMemo(() => {
+    const descendants = descendantNotebookIds(notebooks, notebook.id);
+    const childNotebooks = notebooks.filter(
+      (candidate) =>
+        candidate.id !== notebook.id && descendants.has(candidate.id),
+    );
+    const directNoteCounts = countBy(
+      documents,
+      (document) => document.notebookId,
+    );
+
+    return buildNotebookTreeRows(childNotebooks, directNoteCounts, '');
+  }, [documents, notebook.id, notebooks]);
+  const countsByStatus = useMemo(
+    () => countBy(scopedDocuments, (document) => document.status),
+    [scopedDocuments],
+  );
+  const tags = useMemo(
+    () => tagsForDocuments(scopedDocuments, tagQuery),
+    [scopedDocuments, tagQuery],
+  );
+  const allNotesSelection = selectionForNotebookDetail(notebook);
+  const isSelected = (id: string) => selection.id === id;
+  const submitChildNotebook = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (childName.trim().length === 0) {
+      return;
+    }
+
+    try {
+      const child = await onCreateNotebook(childName, notebook.id, childIcon);
+      setChildName('');
+      setChildIcon(undefined);
+      setIsCreatingChild(false);
+      setCreateError(null);
+      onSelectionChange(selectionForNotebook(child));
+    } catch {
+      setCreateError('The subnotebook could not be created.');
+    }
+  };
+
+  return (
+    <section
+      className="navigation-notebook-detail"
+      aria-label={`${notebook.name} notebook details`}
+    >
+      <header className="navigation-notebook-detail__header">
+        <button
+          type="button"
+          className="navigation-notebook-detail__back"
+          aria-label="Back to notebook library"
+          title="Back to notebook library"
+          onClick={onExit}
+        >
+          <LibraryIcon />
+        </button>
+
+        <div className="navigation-notebook-detail__context">
+          <div className="navigation-notebook-detail__breadcrumb">
+            <span>All notebooks</span>
+            {breadcrumbs.map((ancestor) => (
+              <span
+                key={ancestor.id}
+                className="navigation-notebook-detail__breadcrumb-segment"
+              >
+                <span
+                  aria-hidden="true"
+                  className="navigation-notebook-detail__separator"
+                >
+                  ›
+                </span>
+                <span>{ancestor.name}</span>
+              </span>
+            ))}
+          </div>
+
+          <h2 className="navigation-notebook-detail__title">
+            <NavigationNotebookIcon notebook={notebook} />
+            <span>{notebook.name}</span>
+          </h2>
+        </div>
+      </header>
+
+      <div className="navigation-notebook-detail__child-control">
+        <button
+          type="button"
+          className="navigation-notebook-detail__child-button"
+          aria-expanded={isCreatingChild}
+          onClick={() => {
+            setCreateError(null);
+            setIsCreatingChild((current) => !current);
+          }}
+        >
+          Add subnotebook
+        </button>
+
+        {isCreatingChild && (
+          <form
+            className="navigation-inline-control"
+            onSubmit={submitChildNotebook}
+          >
+            <input
+              aria-label={`New subnotebook in ${notebook.name}`}
+              value={childName}
+              onChange={(event) => setChildName(event.target.value)}
+              placeholder="Subnotebook name"
+            />
+            <select
+              aria-label={`Icon for new subnotebook in ${notebook.name}`}
+              value={childIcon ?? 'auto'}
+              onChange={(event) =>
+                setChildIcon(
+                  event.target.value === 'auto'
+                    ? undefined
+                    : (event.target.value as NotebookIconName),
+                )
+              }
+            >
+              <option value="auto">Auto icon</option>
+              {NOTEBOOK_ICON_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </form>
+        )}
+      </div>
+
+      {createError !== null && (
+        <p className="navigation-inline-error" role="alert">
+          {createError}
+        </p>
+      )}
+
+      <NavigationRow
+        label="All Notes"
+        icon={<NotesIcon />}
+        count={scopedDocuments.length}
+        selected={isSelected(allNotesSelection.id)}
+        onClick={() => onSelectionChange(allNotesSelection)}
+      />
+
+      {childNotebookRows.length > 0 && <NavigationHeader title="Notebooks" />}
+
+      {childNotebookRows.map(({ notebook: child, depth, noteCount }) => {
+        const childSelection = selectionForNotebook(child);
+
+        return (
+          <NavigationRow
+            key={child.id}
+            label={child.name}
+            icon={<NavigationNotebookIcon notebook={child} />}
+            count={noteCount}
+            depth={depth + 1}
+            selected={isSelected(childSelection.id)}
+            onClick={() => onSelectionChange(childSelection)}
+            action={{
+              label: 'Detail',
+              title: `Show details for ${child.name}`,
+              onClick: () => onOpenNotebookDetail(child),
+            }}
+          />
+        );
+      })}
+
+      <NavigationHeader
+        title="Status"
+        actions={
+          <button
+            type="button"
+            className={[
+              'navigation-icon-button',
+              'navigation-section-toggle',
+              expandedSections.status
+                ? 'navigation-section-toggle--expanded'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => onToggleSection('status')}
+            aria-expanded={expandedSections.status}
+            aria-label="Toggle status"
+          >
+            <ChevronIcon />
+          </button>
+        }
+      />
+
+      {expandedSections.status &&
+        NOTE_STATUSES.map((status) => {
+          const statusSelection = selectionForNotebookStatus(
+            notebook.id,
+            status,
+          );
+
+          return (
+            <NavigationRow
+              key={status}
+              label={STATUS_LABELS[status]}
+              icon={<StatusIcon status={status} />}
+              count={countsByStatus.get(status) ?? 0}
+              depth={1}
+              selected={isSelected(statusSelection.id)}
+              onClick={() => onSelectionChange(statusSelection)}
+            />
+          );
+        })}
+
+      <NavigationHeader
+        title="Tags"
+        actions={
+          <>
+            <button
+              type="button"
+              className="navigation-icon-button"
+              aria-label="Search tags"
+              aria-pressed={isTagSearchVisible}
+              onClick={() => setIsTagSearchVisible((current) => !current)}
+            >
+              <SearchIcon />
+            </button>
+            <button
+              type="button"
+              className={[
+                'navigation-icon-button',
+                'navigation-section-toggle',
+                expandedSections.tags
+                  ? 'navigation-section-toggle--expanded'
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              onClick={() => onToggleSection('tags')}
+              aria-expanded={expandedSections.tags}
+              aria-label="Toggle tags"
+            >
+              <ChevronIcon />
+            </button>
+          </>
+        }
+      />
+
+      {isTagSearchVisible && (
+        <div className="navigation-inline-control">
+          <input
+            aria-label="Filter notebook tags"
+            value={tagQuery}
+            onChange={(event) => setTagQuery(event.target.value)}
+            placeholder="Filter tags"
+          />
+        </div>
+      )}
+
+      {expandedSections.tags &&
+        tags.map((tag) => {
+          const tagSelection = selectionForNotebookTag(notebook.id, tag.name);
+          const tagColor = colorForTag(tag.name);
+
+          return (
+            <NavigationRow
+              key={tag.name}
+              label={tag.name}
+              icon={
+                <span
+                  className="navigation-tag-dot"
+                  style={
+                    {
+                      '--tag-color': tagColorHex[tagColor],
+                    } as CSSProperties
+                  }
+                />
+              }
+              count={tag.count}
+              depth={1}
+              selected={isSelected(tagSelection.id)}
+              onClick={() => onSelectionChange(tagSelection)}
+            />
+          );
+        })}
+    </section>
+  );
+}
+
+function StatusIcon({ status }: { status: NoteStatus }) {
+  return (
+    <span
+      className={['navigation-status', `navigation-status--${status}`].join(
+        ' ',
+      )}
+    />
+  );
+}
+
+const countBy = <T,>(
+  values: readonly T[],
+  getKey: (value: T) => string,
+): Map<string, number> => {
+  const counts = new Map<string, number>();
+
+  for (const value of values) {
+    const key = getKey(value);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return counts;
+};
+
+const tagsForDocuments = (
+  documents: readonly NoteDocument[],
+  query: string,
+): readonly { name: string; count: number }[] => {
+  const counts = new Map<string, number>();
+
+  for (const document of documents) {
+    for (const tag of document.tags) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .filter((tag) => tag.name.toLocaleLowerCase().includes(normalizedQuery))
+    .sort((left, right) => left.name.localeCompare(right.name));
+};

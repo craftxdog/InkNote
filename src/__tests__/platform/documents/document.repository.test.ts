@@ -10,7 +10,7 @@ import {
   createRestoreMutation,
   createUpdateTitleMutation,
   type DocumentMutation,
-} from '../../../renderer/platform/documents/document.types';
+} from '../../../shared/documents/document.types';
 import { InMemoryDocumentRepository } from '../../../test-support/documents/InMemoryDocumentRepository';
 
 const noteId = createNoteId('note-1');

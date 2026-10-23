@@ -1,4 +1,4 @@
 export * from './DocumentSession';
-export * from './document.errors';
-export * from './document.repository';
-export * from './document.types';
+export * from './IpcDocumentRepository';
+export * from './useDocumentWorkspace';
+export * from '../../../shared/documents';

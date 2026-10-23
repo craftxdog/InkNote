@@ -1,0 +1,76 @@
+/** @jest-environment node */
+
+import { DocumentIpcService } from '../../../main/documents/DocumentIpcService';
+import {
+  INITIAL_DOCUMENT_REVISION,
+  createCreateDocumentMutation,
+  createMutationId,
+  createNoteId,
+} from '../../../shared/documents/document.types';
+import { InMemoryDocumentRepository } from '../../../test-support/documents/InMemoryDocumentRepository';
+
+const noteId = createNoteId('note-1');
+
+const createMutation = () =>
+  createCreateDocumentMutation({
+    id: createMutationId('mutation-create'),
+    documentId: noteId,
+    baseRevision: INITIAL_DOCUMENT_REVISION,
+    source: 'editor',
+    title: 'First note',
+    body: 'first line',
+    occurredAt: '2026-10-21T12:00:00.000Z',
+  });
+
+describe('DocumentIpcService', () => {
+  it('returns a serializable null result when a document does not exist', async () => {
+    const service = new DocumentIpcService(new InMemoryDocumentRepository());
+
+    await expect(service.get('missing-note')).resolves.toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
+  it('validates a renderer mutation before passing it to the repository', async () => {
+    const service = new DocumentIpcService(new InMemoryDocumentRepository());
+
+    const invalid = await service.apply({
+      id: 'mutation-invalid',
+      documentId: 'note-1',
+      baseRevision: 'initial',
+      source: 'unknown',
+      kind: 'replace-body',
+      body: 'body',
+      occurredAt: '2026-10-21T12:00:00.000Z',
+    });
+
+    expect(invalid).toEqual({
+      ok: false,
+      error: {
+        code: 'INVALID_MUTATION',
+        message: 'Mutation source is not supported.',
+      },
+    });
+  });
+
+  it('returns a canonical document projection after an accepted mutation', async () => {
+    const service = new DocumentIpcService(new InMemoryDocumentRepository());
+
+    await expect(service.apply(createMutation())).resolves.toEqual({
+      ok: true,
+      value: {
+        id: noteId,
+        title: 'First note',
+        body: 'first line',
+        notebookId: 'inbox',
+        status: 'active',
+        tags: [],
+        createdAt: '2026-10-21T12:00:00.000Z',
+        updatedAt: '2026-10-21T12:00:00.000Z',
+        revision: 'local-1',
+        deletedAt: null,
+      },
+    });
+  });
+});

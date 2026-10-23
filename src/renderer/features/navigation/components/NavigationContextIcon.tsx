@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react';
 
 import type { NavigationSelection } from '../model/navigation.types';
+import { NavigationNotebookIcon } from './NavigationNotebookIcon';
 
 import {
-  BriefcaseIcon,
   InboxIcon,
   NotesIcon,
   RocketIcon,
@@ -31,7 +31,20 @@ export function NavigationContextIcon({
       return <InboxIcon />;
 
     case 'notebook':
-      return <BriefcaseIcon />;
+      return (
+        <NavigationNotebookIcon
+          notebook={{
+            id:
+              selection.view.type === 'notebook'
+                ? selection.view.notebookId
+                : selection.id,
+            name: selection.label,
+            ...(icon.notebookIcon === undefined
+              ? {}
+              : { icon: icon.notebookIcon }),
+          }}
+        />
+      );
 
     case 'project':
       return <RocketIcon />;

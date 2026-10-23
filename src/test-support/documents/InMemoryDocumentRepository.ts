@@ -2,17 +2,29 @@ import {
   createDocumentNotFoundError,
   createInvalidMutationError,
   createRevisionConflictError,
-} from '../../renderer/platform/documents/document.errors';
-import type { DocumentRepository } from '../../renderer/platform/documents/document.repository';
+} from '../../shared/documents/document.errors';
+
+import type { DocumentRepository } from '../../shared/documents/document.repository';
+import type {
+  DocumentQueryRepository,
+  NotebookRepository,
+} from '../../shared/documents/document.query';
+
 import {
   INITIAL_DOCUMENT_REVISION,
+  INBOX_NOTEBOOK_ID,
+  createNotebook,
+  type DeleteNotebookInput,
+  type DeleteNotebookResult,
   createRevision,
   validateDocumentMutation,
   type CreateDocumentMutation,
   type DocumentMutation,
+  type CreateNotebookInput,
+  type Notebook,
   type NoteDocument,
   type NoteId,
-} from '../../renderer/platform/documents/document.types';
+} from '../../shared/documents/document.types';
 
 /**
  * Test-only implementation of the document repository port.
@@ -20,8 +32,23 @@ import {
  * It deliberately models revision conflicts but not durable mutation-id
  * idempotency; that behavior belongs to the SQLite/outbox implementation.
  */
-export class InMemoryDocumentRepository implements DocumentRepository {
+export class InMemoryDocumentRepository
+  implements DocumentRepository, DocumentQueryRepository, NotebookRepository
+{
   private readonly documents = new Map<NoteId, NoteDocument>();
+
+  private readonly notebooks = new Map<string, Notebook>([
+    [
+      INBOX_NOTEBOOK_ID,
+      Object.freeze({
+        id: INBOX_NOTEBOOK_ID,
+        name: 'Inbox',
+        parentId: null,
+        createdAt: '1970-01-01T00:00:00.000Z',
+        updatedAt: '1970-01-01T00:00:00.000Z',
+      }),
+    ],
+  ]);
 
   private revisionSequence = 0;
 
@@ -29,6 +56,122 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     const document = this.documents.get(id);
 
     return document === undefined ? null : freezeDocument(document);
+  }
+
+  async listActive(): Promise<readonly NoteDocument[]> {
+    return this.listByDeletionState(false);
+  }
+
+  async listArchived(): Promise<readonly NoteDocument[]> {
+    return this.listByDeletionState(true);
+  }
+
+  private listByDeletionState(
+    archived: boolean,
+  ): Promise<readonly NoteDocument[]> {
+    return Promise.resolve(
+      Object.freeze(
+        [...this.documents.values()]
+          .filter((document) => (document.deletedAt !== null) === archived)
+          .sort((left, right) => {
+            const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt);
+
+            return byUpdatedAt === 0
+              ? left.id.localeCompare(right.id)
+              : byUpdatedAt;
+          })
+          .map(freezeDocument),
+      ),
+    );
+  }
+
+  async listNotebooks(): Promise<readonly Notebook[]> {
+    return Object.freeze(
+      [...this.notebooks.values()]
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map((notebook) => Object.freeze({ ...notebook })),
+    );
+  }
+
+  async createNotebook(input: CreateNotebookInput): Promise<Notebook> {
+    const notebook = createNotebook(input);
+    const parentId = notebook.parentId ?? null;
+
+    if (this.notebooks.has(notebook.id)) {
+      throw createInvalidMutationError(
+        'A notebook with this ID already exists.',
+      );
+    }
+
+    if (parentId !== null && !this.notebooks.has(parentId)) {
+      throw createInvalidMutationError(
+        `Notebook parent "${parentId}" does not exist.`,
+      );
+    }
+
+    this.notebooks.set(notebook.id, notebook);
+
+    return Object.freeze({ ...notebook });
+  }
+
+  async deleteNotebook(
+    input: DeleteNotebookInput,
+  ): Promise<DeleteNotebookResult> {
+    if (input.id === INBOX_NOTEBOOK_ID) {
+      throw createInvalidMutationError('The Inbox notebook cannot be deleted.');
+    }
+
+    const notebook = this.notebooks.get(input.id);
+
+    if (notebook === undefined) {
+      throw createInvalidMutationError(
+        `Notebook "${input.id}" does not exist.`,
+      );
+    }
+
+    const archivedNoteIds: NoteId[] = [];
+
+    for (const document of this.documents.values()) {
+      if (document.notebookId !== notebook.id || document.deletedAt !== null) {
+        continue;
+      }
+
+      const archived = freezeDocument({
+        ...document,
+        updatedAt: input.occurredAt,
+        deletedAt: input.occurredAt,
+        revision: this.nextRevision(),
+      });
+
+      this.documents.set(archived.id, archived);
+      archivedNoteIds.push(archived.id);
+    }
+
+    const reparentedNotebookIds: string[] = [];
+
+    for (const child of this.notebooks.values()) {
+      if (child.parentId !== notebook.id) {
+        continue;
+      }
+
+      this.notebooks.set(
+        child.id,
+        Object.freeze({
+          ...child,
+          parentId: notebook.parentId ?? null,
+          updatedAt: input.occurredAt,
+        }),
+      );
+      reparentedNotebookIds.push(child.id);
+    }
+
+    this.notebooks.delete(notebook.id);
+
+    return Object.freeze({
+      deletedNotebookId: notebook.id,
+      archivedNoteIds: Object.freeze(archivedNoteIds),
+      reparentedNotebookIds: Object.freeze(reparentedNotebookIds),
+    });
   }
 
   async apply(mutation: DocumentMutation): Promise<NoteDocument> {
@@ -76,6 +219,9 @@ export class InMemoryDocumentRepository implements DocumentRepository {
       id: mutation.documentId,
       title: mutation.title,
       body: mutation.body,
+      notebookId: mutation.notebookId,
+      status: mutation.status,
+      tags: Object.freeze([...mutation.tags]),
       createdAt: mutation.occurredAt,
       updatedAt: mutation.occurredAt,
       revision: this.nextRevision(),
@@ -102,6 +248,17 @@ export class InMemoryDocumentRepository implements DocumentRepository {
         return freezeDocument({ ...revised, title: mutation.title });
       case 'replace-body':
         return freezeDocument({ ...revised, body: mutation.body });
+      case 'update-tags':
+        return freezeDocument({
+          ...revised,
+          tags: Object.freeze([...mutation.tags]),
+        });
+      case 'update-organization':
+        return freezeDocument({
+          ...revised,
+          notebookId: mutation.notebookId,
+          status: mutation.status,
+        });
       case 'archive':
         return freezeDocument({ ...revised, deletedAt: mutation.occurredAt });
       case 'restore':

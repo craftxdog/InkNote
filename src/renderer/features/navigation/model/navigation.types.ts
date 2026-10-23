@@ -1,3 +1,5 @@
+import type { NotebookIconName } from '../../../../shared/documents/document.types';
+
 export type NoteStatus = 'active' | 'on-hold' | 'completed' | 'dropped';
 
 export type NavigationView =
@@ -13,6 +15,8 @@ export type NavigationView =
   | {
       type: 'notebook';
       notebookId: string;
+      /** A collapsed notebook also includes notes from nested notebooks. */
+      includeDescendants?: boolean;
     }
   | {
       type: 'project';
@@ -21,10 +25,14 @@ export type NavigationView =
   | {
       type: 'status';
       status: NoteStatus;
+      /** When present, status results stay within a focused notebook. */
+      notebookId?: string;
     }
   | {
       type: 'tag';
       tagId: string;
+      /** When present, tag results stay within a focused notebook. */
+      notebookId?: string;
     }
   | {
       type: 'trash';
@@ -42,6 +50,7 @@ export type NavigationIcon =
     }
   | {
       type: 'notebook';
+      notebookIcon?: NotebookIconName;
     }
   | {
       type: 'project';
