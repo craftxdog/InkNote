@@ -628,22 +628,27 @@ export function MarkdownPreview({
     void Promise.all([
       import('unified'),
       import('remark-parse'),
+      import('remark-math'),
       import('remark-gfm'),
       import('remark-rehype'),
       import('rehype-sanitize'),
+      import('rehype-katex'),
       import('rehype-stringify'),
     ])
       .then(
         ([
           { unified },
           { default: remarkParse },
+          { default: remarkMath },
           { default: remarkGfm },
           { default: remarkRehype },
           { default: rehypeSanitize, defaultSchema },
+          { default: rehypeKatex },
           { default: rehypeStringify },
         ]) => {
           const result = unified()
             .use(remarkParse)
+            .use(remarkMath)
             .use(remarkGfm)
             .use(remarkRehype)
             .use(rehypeSanitize, {
@@ -653,6 +658,10 @@ export function MarkdownPreview({
                 href: [...(defaultSchema.protocols?.href ?? []), 'inknote'],
               },
             })
+            // KaTeX receives only the already parsed and sanitized math nodes.
+            // Keep its trust boundary explicit: untrusted TeX cannot enable
+            // raw HTML, links, or style attributes in the preview.
+            .use(rehypeKatex, { trust: false, throwOnError: false })
             .use(
               inkNoteMarkdownPresentation(
                 codeFenceMetadataByLine,

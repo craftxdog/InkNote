@@ -128,6 +128,10 @@ describe('App', () => {
   it('switches workspace layouts with the documented shortcuts', () => {
     const { container } = render(<App />);
 
+    expect(
+      screen.getByRole('button', { name: 'Enter distraction-free mode' }),
+    ).toBeInTheDocument();
+
     fireEvent.keyDown(window, { key: '/', ctrlKey: true });
     expect(
       screen.getByRole('button', { name: 'Show navigation sidebar' }),
@@ -148,6 +152,9 @@ describe('App', () => {
     expect(container.querySelector('.workspace-shell')).toHaveClass(
       'workspace-shell--expanded',
     );
+    expect(
+      screen.getByRole('button', { name: 'Exit distraction-free mode' }),
+    ).toBeInTheDocument();
   });
 
   it('leaves Ctrl-based Vim controls to the focused Markdown editor', () => {

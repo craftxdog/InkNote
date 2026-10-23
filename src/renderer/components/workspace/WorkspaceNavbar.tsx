@@ -120,10 +120,12 @@ export const WorkspaceNavbar = ({
               .join(' ')}
             onClick={onToggleWorkspaceExpanded}
             aria-label={
-              isWorkspaceExpanded ? 'Restore workspace' : 'Expand workspace'
+              isWorkspaceExpanded
+                ? 'Exit distraction-free mode'
+                : 'Enter distraction-free mode'
             }
             aria-pressed={isWorkspaceExpanded}
-            title={`${isWorkspaceExpanded ? 'Restore workspace' : 'Expand workspace'} (⌘/Ctrl+⇧D)`}
+            title={`${isWorkspaceExpanded ? 'Exit' : 'Enter'} distraction-free mode (⌘/Ctrl+⇧D)`}
           >
             {isWorkspaceExpanded ? <CollapseIcon /> : <ExpandIcon />}
           </button>
