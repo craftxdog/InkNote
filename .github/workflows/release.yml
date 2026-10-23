@@ -23,7 +23,9 @@ jobs:
       matrix:
         os:
           - macos-latest
-          - windows-latest
+          # Keep native-module rebuilding on the VS 2022 runner until the
+          # electron-builder node-gyp chain supports Visual Studio 2026.
+          - windows-2022
           - ubuntu-latest
     steps:
       - name: Checkout repository
@@ -41,7 +43,12 @@ jobs:
       - name: Run quality checks
         run: npm run verify
 
+      - name: Smoke test Electron startup (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: xvfb-run --auto-servernum npm run test:smoke
+
       - name: Smoke test Electron startup
+        if: ${{ runner.os != 'Linux' }}
         run: npm run test:smoke
 
       - name: Publish GitHub release
