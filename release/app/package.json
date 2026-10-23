@@ -1,12 +1,17 @@
 {
   "name": "inknote",
-  "version": "4.6.0",
-  "description": "A foundation for scalable desktop apps",
+  "version": "0.1.0",
+  "description": "A local-first Markdown note-taking desktop app with Vim-inspired navigation.",
+  "homepage": "https://github.com/craftxdog/InkNote#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/craftxdog/InkNote.git"
+  },
   "license": "MIT",
   "author": {
-    "name": "Craftzdog",
-    "email": "craftzdog@alphaby.cloud",
-    "url": "www.https://alphaby.cloud"
+    "name": "craftxdog",
+    "email": "craftxdog@alphaby.cloud",
+    "url": "https://github.com/craftxdog"
   },
   "main": "./dist/main/main.js",
   "scripts": {
@@ -14,5 +19,9 @@
     "postinstall": "npm run rebuild && npm run link-modules",
     "link-modules": "node -r ../../.erb/scripts/register.cjs ../../.erb/scripts/link-modules.ts"
   },
-  "dependencies": {}
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "rehype-stringify": "^10.0.1",
+    "yjs": "^13.6.33"
+  }
 }

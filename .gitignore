@@ -24,6 +24,14 @@ release/build
 
 .idea
 npm-debug.log.*
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.cer
+*.key
+*.mobileprovision
 *.css.d.ts
 *.sass.d.ts
 *.scss.d.ts

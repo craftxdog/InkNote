@@ -52,9 +52,36 @@ export default defineConfig({
       emptyOutDir: true,
       minify: 'esbuild',
       sourcemap: true,
+      // Mermaid loads its diagram engines on demand. ELK is the largest one
+      // (about 1.5 MB minified), so the normal 500 kB warning is not useful.
+      chunkSizeWarningLimit: 1500,
       rollupOptions: {
         input: path.join(root, 'src/renderer/index.html'),
-        output: { entryFileNames: 'renderer.js' },
+        output: {
+          entryFileNames: 'renderer.js',
+          manualChunks(id) {
+            const normalizedId = id.replaceAll('\\', '/');
+
+            if (
+              normalizedId.includes('/node_modules/react/') ||
+              normalizedId.includes('/node_modules/react-dom/')
+            ) {
+              return 'react';
+            }
+
+            if (
+              normalizedId.includes('/node_modules/@codemirror/lang-markdown/')
+            ) {
+              return 'markdown-language';
+            }
+
+            if (normalizedId.includes('/node_modules/@codemirror/')) {
+              return 'codemirror-editor';
+            }
+
+            return undefined;
+          },
+        },
       },
     },
   },

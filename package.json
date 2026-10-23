@@ -31,7 +31,7 @@
   },
   "main": "./release/app/dist/main/main.js",
   "scripts": {
-    "build": "electron-vite build",
+    "build": "npm run verify:release-manifest && electron-vite build",
     "postinstall": "npm --prefix .erb/tooling ci && install-electron && electron-builder install-app-deps",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx,.cjs",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx,.cjs --fix",
@@ -39,13 +39,15 @@
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "release": "npm run build && electron-builder build --publish always",
     "start": "electron-vite dev --watch",
-    "test": "jest",
-    "test:ci": "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand",
+    "test": "cross-env NODE_OPTIONS=--localstorage-file=/tmp/inknote-jest-localstorage jest",
+    "test:ci": "cross-env NODE_OPTIONS=--localstorage-file=/tmp/inknote-jest-localstorage jest --runInBand",
+    "test:coverage": "cross-env NODE_OPTIONS=--localstorage-file=/tmp/inknote-jest-localstorage jest --coverage --runInBand",
     "test:smoke": "node .erb/scripts/smoke-test.cjs",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm run test:ci && npm run build",
-    "preview": "electron-vite preview"
+    "verify:release-manifest": "node scripts/verify-release-manifest.cjs",
+    "verify": "npm run lint && npm run typecheck && npm run test:ci && npm run verify:native-sqlite && npm run build",
+    "preview": "electron-vite preview",
+    "verify:native-sqlite": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/verify-native-sqlite.cjs"
   },
   "browserslist": [
     "extends browserslist-config-erb"
@@ -75,18 +77,21 @@
     "@electron/notarize": "^3.1.1",
     "@lezer/markdown": "^1.8.1",
     "@replit/codemirror-vim": "^6.4.0",
+    "better-sqlite3": "^13.0.3",
     "electron-debug": "^4.1.0",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
+    "mermaid": "^12.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4",
-    "rehype-react": "^8.0.0",
     "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
-    "unified": "^11.0.5"
+    "unified": "^11.0.5",
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
@@ -96,6 +101,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/jest": "^30.0.0",
     "@types/node": "26.6.0",
     "@types/react": "^19.3.0",
