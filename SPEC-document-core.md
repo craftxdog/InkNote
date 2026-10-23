@@ -1,6 +1,6 @@
 # Spec: `document-core`
 
-Status: approved by the product owner on 2026-10-20.
+Status: implemented as the document-core vertical slice on 2026-10-21.
 
 ## Objective
 
@@ -22,8 +22,9 @@ CodeMirror, SQLite, Supabase, or HTTP into the note model.
 - Immutable document-session state and subscriptions for a selected note.
 - Explicit note mutations for creation, title/body updates, archive, and
   restore.
-- Repository and sync-outbox *interfaces* only; no database, IPC, HTTP, or
-  Supabase implementation.
+- Repository and active-document query interfaces, plus a serializable IPC DTO
+  contract. Concrete SQLite, Electron IPC, and renderer adapters live outside
+  this framework-free core.
 - Normalization rules needed by every editor input path: Markdown body text uses
   LF line endings; identifiers and operation IDs are opaque strings.
 - A uniform domain-error vocabulary for missing documents, invalid mutations,
@@ -34,7 +35,9 @@ CodeMirror, SQLite, Supabase, or HTTP into the note model.
 - SQLite schema, encryption, migrations, disk writes, or an outbox
   implementation (`local-first-store`).
 - CodeMirror, Vim, rendering, commands, menus, React components, or keymaps.
-- Yjs transport and remote conflict resolution (`remote-sync-adapter`).
+- Yjs persistence, transport, and conflict resolution. The later
+  `local-first-store` owns the durable Yjs representation defined in ADR 002;
+  this core remains a UI-facing, framework-free projection contract.
 - Notebooks, tags, attachments, search, authentication, and user profiles.
 - Any direct compatibility promise for an external Inkdrop or Vim plugin.
 
@@ -68,8 +71,10 @@ type DocumentMutation =
   | RestoreDocumentMutation;
 
 type DocumentSessionSnapshot = Readonly<{
+  selectedDocumentId: NoteId | null;
   document: NoteDocument | null;
   lastError: DocumentDomainError | null;
+  isLoading: boolean;
 }>;
 
 type DocumentDomainError = Readonly<{
@@ -138,9 +143,14 @@ only updates the session if it still targets the active selection and
 generation. Subscriber callbacks are isolated: their failures are reported to
 the optional `onListenerError` callback and cannot make an accepted operation
 fail or prevent other subscribers from receiving the snapshot. Domain errors,
-documents, and snapshots are frozen before publication. The next module will
-make repository acceptance an atomic SQLite transaction that also records an
+documents, and snapshots are frozen before publication. The local-first store
+makes repository acceptance an atomic SQLite transaction that also records an
 outbox item.
+
+The session also publishes the selected note ID and loading state, so a renderer
+can distinguish an empty selection from an in-flight open. Accepted mutations
+have a per-note epoch; therefore a late `get()` response cannot replace a
+document already accepted by `apply()`.
 
 ## Local-first and synchronization rules
 
@@ -149,9 +159,10 @@ outbox item.
    durable sync operation together before acknowledging it to the session.
 3. A future sync adapter may retry the operation using the same mutation ID;
    neither the editor nor the preview generates a new ID for a retry.
-4. The current `revision` is an opaque, monotonic local version. It is not a
-   replacement for future Yjs/CRDT state; a collaboration adapter may map a
-   CRDT update into this contract without exposing CRDT internals to React.
+4. The current `revision` is an opaque local projection version. It is not a
+   concurrency authority for title or body. `local-first-store` translates
+   editor intents into Yjs updates and persists those updates with an outbox;
+   React continues to consume only the projected strings.
 5. Transient editor state such as selection, scroll, and Vim mode never becomes
    a document mutation.
 
@@ -167,11 +178,14 @@ npm run build
 ## Project Structure
 
 ```text
-src/renderer/platform/documents/
+src/shared/documents/
   document.types.ts        # Canonical types and discriminated mutations
-  DocumentSession.ts       # Session state and repository coordination
   document.errors.ts       # Domain error codes/classes
   document.repository.ts   # Persistence/outbox port
+  document.query.ts        # Active-note query port
+  document.ipc.ts          # Serializable IPC result contract
+src/renderer/platform/documents/
+  DocumentSession.ts       # Session state and repository coordination
 src/__tests__/platform/documents/
   DocumentSession.test.ts  # Session behavior and revision tests
 src/test-support/documents/
@@ -205,7 +219,8 @@ export type UpdateBodyMutation = Readonly<{
   revision advancement, immutable snapshots, unsubscription, and each
   domain error.
 - A fake in-memory repository may be used only in tests and in the first
-  vertical slice; it must implement the same `DocumentRepository` port.
+  vertical slice; it must implement the same repository and query ports used by
+  the consumer under test.
 - Primitive factories reject malformed identifiers, sources, and mutation
   payload types with `INVALID_MUTATION`. Missing-document and revision-conflict
   behavior needs a repository and is tested in the following slices.
@@ -235,8 +250,8 @@ export type UpdateBodyMutation = Readonly<{
 
 ## Open Questions
 
-- The exact local database package and encryption strategy belong to
-  `local-first-store` and require a separate approval.
-- Collaborative editing will use Yjs at the sync boundary, but the precise
-  storage representation of Yjs updates remains intentionally deferred until
-  that module is specified.
+- Encryption/key management and remote account authorization require separate
+  approvals.
+- The durable Yjs snapshot/update/outbox design is implemented in
+  `src/main/documents/LocalDocumentStore.ts`; transport, compaction scheduling,
+  and account authentication remain the next separate slices.

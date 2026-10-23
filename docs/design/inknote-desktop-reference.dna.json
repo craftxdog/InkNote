@@ -1,0 +1,441 @@
+{
+  "meta": {
+    "name": "InkNote compact desktop editor",
+    "description": "A calm, desktop-native, three-column note workspace derived from the user-supplied reference screenshots. It uses compact information density, warm neutral surfaces, crisp system typography, restrained blue selection, and small semantic accents for notes, tags, and status.",
+    "source_references": [
+      "User-supplied reference screenshot codex-clipboard-9305f480-9ef9-4676-975c-e8aaec5243af.png",
+      "User-supplied reference screenshot codex-clipboard-2a0aec12-2fc1-4ac9-b983-0cea65c1275c.png",
+      "User-supplied reference screenshot codex-clipboard-a515647f-0586-4981-98f5-2dde90b8eca6.png",
+      "User-supplied reference screenshot codex-clipboard-1f52a803-c79d-492c-a86d-600ad4fe62b0.png",
+      "User-supplied reference screenshot codex-clipboard-150639dc-8ffd-4d4d-b655-1e66cda68721.png"
+    ],
+    "created_at": "2026-10-21T00:00:00.000Z"
+  },
+  "design_system": {
+    "color": {
+      "palette_type": "neutral monochrome with restrained semantic accents",
+      "primary": {
+        "hex": "#1d1c19",
+        "role": "high-contrast ink for titles, body copy, and editor content"
+      },
+      "secondary": {
+        "hex": "#c0c1c1",
+        "role": "muted navigation layer, separators, and inactive chrome"
+      },
+      "accent": {
+        "hex": "#4e81f3",
+        "role": "interactive selection, focus, timestamps, and primary metadata"
+      },
+      "neutral": {
+        "scale": [
+          "#ffffff",
+          "#f8f7f5",
+          "#eeeeed",
+          "#dedddb",
+          "#c0c1c1",
+          "#858071",
+          "#656e6e",
+          "#363531",
+          "#1b1b19"
+        ],
+        "usage": "Use warm white and light gray for document surfaces, a slightly darker gray for sidebar layers and dividers, #656e6e for supporting copy, and #1b1b19 for primary foreground text. Avoid high-saturation fills except for semantic chips and selection."
+      },
+      "semantic": {
+        "success": "#22c160",
+        "warning": "#f8b126",
+        "error": "#ed5668",
+        "info": "#4e81f3"
+      },
+      "surface": {
+        "background": "#eeeeed",
+        "card": "#f8f7f5",
+        "elevated": "#ffffff"
+      },
+      "contrast_strategy": "dark-on-light dominant with subtle surface steps; active selection uses an accessible blue-tinted neutral layer plus text and icon changes rather than color alone",
+      "measurement": {
+        "k": 8,
+        "sampling": {
+          "method": "deterministic_stratified",
+          "max_pixels": 160000,
+          "sampled_pixels": 160000
+        }
+      },
+      "measured_palette": [
+        {
+          "hex": "#ededed",
+          "coverage": 0.5878,
+          "role": "background"
+        },
+        {
+          "hex": "#22201d",
+          "coverage": 0.1724,
+          "role": "text"
+        },
+        {
+          "hex": "#c3c3c4",
+          "coverage": 0.1624,
+          "role": "navigation and divider"
+        },
+        {
+          "hex": "#47433f",
+          "coverage": 0.0514,
+          "role": "secondary text"
+        },
+        {
+          "hex": "#768082",
+          "coverage": 0.0191,
+          "role": "muted metadata"
+        },
+        {
+          "hex": "#4370ee",
+          "coverage": 0.0039,
+          "role": "accent"
+        },
+        {
+          "hex": "#e24171",
+          "coverage": 0.0028,
+          "role": "secondary semantic accent"
+        },
+        {
+          "hex": "#22c160",
+          "coverage": 0.0003,
+          "role": "success"
+        }
+      ]
+    },
+    "typography": {
+      "type_scale": {
+        "display": {
+          "size": "28px",
+          "weight": "650",
+          "line_height": "1.18",
+          "tracking": "-0.02em"
+        },
+        "heading_1": {
+          "size": "24px",
+          "weight": "700",
+          "line_height": "1.25",
+          "tracking": "-0.018em"
+        },
+        "heading_2": {
+          "size": "20px",
+          "weight": "700",
+          "line_height": "1.3",
+          "tracking": "-0.012em"
+        },
+        "heading_3": {
+          "size": "16px",
+          "weight": "650",
+          "line_height": "1.35",
+          "tracking": "-0.006em"
+        },
+        "body": {
+          "size": "15px",
+          "weight": "400",
+          "line_height": "1.58",
+          "tracking": "0"
+        },
+        "body_small": {
+          "size": "13px",
+          "weight": "400",
+          "line_height": "1.42",
+          "tracking": "0"
+        },
+        "caption": {
+          "size": "12px",
+          "weight": "500",
+          "line_height": "1.35",
+          "tracking": "0"
+        },
+        "overline": {
+          "size": "11px",
+          "weight": "650",
+          "line_height": "1.25",
+          "tracking": "0.025em"
+        }
+      },
+      "font_families": {
+        "heading": "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif",
+        "body": "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif",
+        "mono": "ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Monaco, Consolas, monospace"
+      },
+      "font_style_notes": "Use the operating system’s native sans on desktop for a quiet macOS-like finish. Keep markdown source and code blocks in a legible monospaced face with generous line height."
+    },
+    "spacing": {
+      "base_unit": "4px",
+      "scale": ["4px", "8px", "12px", "16px", "20px", "24px", "32px", "48px"],
+      "content_density": "compact desktop",
+      "section_rhythm": "Tight 4–8px grouping within controls, 12–16px between related content clusters, and 24–32px around document sections."
+    },
+    "layout": {
+      "grid_system": "fixed compact three-column desktop workspace: navigation, note list, and document area split into source and rendered preview",
+      "max_content_width": "860px per preview column",
+      "columns": "220–250px navigation; 280–320px note list; flexible editor and preview panes",
+      "gutter": "1px low-contrast dividers; 16–24px internal pane padding",
+      "breakpoints": "1440px retains all columns; 1024px narrows sidebars; below 768px use a single active panel with explicit navigation controls",
+      "alignment_tendency": "strict grid with aligned toolbar, pane, and list boundaries"
+    },
+    "shape": {
+      "border_radius": {
+        "small": "4px",
+        "medium": "7px",
+        "large": "10px",
+        "pill": "999px"
+      },
+      "border_usage": "subtle 1px dividers define workspace panes; use gentle borders for inputs, chips, code blocks, and controls",
+      "divider_style": "1px rgba(27, 27, 25, 0.10) lines with no heavy card outlines"
+    },
+    "elevation": {
+      "shadow_style": "minimal soft diffused shadows only for transient menus and floating tools",
+      "levels": {
+        "low": "0 1px 2px rgba(27, 27, 25, 0.08)",
+        "medium": "0 4px 14px rgba(27, 27, 25, 0.12)",
+        "high": "0 12px 28px rgba(27, 27, 25, 0.16)"
+      },
+      "depth_cues": "surface tone, dividers, selected-row tint, and occasional low shadow rather than persistent card elevation"
+    },
+    "iconography": {
+      "style": "thin rounded line icons with simple filled status dots where semantic meaning benefits from a colored fill",
+      "stroke_weight": "1.65px",
+      "size_scale": "16px inline metadata, 18px controls, 20px navigation, 22px primary toolbar",
+      "preferred_set": "existing InkNote hand-drawn consistent SVG icon primitives"
+    },
+    "motion": {
+      "easing": "cubic-bezier(0.2, 0, 0, 1)",
+      "duration_scale": {
+        "micro": "100ms",
+        "normal": "160ms",
+        "macro": "220ms"
+      },
+      "entrance_pattern": "short opacity and background-color transition; no spring or decorative entrance",
+      "exit_pattern": "short opacity fade with stable layout where possible",
+      "philosophy": "minimal functional transitions that make selection, focus, and panel changes legible without adding visual noise"
+    },
+    "components": {
+      "button_style": "small ghost icon buttons with a 4–7px radius, subtle neutral hover fill, visible focus ring, and pressed tint",
+      "input_style": "low-contrast white or translucent surface with a 1px border, 7px radius, and blue focus ring",
+      "card_style": "avoid generic cards; panes are flat surfaces and only transient menus or rich code blocks use a bordered contained surface",
+      "navigation_pattern": "compact vertically grouped navigation with section labels, live counts, hierarchy indentation, and a muted blue-gray selected state",
+      "modal_style": "white elevated panel, 10px radius, precise 1px border, and restrained medium shadow",
+      "list_style": "dense list rows with title, timestamp/progress/tag metadata, a two-line excerpt, and an accessible selected state",
+      "component_notes": "Metadata uses small compact chips and no large primary CTA inside the note list; toolbar remains available across views."
+    }
+  },
+  "design_style": {
+    "aesthetic": {
+      "mood": [
+        "calm",
+        "focused",
+        "methodical",
+        "quietly technical",
+        "desktop-native"
+      ],
+      "visual_metaphor": "a well-organized physical writing desk with indexed notebooks and a live proof sheet beside the draft",
+      "era_influence": "modern macOS productivity software with restrained editorial tooling",
+      "genre": "professional knowledge-management and markdown authoring application",
+      "personality_traits": [
+        "meticulous",
+        "unfussy",
+        "trustworthy",
+        "responsive",
+        "observant"
+      ],
+      "adjectives": [
+        "compact",
+        "precise",
+        "warm-neutral",
+        "legible",
+        "polished"
+      ]
+    },
+    "visual_language": {
+      "complexity": "moderate information density with minimal ornament",
+      "ornamentation": "subtle semantic accents only",
+      "whitespace_usage": "intentional and compact; document content is breathable while workspace chrome is dense",
+      "visual_weight_distribution": "quiet sidebars and chrome frame the writing canvas, while current selection and document headings carry emphasis",
+      "focal_strategy": "progressive reveal from selection in sidebar to note metadata to editor and live rendered content",
+      "contrast_level": "moderate with dark text and gentle surface separation",
+      "texture_usage": "none; surfaces remain flat and clean"
+    },
+    "composition": {
+      "hierarchy_method": "typographic hierarchy, pane boundaries, compact metadata, and one selected-row tint",
+      "balance_type": "asymmetric three-column desktop workspace",
+      "flow_direction": "left-to-right from collection, to note, to draft and rendered proof",
+      "grouping_strategy": "thin dividers, small vertical rhythm, and grouped metadata chips",
+      "negative_space_role": "preserves reading comfort in editor and preview while keeping navigation dense"
+    },
+    "imagery": {
+      "photo_treatment": "no photos inside application content",
+      "illustration_style": "no decorative illustration",
+      "graphic_elements": "line icons, colored status dots, slim progress bars, and compact tag chips",
+      "pattern_usage": "none",
+      "image_shape": "not applicable; UI is content-first"
+    },
+    "interaction_feel": {
+      "feedback_style": "immediate, restrained, and stateful through selected tint, focus rings, tooltips, and semantic text",
+      "hover_behavior": "subtle neutral fill on interactive rows and icon buttons",
+      "transition_personality": "snappy calm",
+      "loading_style": "quiet inline status or skeleton that preserves pane structure",
+      "microinteraction_density": "low-to-moderate; each interaction earns a small state change rather than a decorative animation"
+    },
+    "brand_voice_in_ui": {
+      "tone": "clear, concise, and writer-focused",
+      "formality": "professional and approachable",
+      "cta_style": "subtle suggestion through icon buttons and contextual labels",
+      "empty_state_approach": "brief practical direction that tells the writer what to do next",
+      "error_tone": "specific, calm, and recovery-oriented"
+    }
+  },
+  "visual_effects": {
+    "overview": {
+      "effect_intensity": "none",
+      "performance_tier": "lightweight",
+      "fallback_strategy": "static CSS presentation with all transitions disabled for reduced motion",
+      "primary_technology": "CSS only"
+    },
+    "background_effects": {
+      "type": "none",
+      "description": "Flat warm-neutral application surfaces keep attention on writing.",
+      "technology": "CSS surface colors",
+      "params": {
+        "color_palette": "#eeeeed, #f8f7f5, #ffffff",
+        "speed": "0ms",
+        "density": "0",
+        "opacity": "0",
+        "blend_mode": "normal"
+      }
+    },
+    "particle_systems": {
+      "enabled": false,
+      "type": "none",
+      "description": "No particles; the application is a focused writing environment.",
+      "technology": "none",
+      "params": {
+        "count": "0",
+        "shape": "none",
+        "size_range": "0px",
+        "movement_pattern": "none",
+        "color_behavior": "none",
+        "interaction": "none",
+        "spawn_area": "none"
+      }
+    },
+    "3d_elements": {
+      "enabled": false,
+      "type": "none",
+      "description": "No 3D elements; document readability takes priority.",
+      "technology": "none",
+      "params": {
+        "renderer": "none",
+        "lighting": "none",
+        "camera": "none",
+        "materials": "none",
+        "geometry": "none",
+        "post_processing": "none",
+        "interaction_model": "none"
+      }
+    },
+    "shader_effects": {
+      "enabled": false,
+      "type": "none",
+      "description": "No shader effects; static surfaces preserve performance and visual calm.",
+      "technology": "none",
+      "params": {
+        "uniforms": "none",
+        "vertex_manipulation": "none",
+        "fragment_output": "none",
+        "noise_type": "none",
+        "distortion": "none"
+      }
+    },
+    "scroll_effects": {
+      "parallax": {
+        "enabled": false,
+        "layers": "0",
+        "depth_range": "0px",
+        "speed_curve": "none"
+      },
+      "scroll_triggered_animations": {
+        "enabled": false,
+        "trigger_points": "none",
+        "animation_type": "none",
+        "scrub_behavior": "none"
+      },
+      "scroll_morphing": {
+        "enabled": false,
+        "description": "No scroll morphing; scroll positions remain functional and stable."
+      }
+    },
+    "text_effects": {
+      "type": "none",
+      "description": "Typography is static, sharp, and highly legible.",
+      "technology": "CSS typography",
+      "params": {
+        "split_strategy": "none",
+        "animation_per_unit": "none",
+        "stagger": "0ms",
+        "effect_style": "none"
+      }
+    },
+    "cursor_effects": {
+      "enabled": false,
+      "type": "none",
+      "description": "Native pointer behavior is retained for familiar desktop interaction.",
+      "params": {
+        "shape": "native",
+        "size": "native",
+        "blend_mode": "normal",
+        "trail": "none",
+        "interaction_zone": "none"
+      }
+    },
+    "image_effects": {
+      "type": "none",
+      "description": "No image treatment is required in the content-first workspace.",
+      "technology": "none",
+      "params": {
+        "filter_pipeline": "none",
+        "hover_transform": "none",
+        "reveal_animation": "none",
+        "distortion_type": "none"
+      }
+    },
+    "glassmorphism_neumorphism": {
+      "enabled": false,
+      "style": "none",
+      "params": {
+        "blur_radius": "0px",
+        "transparency": "0",
+        "border_treatment": "subtle 1px divider only",
+        "shadow_type": "none",
+        "light_source_angle": "none"
+      }
+    },
+    "canvas_drawings": {
+      "enabled": false,
+      "type": "none",
+      "description": "No canvas drawing; CSS is sufficient for the product surface.",
+      "technology": "none",
+      "params": {
+        "draw_method": "none",
+        "animation_loop": "none",
+        "color_scheme": "neutral",
+        "responsiveness": "not applicable",
+        "interaction": "none"
+      }
+    },
+    "svg_animations": {
+      "enabled": false,
+      "type": "none",
+      "description": "SVG icons are static and use CSS color transitions only.",
+      "technology": "inline SVG and CSS",
+      "params": {
+        "animation_method": "none",
+        "path_morphing": "none",
+        "stroke_animation": "none",
+        "filter_effects": "none"
+      }
+    },
+    "composite_notes": "The reference is deliberately effect-free. Fidelity comes from hierarchy, restrained color, accurate system typography, narrow dividers, compact row density, and correctly rendered Markdown rather than visual decoration."
+  }
+}

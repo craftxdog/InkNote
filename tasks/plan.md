@@ -88,11 +88,11 @@ ordered by the dependency graph.
 | A session leaks UI/editor implementation details | High | Enforce import-free domain files and unit-test only the port contract. |
 | Whole-document replacement hides concurrency failures | High | Require stable mutation IDs and base revisions; reject revision conflicts explicitly. |
 | Test fake becomes a production storage substitute | Medium | Locate it only beneath test support and exclude it from production imports. |
-| Yjs design is prematurely embedded into the editor model | Medium | Keep revision opaque and defer CRDT representation to `remote-sync-adapter`. |
+| Whole-document replacement hides concurrent edits | High | Keep the renderer model as a projection, but translate text edits into Yjs updates in `local-first-store` as defined by ADR 002. |
 
 ## Open Questions
 
-- The SQLite package, migration workflow, and encryption design will be
-  selected in the `local-first-store` specification.
-- The remote sync protocol and the mapping of Yjs updates to durable outbox
-  operations will be specified only after local persistence is proven.
+- Native SQLite packaging and encryption/key-management design require their
+  own verification before implementation.
+- The remote transport will consume the Yjs update envelopes defined by ADR
+  002; it must not synchronize whole-document replacements.

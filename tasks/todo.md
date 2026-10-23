@@ -24,8 +24,8 @@ later document consumers share.
 
 **Files likely touched:**
 
-- `src/renderer/platform/documents/document.types.ts`
-- `src/renderer/platform/documents/document.errors.ts`
+- `src/shared/documents/document.types.ts`
+- `src/shared/documents/document.errors.ts`
 - `src/__tests__/platform/documents/document.types.test.ts`
 - `src/renderer/platform/documents/document.types.type-check.ts`
 
@@ -57,7 +57,7 @@ revision checking without adding production persistence.
 
 **Files likely touched:**
 
-- `src/renderer/platform/documents/document.repository.ts`
+- `src/shared/documents/document.repository.ts`
 - `src/test-support/documents/InMemoryDocumentRepository.ts`
 - `src/__tests__/platform/documents/document.repository.test.ts`
 
