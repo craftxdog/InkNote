@@ -74,7 +74,9 @@ jobs:
       matrix:
         os:
           - macos-latest
-          - windows-latest
+          # electron-builder currently bundles node-gyp 11, which does not
+          # discover the Visual Studio 2026 image used by windows-latest.
+          - windows-2022
           - ubuntu-latest
     steps:
       - name: Checkout repository
