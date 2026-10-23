@@ -114,7 +114,7 @@
     "electron": "^44.4.0",
     "electron-builder": "^26.5.0",
     "electron-devtools-installer": "^4.0.0",
-    "electron-vite": "^5.0.0",
+    "electron-vite": "^6.0.0",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-compat": "^7.0.2",
