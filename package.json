@@ -1,12 +1,11 @@
 {
   "name": "inknote",
   "version": "0.1.0",
-  "description": "A local-first Markdown note-taking desktop app with Vim-inspired navigation.",
+  "description": "A local-first Markdown note-taking desktop app for focused writing.",
   "keywords": [
     "electron",
     "notes",
     "markdown",
-    "vim",
     "keyboard-first",
     "note-taking",
     "editor",
@@ -76,7 +75,6 @@
     "@codemirror/view": "^6.43.15",
     "@electron/notarize": "^3.1.1",
     "@lezer/markdown": "^1.8.1",
-    "@replit/codemirror-vim": "^6.4.0",
     "better-sqlite3": "^13.0.3",
     "electron-debug": "^4.1.0",
     "electron-log": "^5.4.4",

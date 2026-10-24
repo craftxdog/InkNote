@@ -142,20 +142,6 @@ export function WorkspacePage() {
         return;
       }
 
-      /*
-       * Cmd shortcuts are native to the desktop surface. Ctrl-based shortcuts
-       * on the other hand overlap with Vim motions (for example Ctrl+E), so
-       * leave those untouched while the CodeMirror editor owns focus.
-       */
-      if (
-        event.ctrlKey &&
-        !event.metaKey &&
-        event.target instanceof Element &&
-        event.target.closest('.cm-editor') !== null
-      ) {
-        return;
-      }
-
       const key = event.key.toLowerCase();
 
       if (key === 'n' && !event.shiftKey) {

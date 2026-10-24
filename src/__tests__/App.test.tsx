@@ -157,23 +157,22 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('leaves Ctrl-based Vim controls to the focused Markdown editor', () => {
+  it('keeps workspace shortcuts available while the Markdown editor has focus', () => {
     render(<App />);
-    const vimEditor = document.createElement('div');
-    vimEditor.className = 'cm-editor';
-    document.body.append(vimEditor);
+    const editor = document.createElement('div');
+    editor.className = 'cm-editor';
+    document.body.append(editor);
 
-    fireEvent.keyDown(vimEditor, {
+    fireEvent.keyDown(editor, {
       key: 'e',
       ctrlKey: true,
     });
 
-    vimEditor.remove();
+    editor.remove();
 
-    expect(screen.getByRole('button', { name: 'Split view' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Preview only' }),
+    ).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('opens preferences and applies the selected theme', () => {

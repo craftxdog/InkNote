@@ -391,7 +391,7 @@ export const EditorPanel = ({
           ) : isSaving ? (
             <output>Saving…</output>
           ) : (
-            'Vim enabled'
+            'Ready to write'
           )}
         </span>
         {onArchiveDocument !== undefined && (

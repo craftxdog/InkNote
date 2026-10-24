@@ -265,7 +265,7 @@ export function WorkspacePreferences({
 
           <section aria-labelledby="shortcuts-heading">
             <h3 id="shortcuts-heading">Keyboard shortcuts</h3>
-            <p>Global shortcuts complement Vim in the Markdown editor.</p>
+            <p>Global shortcuts are available while writing Markdown.</p>
 
             <dl className="workspace-preferences__shortcut-list">
               {shortcuts.map(([keys, description]) => (
