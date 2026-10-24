@@ -1,7 +1,7 @@
 {
   "name": "inknote",
   "version": "0.1.0",
-  "description": "A local-first Markdown note-taking desktop app with Vim-inspired navigation.",
+  "description": "A local-first Markdown note-taking desktop app for focused writing.",
   "homepage": "https://github.com/craftxdog/InkNote#readme",
   "repository": {
     "type": "git",
