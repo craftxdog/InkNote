@@ -25,6 +25,15 @@ export const NOTE_STATUSES = [
 
 export type NoteStatus = (typeof NOTE_STATUSES)[number];
 
+/**
+ * Inkdrop represents an unassigned status separately from the four task
+ * statuses shown in the sidebar. Keeping it explicit lets the editor expose
+ * the documented "None" command without inventing a sidebar destination.
+ */
+export const NOTE_STATUS_NONE = 'none' as const;
+
+export type NoteStatusValue = NoteStatus | typeof NOTE_STATUS_NONE;
+
 export const INBOX_NOTEBOOK_ID = 'inbox';
 
 export const NOTEBOOK_ICON_NAMES = [
@@ -103,7 +112,7 @@ export type NoteDocument = Readonly<{
   title: string;
   body: string;
   notebookId: string;
-  status: NoteStatus;
+  status: NoteStatusValue;
   tags: readonly string[];
   createdAt: string;
   updatedAt: string;
@@ -128,7 +137,7 @@ export type CreateDocumentMutation = DocumentMutationBase &
     title: string;
     body: string;
     notebookId: string;
-    status: NoteStatus;
+    status: NoteStatusValue;
     tags: readonly string[];
   }>;
 
@@ -154,7 +163,7 @@ export type UpdateOrganizationMutation = DocumentMutationBase &
   Readonly<{
     kind: 'update-organization';
     notebookId: string;
-    status: NoteStatus;
+    status: NoteStatusValue;
   }>;
 
 export type ArchiveDocumentMutation = DocumentMutationBase &
@@ -191,7 +200,7 @@ export type CreateDocumentMutationInput = DocumentMutationInputBase &
     title: string;
     body: string;
     notebookId?: string;
-    status?: NoteStatus;
+    status?: NoteStatusValue;
     tags?: readonly string[];
   }>;
 
@@ -213,7 +222,7 @@ export type UpdateTagsMutationInput = DocumentMutationInputBase &
 export type UpdateOrganizationMutationInput = DocumentMutationInputBase &
   Readonly<{
     notebookId: string;
-    status: NoteStatus;
+    status: NoteStatusValue;
   }>;
 
 export type ArchiveDocumentMutationInput = DocumentMutationInputBase;
@@ -347,7 +356,7 @@ export const createCreateDocumentMutation = (
     title: validateText(input.title, 'Document title'),
     body: normalizeMarkdownBody(input.body),
     notebookId: normalizeNotebookId(input.notebookId ?? INBOX_NOTEBOOK_ID),
-    status: normalizeNoteStatus(input.status ?? 'active'),
+    status: normalizeNoteStatus(input.status ?? NOTE_STATUS_NONE),
     tags: normalizeTags(input.tags ?? []),
   });
 };
@@ -476,7 +485,7 @@ export const validateNoteDocument = (value: unknown): NoteDocument => {
     title: validateText(candidate.title, 'Document title'),
     body: normalizeMarkdownBody(candidate.body),
     notebookId: normalizeNotebookId(candidate.notebookId ?? INBOX_NOTEBOOK_ID),
-    status: normalizeNoteStatus(candidate.status ?? 'active'),
+    status: normalizeNoteStatus(candidate.status ?? NOTE_STATUS_NONE),
     tags: normalizeTags(candidate.tags ?? []),
     createdAt: readNonEmptyString(candidate.createdAt, 'Document createdAt'),
     updatedAt: readNonEmptyString(candidate.updatedAt, 'Document updatedAt'),
@@ -578,12 +587,15 @@ const normalizeNotebookIcon = (
   return value as NotebookIconName;
 };
 
-const normalizeNoteStatus = (value: unknown): NoteStatus => {
-  if (!(NOTE_STATUSES as readonly unknown[]).includes(value)) {
+const normalizeNoteStatus = (value: unknown): NoteStatusValue => {
+  if (
+    value !== NOTE_STATUS_NONE &&
+    !(NOTE_STATUSES as readonly unknown[]).includes(value)
+  ) {
     throw createInvalidMutationError('Note status is not supported.');
   }
 
-  return value as NoteStatus;
+  return value as NoteStatusValue;
 };
 
 const normalizeTags = (value: unknown): readonly string[] => {

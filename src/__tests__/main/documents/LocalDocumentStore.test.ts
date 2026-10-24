@@ -16,6 +16,7 @@ import {
   createNoteId,
   createReplaceBodyMutation,
   createRestoreMutation,
+  createUpdateOrganizationMutation,
   createUpdateTagsMutation,
   type CreateDocumentMutation,
 } from '../../../shared/documents/document.types';
@@ -77,7 +78,7 @@ describe('LocalDocumentStore', () => {
       title: 'First note',
       body: 'first line\nsecond line',
       notebookId: 'inbox',
-      status: 'active',
+      status: 'none',
       tags: [],
       createdAt: '2026-10-21T12:00:00.000Z',
       updatedAt: '2026-10-21T12:00:00.000Z',
@@ -262,6 +263,33 @@ describe('LocalDocumentStore', () => {
     store = createStore(databasePath);
 
     await expect(store.get(noteId)).resolves.toEqual(tagged);
+  });
+
+  it('persists None without polluting the task-status sidebar values', async () => {
+    const created = await store.apply(createNoteMutation({ status: 'active' }));
+    const unset = await store.apply(
+      createUpdateOrganizationMutation({
+        id: createMutationId('mutation-status-none'),
+        documentId: created.id,
+        baseRevision: created.revision,
+        source: 'editor',
+        notebookId: created.notebookId,
+        status: 'none',
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+
+    expect(unset.status).toBe('none');
+    expect(
+      database
+        .prepare('SELECT status, status_is_none FROM notes WHERE id = ?')
+        .get(created.id),
+    ).toEqual({ status: 'active', status_is_none: 1 });
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.get(created.id)).resolves.toEqual(unset);
   });
 
   it('persists empty notebooks independently from notes', async () => {

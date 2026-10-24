@@ -22,6 +22,8 @@ type NotesListProps = {
   onArchiveNote?: (noteId: string) => void;
 
   onMoveNote?: (noteId: string) => void;
+
+  onTagClick?: (tag: string, event: MouseEvent<HTMLButtonElement>) => void;
 };
 
 export function NotesList({
@@ -32,6 +34,7 @@ export function NotesList({
   onContextMenu,
   onArchiveNote,
   onMoveNote,
+  onTagClick,
 }: NotesListProps) {
   if (notes.length === 0) {
     return (
@@ -63,6 +66,7 @@ export function NotesList({
                 : (noteId, event) => onContextMenu(noteId, event)
             }
             onMove={onMoveNote}
+            onTagClick={onTagClick}
           />
           {onArchiveNote !== undefined && (
             <button

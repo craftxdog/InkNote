@@ -36,6 +36,7 @@ type NotesPanelProps = {
   ) => Promise<unknown>;
   onDeletePermanently?: (notes: readonly NoteDocument[]) => Promise<unknown>;
   onDuplicateNote?: (note: NoteDocument) => Promise<unknown>;
+  onFilterByTag?: (tag: string, exclusive: boolean) => void;
 };
 
 type MoveRequest = Readonly<{
@@ -67,6 +68,7 @@ export function NotesPanel({
   onRestoreNotes,
   onDeletePermanently,
   onDuplicateNote,
+  onFilterByTag,
 }: NotesPanelProps) {
   const [filterQuery, setFilterQuery] = useState('');
   const [selectedNoteIds, setSelectedNoteIds] = useState<readonly NoteId[]>([]);
@@ -89,6 +91,15 @@ export function NotesPanel({
     [scopedDocuments],
   );
   const filteredNotes = useNotesFilter(notes, filterQuery);
+  const visibleNotes = useMemo(
+    () =>
+      shouldHideTerminalStatuses(navigationSelection, filterQuery)
+        ? filteredNotes.filter(
+            (note) => note.status !== 'completed' && note.status !== 'dropped',
+          )
+        : filteredNotes,
+    [filteredNotes, filterQuery, navigationSelection],
+  );
   const scopedNotesById = useMemo(
     () => new Map(scopedDocuments.map((note) => [note.id, note])),
     [scopedDocuments],
@@ -315,7 +326,7 @@ export function NotesPanel({
           </div>
         ) : (
           <NotesList
-            notes={filteredNotes}
+            notes={visibleNotes}
             selectedNoteId={selectedNoteId}
             selectedNoteIds={selection.map((note) => note.id)}
             onSelectNote={selectNote}
@@ -354,6 +365,11 @@ export function NotesPanel({
                       setMoveRequest({ notes: [note], mode: 'move' });
                     }
                   }
+            }
+            onTagClick={
+              onFilterByTag === undefined
+                ? undefined
+                : (tag, event) => onFilterByTag(tag, event.altKey)
             }
           />
         )}
@@ -627,7 +643,8 @@ export const filterDocumentsForNavigation = (
       );
     }
     case 'tag': {
-      const { notebookId, tagId } = selection.view;
+      const { notebookId } = selection.view;
+      const tagIds = normalizedTagIds(selection.view);
       const notebookIds =
         notebookId === undefined
           ? null
@@ -635,7 +652,7 @@ export const filterDocumentsForNavigation = (
 
       return documents.filter(
         (document) =>
-          document.tags.includes(tagId) &&
+          tagIds.every((tagId) => document.tags.includes(tagId)) &&
           (notebookIds === null || notebookIds.has(document.notebookId)),
       );
     }
@@ -644,6 +661,28 @@ export const filterDocumentsForNavigation = (
     case 'templates':
       return [];
   }
+};
+
+const normalizedTagIds = (
+  view: Extract<NavigationSelection['view'], { type: 'tag' }>,
+): readonly string[] =>
+  view.tagIds ?? (view.tagId === undefined ? [] : [view.tagId]);
+
+const shouldHideTerminalStatuses = (
+  selection: NavigationSelection,
+  query: string,
+): boolean => {
+  if (query.trim().length > 0) {
+    return false;
+  }
+
+  return (
+    selection.view.type === 'all-notes' ||
+    selection.view.type === 'inbox' ||
+    selection.view.type === 'notebook' ||
+    selection.view.type === 'project' ||
+    selection.view.type === 'tag'
+  );
 };
 
 const formatUpdatedAt = (value: string): string => {

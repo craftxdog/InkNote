@@ -37,7 +37,7 @@ const documents: readonly NoteDocument[] = [
     title: 'Personal inbox',
     body: '',
     notebookId: 'inbox',
-    status: 'completed',
+    status: 'active',
     tags: ['personal'],
     createdAt: '2026-10-21T12:00:00.000Z',
     updatedAt: '2026-10-21T12:00:00.000Z',
@@ -58,6 +58,27 @@ describe('filterDocumentsForNavigation', () => {
     expect(filterDocumentsForNavigation(documents, tagSelection)).toEqual([
       documents[0],
     ]);
+  });
+
+  it('requires every selected tag when a tag filter contains more than one tag', () => {
+    const releaseNote: NoteDocument = {
+      ...documents[0],
+      id: createNoteId('note-release'),
+      tags: ['project', 'release'],
+    };
+    const tagSelectionWithIntersection = {
+      ...tagSelection,
+      id: 'tag-project-release',
+      label: 'project + release',
+      view: { type: 'tag', tagIds: ['project', 'release'] },
+    } as unknown as NavigationSelection;
+
+    expect(
+      filterDocumentsForNavigation(
+        [...documents, releaseNote],
+        tagSelectionWithIntersection,
+      ),
+    ).toEqual([releaseNote]);
   });
 
   it('keeps focused status and tag views inside their notebook', () => {
@@ -173,6 +194,91 @@ describe('toNoteSummary', () => {
 });
 
 describe('NotesPanel move shortcut', () => {
+  it('hides completed notes by default but restores them for a keyword search', () => {
+    const completedNote: NoteDocument = {
+      ...documents[1],
+      status: 'completed',
+    };
+
+    render(
+      <NotesPanel
+        navigationSelection={{
+          id: 'all-notes',
+          label: 'All Notes',
+          view: { type: 'all-notes' },
+          icon: { type: 'all-notes' },
+        }}
+        documents={[documents[0], completedNote]}
+        selectedNoteId={null}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Project work')).toBeVisible();
+    expect(screen.queryByText('Personal inbox')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Filter notes' }), {
+      target: { value: 'personal' },
+    });
+
+    expect(screen.getByText('Personal inbox')).toBeVisible();
+  });
+
+  it('shows terminal notes from their dedicated status destination', () => {
+    const completedNote: NoteDocument = {
+      ...documents[1],
+      status: 'completed',
+    };
+
+    render(
+      <NotesPanel
+        navigationSelection={{
+          id: 'status-completed',
+          label: 'Completed',
+          view: { type: 'status', status: 'completed' },
+          icon: { type: 'status', status: 'completed' },
+        }}
+        documents={[documents[0], completedNote]}
+        selectedNoteId={null}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Personal inbox')).toBeVisible();
+  });
+
+  it('filters by a note-list tag and lets Alt replace the tag selection', () => {
+    const onFilterByTag = jest.fn();
+
+    render(
+      <NotesPanel
+        navigationSelection={{
+          id: 'all-notes',
+          label: 'All Notes',
+          view: { type: 'all-notes' },
+          icon: { type: 'all-notes' },
+        }}
+        documents={documents}
+        selectedNoteId={null}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onFilterByTag={onFilterByTag}
+      />,
+    );
+
+    const tag = screen.getByText('project');
+    fireEvent.click(tag);
+    fireEvent.click(tag, { altKey: true });
+
+    expect(onFilterByTag).toHaveBeenNthCalledWith(1, 'project', false);
+    expect(onFilterByTag).toHaveBeenNthCalledWith(2, 'project', true);
+  });
+
   it('opens the notebook picker with m and moves with j/k and Enter', async () => {
     const work: Notebook = {
       id: 'work',

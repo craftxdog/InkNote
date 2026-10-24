@@ -30,7 +30,10 @@ export type NavigationView =
     }
   | {
       type: 'tag';
-      tagId: string;
+      /** Multiple tag IDs narrow the note list by intersection. */
+      tagIds?: readonly string[];
+      /** @deprecated kept while local navigation selections upgrade to tagIds. */
+      tagId?: string;
       /** When present, tag results stay within a focused notebook. */
       notebookId?: string;
     }
