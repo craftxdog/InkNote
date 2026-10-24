@@ -292,6 +292,99 @@ describe('LocalDocumentStore', () => {
     await expect(store.get(created.id)).resolves.toEqual(unset);
   });
 
+  it('repairs a pre-None-status database whose historical migration is already recorded', async () => {
+    store.close();
+    rmSync(databasePath, { force: true });
+
+    const legacyDatabase = new Database(databasePath);
+    legacyDatabase.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      );
+      INSERT INTO schema_migrations(version, applied_at)
+      VALUES
+        (1, '2026-10-21T12:00:00.000Z'),
+        (2, '2026-10-21T12:00:00.000Z'),
+        (3, '2026-10-21T12:00:00.000Z'),
+        (4, '2026-10-21T12:00:00.000Z'),
+        (5, '2026-10-21T12:00:00.000Z'),
+        (6, '2026-10-21T12:00:00.000Z');
+
+      CREATE TABLE notes (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        notebook_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        projection_generation INTEGER NOT NULL,
+        revision TEXT NOT NULL
+      );
+      CREATE TABLE notebooks (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        parent_id TEXT,
+        icon TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE tags (
+        name TEXT PRIMARY KEY COLLATE NOCASE,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE note_tags (
+        note_id TEXT NOT NULL,
+        tag_name TEXT NOT NULL,
+        PRIMARY KEY (note_id, tag_name)
+      );
+      CREATE TABLE note_crdt_snapshots (
+        note_id TEXT PRIMARY KEY,
+        snapshot_update BLOB NOT NULL,
+        state_vector BLOB NOT NULL,
+        snapshot_generation INTEGER NOT NULL,
+        compacted_at TEXT NOT NULL
+      );
+      CREATE TABLE note_crdt_updates (
+        update_id INTEGER PRIMARY KEY,
+        operation_id TEXT NOT NULL UNIQUE,
+        note_id TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        yjs_update BLOB NOT NULL,
+        occurred_at TEXT NOT NULL
+      );
+      CREATE TABLE sync_outbox (
+        envelope_id TEXT PRIMARY KEY,
+        update_id INTEGER NOT NULL UNIQUE,
+        note_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        acknowledged_at TEXT
+      );
+    `);
+    legacyDatabase.close();
+
+    store = createStore(databasePath);
+
+    await expect(store.apply(createNoteMutation())).resolves.toMatchObject({
+      id: noteId,
+      status: 'none',
+    });
+    expect(
+      database
+        .prepare('SELECT status, status_is_none FROM notes WHERE id = ?')
+        .get(noteId),
+    ).toEqual({ status: 'active', status_is_none: 1 });
+    expect(
+      database
+        .prepare('SELECT version FROM schema_migrations WHERE version = 7')
+        .get(),
+    ).toEqual({ version: 7 });
+  });
+
   it('persists empty notebooks independently from notes', async () => {
     const notebookInput = {
       id: 'research',
