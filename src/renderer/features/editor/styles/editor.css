@@ -47,7 +47,7 @@
 
   padding: 2px 5px;
 
-  background: rgba(255, 255, 255, 0.68);
+  background: var(--inknote-input-focus-background);
   border-color: var(--color-focus);
   box-shadow: var(--focus-ring);
   outline: 0;
@@ -203,19 +203,19 @@
 }
 
 .editor-panel__metadata-select--active::before {
-  background: #4e81f3;
+  background: var(--inknote-status-active-color);
 }
 
 .editor-panel__metadata-select--on-hold::before {
-  background: #f8b126;
+  background: var(--inknote-status-on-hold-color);
 }
 
 .editor-panel__metadata-select--completed::before {
-  background: #22c160;
+  background: var(--inknote-status-completed-color);
 }
 
 .editor-panel__metadata-select--dropped::before {
-  background: #ed5668;
+  background: var(--inknote-status-dropped-color);
 }
 
 .editor-panel__metadata-select select {
@@ -245,7 +245,7 @@
 }
 
 .editor-panel__metadata-select select:hover {
-  background: rgba(27, 27, 25, 0.045);
+  background: var(--color-control-hover-background);
 }
 
 .editor-panel__metadata-select select:focus,
@@ -279,35 +279,35 @@
   gap: 3px;
   min-height: 23px;
   padding: 1px 4px 1px 7px;
-  color: #376dd7;
-  background: rgba(78, 129, 243, 0.1);
-  border: 1px solid rgba(78, 129, 243, 0.28);
+  color: var(--tag-blue-color);
+  background: var(--tag-blue-background-color);
+  border: 1px solid color-mix(in srgb, var(--tag-blue-color) 28%, transparent);
   border-radius: 999px;
   font-size: 12px;
 }
 
 .editor-panel__tag--green {
-  color: #16884a;
-  background: rgba(34, 193, 96, 0.1);
-  border-color: rgba(34, 193, 96, 0.28);
+  color: var(--tag-green-color);
+  background: var(--tag-green-background-color);
+  border-color: color-mix(in srgb, var(--tag-green-color) 28%, transparent);
 }
 
 .editor-panel__tag--red {
-  color: #d94357;
-  background: rgba(237, 86, 104, 0.1);
-  border-color: rgba(237, 86, 104, 0.28);
+  color: var(--tag-red-color);
+  background: var(--tag-red-background-color);
+  border-color: color-mix(in srgb, var(--tag-red-color) 28%, transparent);
 }
 
 .editor-panel__tag--purple {
-  color: #7656d5;
-  background: rgba(139, 109, 244, 0.1);
-  border-color: rgba(139, 109, 244, 0.28);
+  color: var(--tag-purple-color);
+  background: var(--tag-purple-background-color);
+  border-color: color-mix(in srgb, var(--tag-purple-color) 28%, transparent);
 }
 
 .editor-panel__tag--orange {
-  color: #b16c09;
-  background: rgba(248, 177, 38, 0.12);
-  border-color: rgba(248, 177, 38, 0.3);
+  color: var(--tag-orange-color);
+  background: var(--tag-orange-background-color);
+  border-color: color-mix(in srgb, var(--tag-orange-color) 30%, transparent);
 }
 
 .editor-panel__tag button {
@@ -358,7 +358,7 @@
 }
 
 .editor-panel__tag-form input:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--inknote-input-hover-background);
 }
 
 .editor-panel__content {
@@ -410,9 +410,9 @@
 }
 
 .markdown-editor .cm-tooltip {
-  color: var(--color-text);
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--color-divider);
+  color: var(--editor-foreground-color);
+  background: var(--inknote-editor-tooltip-background);
+  border: 1px solid var(--inknote-editor-tooltip-border);
   border-radius: 7px;
   box-shadow: 0 4px 14px rgba(27, 27, 25, 0.12);
 }
@@ -434,8 +434,8 @@
 }
 
 .markdown-editor .cm-tooltip-autocomplete li[aria-selected='true'] {
-  color: var(--color-text);
-  background: var(--color-selection-background);
+  color: var(--editor-foreground-color);
+  background: var(--inknote-editor-autocomplete-selected-background);
 }
 
 .inknote-selection-toolbar {
@@ -493,28 +493,31 @@
   outline: none;
 }
 
-/* CodeMirror injects its own stylesheet after the application bundle. The
-   explicit dark selectors keep the writing surface in the same appearance
-   family even when that generated stylesheet has a higher source order. */
-.workspace-shell[data-theme='dark'] .markdown-editor .cm-editor,
-.workspace-shell[data-theme='dark'] .markdown-editor .cm-scroller,
-.workspace-shell[data-theme='dark'] .markdown-editor .cm-content,
-.workspace-shell[data-theme='dark'] .markdown-editor .cm-gutters {
-  color: var(--color-text) !important;
-  background-color: var(--color-workspace) !important;
+/* CodeMirror injects its own stylesheet after the application bundle. Keep
+   every appearance on the public theme-variable contract, including
+   externally installed dark themes. */
+.markdown-editor .cm-editor,
+.markdown-editor .cm-scroller,
+.markdown-editor .cm-content,
+.markdown-editor .cm-gutters {
+  color: var(--editor-foreground-color) !important;
+  background-color: var(--inknote-editor-background) !important;
 }
 
-.workspace-shell[data-theme='dark'] .markdown-editor .cm-activeLine,
-.workspace-shell[data-theme='dark'] .markdown-editor .cm-activeLineGutter {
-  background-color: var(--color-editor-active-line) !important;
+.markdown-editor .cm-activeLine {
+  background-color: var(--inknote-editor-active-line-background) !important;
 }
 
-.workspace-shell[data-theme='dark'] .markdown-editor .cm-selectionBackground,
-.workspace-shell[data-theme='dark']
-  .markdown-editor
-  .cm-focused
-  .cm-selectionBackground {
-  background-color: var(--color-selection-background) !important;
+.markdown-editor .cm-activeLineGutter {
+  background-color: var(--inknote-editor-active-line-gutter-background) !important;
+}
+
+.markdown-editor .cm-selectionBackground {
+  background-color: var(--inknote-editor-selection-background) !important;
+}
+
+.markdown-editor .cm-focused .cm-selectionBackground {
+  background-color: var(--inknote-editor-focused-selection-background) !important;
 }
 
 @container (max-width: 600px) {

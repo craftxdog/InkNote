@@ -109,7 +109,7 @@
 
   box-shadow: var(--focus-ring);
 
-  background: #fff;
+  background: var(--inknote-input-focus-background);
 }
 
 /* =========================================================
@@ -325,15 +325,15 @@
 }
 
 .note-list-item:hover {
-  background: rgba(255, 255, 255, 0.56);
+  background: var(--inknote-notes-hover-background);
 }
 
 .note-list-item--selected {
-  background: var(--color-navigation-selected);
+  background: var(--inknote-notes-selected-background);
 }
 
 .note-list-item--selected:hover {
-  background: var(--color-navigation-selected);
+  background: var(--inknote-notes-selected-background);
 }
 
 .note-list-item__primary {
@@ -392,19 +392,19 @@
 }
 
 .note-list-item__status--active {
-  color: #98aec9;
+  color: var(--inknote-status-active-color);
 }
 
 .note-list-item__status--on-hold {
-  color: #e79a00;
+  color: var(--inknote-status-on-hold-color);
 }
 
 .note-list-item__status--completed {
-  color: #1dbf87;
+  color: var(--inknote-status-completed-color);
 }
 
 .note-list-item__status--dropped {
-  color: #ee687d;
+  color: var(--inknote-status-dropped-color);
 }
 
 .note-list-item__title {
@@ -471,7 +471,7 @@
 
   overflow: hidden;
 
-  background: rgba(101, 110, 110, 0.3);
+  background: var(--task-progress-view-background-color);
   border-radius: 999px;
 }
 
@@ -479,7 +479,7 @@
   display: block;
   width: var(--task-progress);
   height: 100%;
-  background: var(--color-focus);
+  background: var(--task-progress-view-completed-color);
   border-radius: inherit;
 }
 
@@ -532,33 +532,28 @@
 }
 
 .note-tag--blue {
-  color: #376dd7;
-
-  background: rgba(78, 129, 243, 0.1);
+  color: var(--tag-blue-color);
+  background: var(--tag-blue-background-color);
 }
 
 .note-tag--red {
-  color: #d94357;
-
-  background: rgba(237, 86, 104, 0.1);
+  color: var(--tag-red-color);
+  background: var(--tag-red-background-color);
 }
 
 .note-tag--purple {
-  color: #7656d5;
-
-  background: rgba(139, 109, 244, 0.1);
+  color: var(--tag-purple-color);
+  background: var(--tag-purple-background-color);
 }
 
 .note-tag--green {
-  color: #16884a;
-
-  background: rgba(34, 193, 96, 0.1);
+  color: var(--tag-green-color);
+  background: var(--tag-green-background-color);
 }
 
 .note-tag--orange {
-  color: #b16c09;
-
-  background: rgba(248, 177, 38, 0.12);
+  color: var(--tag-orange-color);
+  background: var(--tag-orange-background-color);
 }
 
 .note-tag--more {

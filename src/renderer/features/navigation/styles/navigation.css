@@ -110,7 +110,7 @@
 }
 
 .navigation-row:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--inknote-navigation-hover-background);
 }
 
 /* ---------------------------------------------------------
@@ -118,11 +118,11 @@
 --------------------------------------------------------- */
 
 .navigation-row--selected {
-  background: var(--color-navigation-selected);
+  background: var(--inknote-navigation-selected-background);
 }
 
 .navigation-row--selected:hover {
-  background: var(--color-navigation-selected);
+  background: var(--inknote-navigation-selected-background);
 }
 
 /* =========================================================
@@ -198,7 +198,7 @@
 
 .navigation-row__toggle:hover {
   color: var(--color-text);
-  background: rgba(27, 27, 25, 0.06);
+  background: var(--color-control-hover-background);
 }
 
 .navigation-row__toggle:focus-visible {
@@ -624,7 +624,7 @@
 --------------------------------------------------------- */
 
 .navigation-status--active {
-  background: #a9bfd9;
+  background: var(--inknote-status-active-color);
 }
 
 .navigation-status--active::after {
@@ -646,7 +646,7 @@
 --------------------------------------------------------- */
 
 .navigation-status--on-hold {
-  border: 2px solid #ffa500;
+  border: 2px solid var(--inknote-status-on-hold-color);
 }
 
 .navigation-status--on-hold::before,
@@ -660,7 +660,7 @@
   width: 2px;
   height: 7px;
 
-  background: #ffa500;
+  background: var(--inknote-status-on-hold-color);
 }
 
 .navigation-status--on-hold::before {
@@ -676,7 +676,7 @@
 --------------------------------------------------------- */
 
 .navigation-status--completed {
-  background: #20c997;
+  background: var(--inknote-status-completed-color);
 }
 
 .navigation-status--completed::after {
@@ -696,7 +696,7 @@
 --------------------------------------------------------- */
 
 .navigation-status--dropped {
-  background: #ff7285;
+  background: var(--inknote-status-dropped-color);
 }
 
 .navigation-status--dropped::before,
@@ -724,7 +724,7 @@
 ========================================================= */
 
 .navigation-tag-dot {
-  --tag-color: #808080;
+  --tag-color: var(--tag-neutral-color);
 
   width: 12px;
   height: 12px;

@@ -53,46 +53,48 @@ type MarkdownEditorProps = {
 const inkNoteEditorTheme = EditorView.theme(
   {
     '&': {
-      color: 'var(--color-text)',
-      backgroundColor: 'var(--color-workspace)',
+      color: 'var(--editor-foreground-color)',
+      backgroundColor: 'var(--inknote-editor-background)',
     },
     '.cm-content': {
-      caretColor: 'var(--color-text)',
+      caretColor: 'var(--editor-caret-color)',
     },
     '.cm-cursor, .cm-dropCursor': {
-      borderLeftColor: 'var(--color-text)',
+      borderLeftColor: 'var(--editor-caret-color)',
     },
-    '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection':
-      {
-        backgroundColor: 'var(--color-selection-background)',
-      },
+    '.cm-selectionBackground, ::selection': {
+      backgroundColor: 'var(--inknote-editor-selection-background)',
+    },
+    '&.cm-focused .cm-selectionBackground': {
+      backgroundColor: 'var(--inknote-editor-focused-selection-background)',
+    },
     '.cm-activeLine': {
-      backgroundColor: 'var(--color-editor-active-line)',
+      backgroundColor: 'var(--inknote-editor-active-line-background)',
     },
     '.cm-gutters': {
-      color: 'var(--color-editor-gutter)',
-      backgroundColor: 'var(--color-workspace)',
+      color: 'var(--inknote-editor-gutter-foreground)',
+      backgroundColor: 'var(--inknote-editor-gutter-background)',
       border: 'none',
     },
     '.cm-activeLineGutter': {
-      color: 'var(--color-focus)',
-      backgroundColor: 'var(--color-editor-active-line)',
+      color: 'var(--primary-color)',
+      backgroundColor: 'var(--inknote-editor-active-line-gutter-background)',
     },
     '.inknote-editor-token--comment': {
-      color: 'var(--syntax-code-comment)',
+      color: 'var(--syntax-comment-color)',
       fontStyle: 'italic',
     },
     '.inknote-editor-token--keyword': {
-      color: 'var(--syntax-code-keyword)',
+      color: 'var(--syntax-keyword-color)',
     },
     '.inknote-editor-token--literal': {
-      color: 'var(--syntax-code-literal)',
+      color: 'var(--syntax-literal-color)',
     },
     '.inknote-editor-token--number': {
-      color: 'var(--syntax-code-number)',
+      color: 'var(--syntax-number-color)',
     },
     '.inknote-editor-token--string': {
-      color: 'var(--syntax-code-string)',
+      color: 'var(--syntax-string-color)',
     },
   },
   { dark: false },
@@ -101,35 +103,35 @@ const inkNoteEditorTheme = EditorView.theme(
 const inkNoteMarkdownHighlighting = HighlightStyle.define([
   {
     tag: [tags.heading, tags.heading1, tags.heading2, tags.heading3],
-    color: 'var(--syntax-heading)',
+    color: 'var(--syntax-heading-color)',
     fontWeight: '700',
     textDecoration: 'none',
   },
   {
     tag: tags.punctuation,
-    color: 'var(--syntax-punctuation)',
+    color: 'var(--syntax-punctuation-color)',
   },
   {
     tag: tags.strong,
-    color: 'var(--color-text)',
+    color: 'var(--editor-foreground-color)',
     fontWeight: '700',
   },
   {
     tag: tags.emphasis,
-    color: 'var(--syntax-emphasis)',
+    color: 'var(--syntax-emphasis-color)',
     fontStyle: 'italic',
   },
   {
     tag: [tags.link, tags.url],
-    color: 'var(--syntax-link)',
+    color: 'var(--syntax-url-color)',
   },
   {
     tag: tags.meta,
-    color: 'var(--syntax-meta)',
+    color: 'var(--syntax-meta-color)',
   },
   {
     tag: tags.quote,
-    color: 'var(--syntax-quote)',
+    color: 'var(--syntax-quote-color)',
   },
 ]);
 

@@ -41,7 +41,13 @@ const FIRST_SCHEMA_VERSION = 1;
 const ORGANIZATION_SCHEMA_VERSION = 2;
 const NOTEBOOK_HIERARCHY_SCHEMA_VERSION = 3;
 const NOTEBOOK_ICON_SCHEMA_VERSION = 4;
-const NONE_STATUS_SCHEMA_VERSION = 5;
+/*
+ * Version 5 was used by an earlier status migration before `none` was
+ * represented explicitly. Some local databases therefore record that version
+ * without the `status_is_none` column this store requires. Keep the repair in
+ * a new, monotonic migration instead of reusing that historical version.
+ */
+const NONE_STATUS_SCHEMA_VERSION = 7;
 
 const PENDING_OUTBOX_STATUS = 'pending';
 
@@ -486,20 +492,32 @@ export class LocalDocumentStore
         'SELECT version FROM schema_migrations WHERE version = ?',
       )
       .get(NONE_STATUS_SCHEMA_VERSION);
+    const hasNoneStatusColumn = this.notesTableHasColumn('status_is_none');
 
-    if (hasNoneStatusSchema === undefined) {
+    if (hasNoneStatusSchema === undefined || !hasNoneStatusColumn) {
       this.database.transaction(() => {
-        this.database.exec(`
-          ALTER TABLE notes ADD COLUMN status_is_none INTEGER NOT NULL DEFAULT 0
-            CHECK (status_is_none IN (0, 1));
-        `);
+        if (!hasNoneStatusColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN status_is_none INTEGER NOT NULL DEFAULT 0
+              CHECK (status_is_none IN (0, 1));
+          `);
+        }
         this.database
           .prepare<[number, string]>(
-            'INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)',
+            `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)
+             ON CONFLICT(version) DO NOTHING`,
           )
           .run(NONE_STATUS_SCHEMA_VERSION, new Date().toISOString());
       })();
     }
+  }
+
+  private notesTableHasColumn(columnName: string): boolean {
+    const columns = this.database
+      .prepare<[], Readonly<{ name: string }>>('PRAGMA table_info(notes)')
+      .all();
+
+    return columns.some((column) => column.name === columnName);
   }
 
   private applyLocalMutation(mutation: DocumentMutation): NoteDocument {

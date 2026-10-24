@@ -21,7 +21,7 @@
 
   padding: 18px 28px 56px;
 
-  color: var(--color-text);
+  color: var(--text-color);
 
   font-size: 15px;
   line-height: 1.58;
@@ -35,7 +35,7 @@
 .markdown-preview h2,
 .markdown-preview h3,
 .markdown-preview h4 {
-  color: var(--color-text);
+  color: var(--mde-preview-heading-color);
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.018em;
@@ -91,7 +91,7 @@
   min-height: 28px;
   margin: 1px 2px;
   padding: 3px 9px;
-  color: var(--syntax-link);
+  color: var(--mde-preview-link-color);
   background: color-mix(
     in srgb,
     var(--color-selection-background) 70%,
@@ -117,8 +117,8 @@
 
 .markdown-preview .inknote-note-reference:hover,
 .markdown-preview .inknote-note-reference:focus-visible {
-  color: var(--color-text);
-  background: var(--color-selection-background);
+  color: var(--mde-preview-strong-color);
+  background: var(--editor-selection-background);
   outline: none;
   box-shadow: var(--focus-ring);
 }
@@ -144,15 +144,15 @@
   width: 14px;
   height: 14px;
   margin: 0;
-  accent-color: var(--color-focus);
+  accent-color: var(--primary-color);
   pointer-events: none;
 }
 
 .markdown-preview blockquote {
   padding: 2px 0 2px 14px;
-  color: var(--color-text-secondary);
+  color: var(--mde-preview-blockquote-text-color);
   border-left: 3px solid
-    color-mix(in srgb, var(--color-focus) 50%, var(--color-workspace));
+    var(--mde-preview-blockquote-border-color);
 }
 
 .markdown-preview .inknote-callout {
@@ -224,9 +224,9 @@
 
   padding: 14px 16px;
 
-  background: var(--color-code-background);
+  background: var(--mde-preview-codeblock-background-color);
 
-  border: 1px solid var(--color-code-border);
+  border: 1px solid var(--mde-preview-codeblock-border-color);
   border-radius: 7px;
 }
 
@@ -252,10 +252,10 @@
   height: 29px;
   padding: 0 14px;
 
-  color: var(--color-text-secondary);
-  background: var(--color-code-header);
+  color: var(--mde-preview-codeblock-text-color);
+  background: var(--mde-preview-codeblock-background-color);
 
-  border-bottom: 1px solid var(--color-code-border);
+  border-bottom: 1px solid var(--mde-preview-codeblock-border-color);
 
   font-family: var(--font-mono);
   font-size: 11px;
@@ -392,8 +392,8 @@
 
 .markdown-preview :not(pre) > code {
   padding: 0.12em 0.34em;
-  color: var(--color-inline-code);
-  background: var(--color-inline-code-background);
+  color: var(--mde-preview-inline-code-color);
+  background: var(--mde-preview-inline-code-background-color);
   border-radius: 4px;
 }
 
@@ -401,7 +401,7 @@
   padding: 0.04em 0.12em;
 
   color: inherit;
-  background: var(--color-mark);
+  background: var(--md-highlight-background-color);
   border-radius: 2px;
 }
 
@@ -412,25 +412,25 @@
 }
 
 .markdown-preview .inknote-code-token--comment {
-  color: #7c8582;
+  color: var(--syntax-comment-color);
   font-style: italic;
 }
 
 .markdown-preview .inknote-code-token--keyword {
-  color: #7b4fd3;
+  color: var(--syntax-keyword-color);
 }
 
 .markdown-preview .inknote-code-token--literal,
 .markdown-preview .inknote-code-token--number {
-  color: #376dd7;
+  color: var(--syntax-number-color);
 }
 
 .markdown-preview .inknote-code-token--string {
-  color: #149653;
+  color: var(--syntax-string-color);
 }
 
 .markdown-preview a {
-  color: #376dd7;
+  color: var(--mde-preview-link-color);
 
   text-decoration: underline;
 }
@@ -462,8 +462,8 @@
 }
 
 .markdown-preview th {
-  color: var(--color-text);
-  background: var(--color-table-header);
+  color: var(--mde-preview-table-head-text-color);
+  background: var(--mde-preview-table-head-background-color);
   font-weight: 650;
 }
 

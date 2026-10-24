@@ -10,12 +10,26 @@ import {
   type DirectorySelectionPurpose,
   type DataManagementInfo,
 } from '../../../shared/data/data.types';
-import type { WorkspaceTheme } from '../../types/workspace';
+import type {
+  ThemeAppearanceSettings,
+  ThemeDescriptor,
+} from '../../../shared/themes/theme.types';
+import type {
+  AvailableWorkspaceTheme,
+  WorkspaceThemeId,
+} from '../../types/workspace';
 
 type WorkspacePreferencesProps = {
   isOpen: boolean;
-  theme: WorkspaceTheme;
-  onThemeChange: (theme: WorkspaceTheme) => void;
+  themeId: WorkspaceThemeId;
+  themes: readonly AvailableWorkspaceTheme[];
+  acrylic: ThemeAppearanceSettings;
+  isThemeCatalogLoading: boolean;
+  themeError: string | null;
+  onThemeChange: (theme: WorkspaceThemeId) => void;
+  onInstallTheme: () => Promise<void>;
+  onRemoveTheme: (theme: ThemeDescriptor) => Promise<void>;
+  onAcrylicChange: (enabled: boolean) => Promise<void>;
   onClose: () => void;
 };
 
@@ -33,17 +47,31 @@ type DataNotice = Readonly<{
   message: string;
 }>;
 
+type ThemeNotice = Readonly<{
+  tone: 'success' | 'error';
+  message: string;
+}>;
+
 /** A compact app-native preference surface, intentionally not a cloned UI. */
 export function WorkspacePreferences({
   isOpen,
-  theme,
+  themeId,
+  themes,
+  acrylic,
+  isThemeCatalogLoading,
+  themeError,
   onThemeChange,
+  onInstallTheme,
+  onRemoveTheme,
+  onAcrylicChange,
   onClose,
 }: WorkspacePreferencesProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [dataInfo, setDataInfo] = useState<DataManagementInfo | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [dataNotice, setDataNotice] = useState<DataNotice | null>(null);
+  const [isThemeBusy, setIsThemeBusy] = useState(false);
+  const [themeNotice, setThemeNotice] = useState<ThemeNotice | null>(null);
 
   const refreshDataInfo = useCallback(async (): Promise<void> => {
     const data = window.inknote.data;
@@ -194,6 +222,62 @@ export function WorkspacePreferences({
     }
   }, [chooseDirectory]);
 
+  const installTheme = useCallback(async (): Promise<void> => {
+    setIsThemeBusy(true);
+
+    try {
+      await onInstallTheme();
+      setThemeNotice({
+        tone: 'success',
+        message: 'Theme package installed and selected.',
+      });
+    } catch (error) {
+      setThemeNotice({ tone: 'error', message: messageForDataError(error) });
+    } finally {
+      setIsThemeBusy(false);
+    }
+  }, [onInstallTheme]);
+
+  const removeTheme = useCallback(
+    async (theme: ThemeDescriptor): Promise<void> => {
+      setIsThemeBusy(true);
+
+      try {
+        await onRemoveTheme(theme);
+        setThemeNotice({
+          tone: 'success',
+          message: `${theme.name} was removed from InkNote.`,
+        });
+      } catch (error) {
+        setThemeNotice({ tone: 'error', message: messageForDataError(error) });
+      } finally {
+        setIsThemeBusy(false);
+      }
+    },
+    [onRemoveTheme],
+  );
+
+  const toggleAcrylic = useCallback(
+    async (enabled: boolean): Promise<void> => {
+      setIsThemeBusy(true);
+
+      try {
+        await onAcrylicChange(enabled);
+        setThemeNotice({
+          tone: 'success',
+          message: enabled
+            ? 'Acrylic background enabled.'
+            : 'Acrylic background disabled.',
+        });
+      } catch (error) {
+        setThemeNotice({ tone: 'error', message: messageForDataError(error) });
+      } finally {
+        setIsThemeBusy(false);
+      }
+    },
+    [onAcrylicChange],
+  );
+
   if (!isOpen) {
     return null;
   }
@@ -240,27 +324,87 @@ export function WorkspacePreferences({
               role="group"
               aria-label="Theme"
             >
+              {themes.map((availableTheme) => (
+                <div
+                  className="workspace-preferences__theme-choice"
+                  key={availableTheme.id}
+                >
+                  <button
+                    type="button"
+                    className="workspace-preferences__theme-option"
+                    aria-pressed={themeId === availableTheme.id}
+                    aria-label={themeLabelFor(availableTheme)}
+                    onClick={() => onThemeChange(availableTheme.id)}
+                  >
+                    <span
+                      className={`workspace-preferences__theme-swatch workspace-preferences__theme-swatch--${availableTheme.themeAppearance}`}
+                    />
+                    <span>
+                      {availableTheme.name}
+                      {availableTheme.kind === 'external' ? ' · package' : ''}
+                    </span>
+                  </button>
+                  {availableTheme.kind !== 'external' ? null : (
+                    <button
+                      type="button"
+                      className="workspace-preferences__theme-remove"
+                      disabled={isThemeBusy}
+                      aria-label={`Remove ${availableTheme.name} theme package`}
+                      onClick={() => void removeTheme(availableTheme)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="workspace-preferences__theme-actions">
               <button
                 type="button"
-                className="workspace-preferences__theme-option"
-                aria-pressed={theme === 'light'}
-                aria-label="Light theme"
-                onClick={() => onThemeChange('light')}
+                disabled={isThemeBusy || isThemeCatalogLoading}
+                onClick={() => void installTheme()}
               >
-                <span className="workspace-preferences__theme-swatch workspace-preferences__theme-swatch--light" />
-                Light
-              </button>
-              <button
-                type="button"
-                className="workspace-preferences__theme-option"
-                aria-pressed={theme === 'dark'}
-                aria-label="Dark theme"
-                onClick={() => onThemeChange('dark')}
-              >
-                <span className="workspace-preferences__theme-swatch workspace-preferences__theme-swatch--dark" />
-                Dark
+                Install theme package…
               </button>
             </div>
+            <p className="workspace-preferences__theme-help">
+              Install a local Inkdrop theme package with <code>theme</code>,{' '}
+              <code>themeAppearance</code>, and <code>styleSheets</code> in its
+              package.json. InkNote imports only its declared CSS; package
+              scripts and dependencies are never run.
+            </p>
+
+            <div className="workspace-preferences__acrylic-option">
+              <input
+                type="checkbox"
+                aria-label="Enable acrylic window background"
+                checked={acrylic.acrylicEnabled}
+                disabled={!acrylic.acrylicSupported || isThemeBusy}
+                onChange={(event) => void toggleAcrylic(event.target.checked)}
+              />
+              <span>
+                <strong>Acrylic window background</strong>
+                <small>
+                  {acrylic.acrylicSupported
+                    ? 'Uses the native frosted-glass window material. Themes can react through body.acrylic-window.'
+                    : 'Available on macOS and Windows 11 or newer.'}
+                </small>
+              </span>
+            </div>
+
+            {themeError === null && themeNotice === null ? null : (
+              <p
+                className={`workspace-preferences__theme-notice workspace-preferences__theme-notice--${themeNotice?.tone ?? 'error'}`}
+                role={
+                  themeNotice?.tone === 'error' || themeError !== null
+                    ? 'alert'
+                    : 'status'
+                }
+              >
+                {themeNotice?.message ?? themeError}
+              </p>
+            )}
           </section>
 
           <section aria-labelledby="shortcuts-heading">
@@ -350,3 +494,11 @@ const messageForDataError = (error: unknown): string =>
   error instanceof Error
     ? error.message
     : 'The data operation could not be completed.';
+
+const themeLabelFor = (theme: AvailableWorkspaceTheme): string => {
+  if (theme.kind === 'external') {
+    return `Use ${theme.name} theme`;
+  }
+
+  return theme.themeAppearance === 'dark' ? 'Dark theme' : 'Light theme';
+};
