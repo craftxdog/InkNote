@@ -395,6 +395,10 @@
   padding-top: 18px;
 }
 
+.markdown-editor .cm-gutter {
+  min-height: 100%;
+}
+
 .markdown-editor .cm-lineNumbers .cm-gutterElement {
   min-width: 30px;
   padding: 0 8px 0 4px;

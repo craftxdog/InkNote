@@ -429,4 +429,52 @@ describe('NotesPanel note lifecycle actions', () => {
       expect(onDuplicateNote).toHaveBeenCalledWith(documents[0]),
     );
   });
+
+  it('dismisses the note context menu when the user clicks away', () => {
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={documents[0].id}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      screen.getByRole('button', { name: /Project work/i }),
+    );
+    expect(screen.getByRole('menu', { name: 'Note actions' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close note actions' }));
+
+    expect(
+      screen.queryByRole('menu', { name: 'Note actions' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('dismisses the note context menu with Escape', () => {
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={documents[0].id}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      screen.getByRole('button', { name: /Project work/i }),
+    );
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(
+      screen.queryByRole('menu', { name: 'Note actions' }),
+    ).not.toBeInTheDocument();
+  });
 });

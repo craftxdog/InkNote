@@ -1,6 +1,7 @@
 import {
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import {
   sourceLineForPreviewScroll,
   type SourceScrollAnchor,
 } from '../../markdown/model/scrollSynchronization';
+import { createPreviewScrollRenderGuard } from '../../markdown/model/previewScrollRenderGuard';
 import { replaceEmojiShortcodes } from '../../markdown/model/emojiCompletions';
 import { parseNoteReference } from '../../references/model/noteReferences';
 import { renderMermaidDiagrams } from '../mermaidPresentation';
@@ -607,6 +609,8 @@ export function MarkdownPreview({
   const onSourceLineChangeRef = useRef(onSourceLineChange);
   const onOpenReferenceRef = useRef(onOpenReference);
   const pendingSynchronizedScrollTop = useRef<number | null>(null);
+  const renderedHtmlRef = useRef('');
+  const previewScrollRenderGuardRef = useRef(createPreviewScrollRenderGuard());
   const referenceDocumentsById = useMemo(
     () =>
       new Map(referenceDocuments.map((document) => [document.id, document])),
@@ -672,7 +676,9 @@ export function MarkdownPreview({
             .processSync(deferredMarkdown)
             .toString();
 
-          if (!isDisposed) {
+          if (!isDisposed && renderedHtmlRef.current !== result) {
+            previewScrollRenderGuardRef.current.beginRender();
+            renderedHtmlRef.current = result;
             setHtml(result);
           }
 
@@ -680,8 +686,12 @@ export function MarkdownPreview({
         },
       )
       .catch(() => {
-        if (!isDisposed) {
-          setHtml('<p>Unable to render this document.</p>');
+        const fallback = '<p>Unable to render this document.</p>';
+
+        if (!isDisposed && renderedHtmlRef.current !== fallback) {
+          previewScrollRenderGuardRef.current.beginRender();
+          renderedHtmlRef.current = fallback;
+          setHtml(fallback);
         }
       });
 
@@ -689,6 +699,18 @@ export function MarkdownPreview({
       isDisposed = true;
     };
   }, [deferredMarkdown, referenceDocumentsById]);
+
+  useLayoutEffect(() => {
+    const guard = previewScrollRenderGuardRef.current;
+
+    if (guard.shouldReportScroll()) {
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => guard.completeRender());
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [html]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -735,6 +757,11 @@ export function MarkdownPreview({
     }
 
     const reportSourceLine = (): void => {
+      if (!previewScrollRenderGuardRef.current.shouldReportScroll()) {
+        pendingSynchronizedScrollTop.current = null;
+        return;
+      }
+
       const synchronizedScrollTop = pendingSynchronizedScrollTop.current;
 
       if (
