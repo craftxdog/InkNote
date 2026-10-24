@@ -384,8 +384,13 @@
   tab-size: 2;
 }
 
-.markdown-editor .cm-content {
+.markdown-editor .cm-content,
+.markdown-editor .cm-gutter {
   min-height: 100%;
+  box-sizing: border-box;
+}
+
+.markdown-editor .cm-content {
 
   padding: 18px 24px 56px 10px;
 }
@@ -393,10 +398,6 @@
 .markdown-editor .cm-gutters {
   min-width: 38px;
   padding-top: 18px;
-}
-
-.markdown-editor .cm-gutter {
-  min-height: 100%;
 }
 
 .markdown-editor .cm-lineNumbers .cm-gutterElement {

@@ -15,7 +15,6 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import {
   EditorState,
   RangeSetBuilder,
-  StateEffect,
   type Extension,
 } from '@codemirror/state';
 import {
@@ -386,7 +385,6 @@ export function MarkdownEditor({
   }, [value]);
 
   useEffect(() => {
-    let isDisposed = false;
     const host = hostRef.current;
 
     if (host === null) {
@@ -453,19 +451,7 @@ export function MarkdownEditor({
       passive: true,
     });
 
-    // Vim is an enhancement, never a reason for the writing surface to fail.
-    void import('@replit/codemirror-vim')
-      .then(({ vim }) => {
-        if (!isDisposed) {
-          view.dispatch({ effects: StateEffect.appendConfig.of(vim()) });
-        }
-
-        return undefined;
-      })
-      .catch(() => undefined);
-
     return () => {
-      isDisposed = true;
       view.scrollDOM.removeEventListener('scroll', reportSourceLine);
       viewRef.current?.destroy();
       viewRef.current = null;

@@ -74,6 +74,27 @@ describe('EditorPanel', () => {
     jest.useRealTimers();
   });
 
+  it('shows a ready-to-write status instead of Vim mode', () => {
+    const document = createDocument(
+      firstNoteId,
+      createRevision('revision-first'),
+      'First body',
+    );
+
+    render(
+      <EditorPanel
+        document={document}
+        notebooks={[]}
+        isLoading={false}
+        error={null}
+        onSaveDocument={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Ready to write')).toBeVisible();
+    expect(screen.queryByText('Vim enabled')).not.toBeInTheDocument();
+  });
+
   it('moves an active note to Trash through the explicit document action', () => {
     const document = createDocument(
       firstNoteId,
