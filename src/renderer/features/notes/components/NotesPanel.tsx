@@ -115,6 +115,10 @@ export function NotesPanel({
     contextNoteId === null
       ? null
       : (scopedNotesById.get(contextNoteId) ?? null);
+  const closeContextMenu = useCallback(() => {
+    setContextNoteId(null);
+    setContextMenuPosition(null);
+  }, []);
 
   const selectNote = (noteId: string, isAdditive: boolean): void => {
     const typedNoteId = noteId as NoteId;
@@ -193,6 +197,12 @@ export function NotesPanel({
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && contextMenuPosition !== null) {
+        event.preventDefault();
+        closeContextMenu();
+        return;
+      }
+
       if (
         event.defaultPrevented ||
         isEditableTarget(event.target) ||
@@ -228,6 +238,8 @@ export function NotesPanel({
     return () => window.removeEventListener('keydown', handleShortcut, true);
   }, [
     archiveNotes,
+    closeContextMenu,
+    contextMenuPosition,
     duplicateNote,
     isPermanentDeleteConfirmationOpen,
     isTrash,
@@ -348,64 +360,76 @@ export function NotesPanel({
       </div>
 
       {contextNote !== null && (
-        <div
-          className="notes-context-menu"
-          role="menu"
-          aria-label="Note actions"
-          style={
-            contextMenuPosition === null
-              ? undefined
-              : {
-                  left: contextMenuPosition.left,
-                  top: contextMenuPosition.top,
-                }
-          }
-        >
-          {isTrash ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMoveRequest({ notes: [contextNote], mode: 'restore' });
-                  setContextNoteId(null);
-                  setContextMenuPosition(null);
-                }}
-              >
-                Move to notebook
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setSelectedNoteIds([contextNote.id]);
-                  setContextNoteId(null);
-                  setContextMenuPosition(null);
-                  setPermanentDeleteConfirmationOpen(true);
-                }}
-              >
-                Delete permanently
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => void duplicateNote(contextNote)}
-              >
-                Duplicate
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => void archiveNotes([contextNote])}
-              >
-                Move to Trash
-              </button>
-            </>
-          )}
-        </div>
+        <>
+          <button
+            type="button"
+            className="notes-context-menu__backdrop"
+            aria-label="Close note actions"
+            onClick={closeContextMenu}
+          />
+          <div
+            className="notes-context-menu"
+            role="menu"
+            aria-label="Note actions"
+            style={
+              contextMenuPosition === null
+                ? undefined
+                : {
+                    left: contextMenuPosition.left,
+                    top: contextMenuPosition.top,
+                  }
+            }
+          >
+            {isTrash ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMoveRequest({ notes: [contextNote], mode: 'restore' });
+                    closeContextMenu();
+                  }}
+                >
+                  Move to notebook
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setSelectedNoteIds([contextNote.id]);
+                    closeContextMenu();
+                    setPermanentDeleteConfirmationOpen(true);
+                  }}
+                >
+                  Delete permanently
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeContextMenu();
+                    void duplicateNote(contextNote);
+                  }}
+                >
+                  Duplicate
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeContextMenu();
+                    void archiveNotes([contextNote]);
+                  }}
+                >
+                  Move to Trash
+                </button>
+              </>
+            )}
+          </div>
+        </>
       )}
 
       {moveRequest !== null && (
