@@ -35,12 +35,15 @@ import {
   validateDirectorySelectionPurpose,
 } from '../shared/data/data.types';
 import { createDocumentIpcFailure } from '../shared/documents/document.ipc';
+import { runThemeIpcOperation } from '../shared/themes/theme.ipc';
+import { validateExternalThemeId } from '../shared/themes/theme.types';
 
 import { DataManagementService } from './data/DataManagementService';
 import { MarkdownExportService } from './data/MarkdownExportService';
 import { RestoreDatabaseService } from './data/RestoreDatabaseService';
 import { DocumentIpcService } from './documents/DocumentIpcService';
 import { LocalDocumentStore } from './documents/LocalDocumentStore';
+import { ThemePackageService } from './themes/ThemePackageService';
 import MenuBuilder from './menu';
 import { isAllowedExternalUrl, secureRendererPreferences } from './security';
 import startAutoUpdates from './updates';
@@ -55,6 +58,8 @@ let mainWindow: BrowserWindow | null = null;
 let localDocumentStore: LocalDocumentStore | null = null;
 
 let dataManagementService: DataManagementService | null = null;
+
+let themePackageService: ThemePackageService | null = null;
 
 /* =========================================================
    Legacy IPC example
@@ -325,6 +330,116 @@ function registerDataIpcHandlers() {
   });
 }
 
+function registerThemeIpcHandlers() {
+  ipcMain.handle(IPC_CHANNELS.themes.list, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runThemeIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runThemeIpcOperation(() => getThemePackageService().list());
+  });
+
+  ipcMain.handle(IPC_CHANNELS.themes.choosePackageDirectory, async (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runThemeIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runThemeIpcOperation(async () => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (targetWindow === null || targetWindow.isDestroyed()) {
+        throw new Error('The calling window is unavailable.');
+      }
+
+      const result = await dialog.showOpenDialog(targetWindow, {
+        title: 'Choose Inkdrop theme package',
+        properties: ['openDirectory'],
+      });
+
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.themes.install, (event, directory) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runThemeIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runThemeIpcOperation(() =>
+      getThemePackageService().install(directory),
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.themes.load, (event, id) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runThemeIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runThemeIpcOperation(() =>
+      getThemePackageService().load(validateExternalThemeId(id)),
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.themes.remove, (event, id) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runThemeIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runThemeIpcOperation(() =>
+      getThemePackageService().remove(validateExternalThemeId(id)),
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.themes.getAppearance, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runThemeIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runThemeIpcOperation(() => getThemePackageService().getAppearance());
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.themes.setAcrylicEnabled,
+    async (event, enabled: unknown) => {
+      if (!isMainWindowSender(event.sender)) {
+        return runThemeIpcOperation(() => {
+          throw new Error('Untrusted IPC sender.');
+        });
+      }
+
+      return runThemeIpcOperation(async () => {
+        if (typeof enabled !== 'boolean') {
+          throw new Error('Acrylic preference must be a boolean.');
+        }
+
+        const appearance =
+          await getThemePackageService().setAcrylicEnabled(enabled);
+        const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+        if (targetWindow === null || targetWindow.isDestroyed()) {
+          throw new Error('The calling window is unavailable.');
+        }
+
+        applyAcrylicMaterial(targetWindow, appearance.acrylicEnabled);
+
+        return appearance;
+      });
+    },
+  );
+}
+
 function getLocalDocumentStore(): LocalDocumentStore {
   if (localDocumentStore === null) {
     localDocumentStore = new LocalDocumentStore(
@@ -345,6 +460,16 @@ function getDataManagementService(): DataManagementService {
   }
 
   return dataManagementService;
+}
+
+function getThemePackageService(): ThemePackageService {
+  if (themePackageService === null) {
+    themePackageService = new ThemePackageService({
+      dataDirectory: app.getPath('userData'),
+    });
+  }
+
+  return themePackageService;
 }
 
 const getDatabasePath = (): string =>
@@ -382,6 +507,17 @@ const isMainWindowSender = (sender: WebContents): boolean =>
   !mainWindow.isDestroyed() &&
   mainWindow.webContents.id === sender.id;
 
+const applyAcrylicMaterial = (
+  targetWindow: BrowserWindow,
+  enabled: boolean,
+): void => {
+  if (process.platform === 'darwin') {
+    targetWindow.setVibrancy(enabled ? 'under-window' : null);
+  } else if (process.platform === 'win32') {
+    targetWindow.setBackgroundMaterial(enabled ? 'acrylic' : 'none');
+  }
+};
+
 /* =========================================================
    Window creation
 ========================================================= */
@@ -398,6 +534,8 @@ const createWindow = async () => {
   const getAssetPath = (...paths: string[]): string => {
     return path.join(RESOURCES_PATH, ...paths);
   };
+
+  const appearance = await getThemePackageService().getAppearance();
 
   mainWindow = new BrowserWindow({
     title: 'InkNote',
@@ -425,11 +563,21 @@ const createWindow = async () => {
      */
     trafficLightPosition: TRAFFIC_LIGHT_POSITION,
 
+    /**
+     * Native backdrop APIs can be toggled after construction, but Chromium
+     * needs a transparent guest page from the start for theme acrylic CSS.
+     * The renderer keeps the app opaque until the user enables the setting.
+     */
+    transparent: appearance.acrylicSupported,
+    backgroundColor: appearance.acrylicSupported ? '#00000000' : '#f8f7f5',
+
     webPreferences: {
       ...secureRendererPreferences,
       preload: path.join(__dirname, '../preload/preload.js'),
     },
   });
+
+  applyAcrylicMaterial(mainWindow, appearance.acrylicEnabled);
 
   /* -------------------------------------------------------
      Window lifecycle
@@ -533,6 +681,7 @@ app.on('before-quit', () => {
   localDocumentStore?.close();
   localDocumentStore = null;
   dataManagementService = null;
+  themePackageService = null;
 });
 
 app
@@ -549,6 +698,7 @@ app
       () => new DocumentIpcService(getLocalDocumentStore()),
     );
     registerDataIpcHandlers();
+    registerThemeIpcHandlers();
 
     await createWindow();
 

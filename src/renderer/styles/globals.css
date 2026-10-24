@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* External Inkdrop themes declare @layer theme.ui / theme.syntax /
+   theme.preview. Keeping InkNote defaults in an earlier layer lets those
+   documented variables win without selector-specificity hacks. */
+@layer inknote.base, theme, theme.ui, theme.syntax, theme.preview;
+
 /* =========================================================
    1. DESIGN TOKENS
 
@@ -15,45 +20,129 @@
    No colocar aquí estilos internos de features.
 ========================================================= */
 
+@layer inknote.base {
 :root {
   /* -------------------------------------------------------
      Colors
   ------------------------------------------------------- */
 
-  --color-text: #1d1c19;
-  --color-text-secondary: #656e6e;
+  /* Inkdrop-compatible UI variables. External themes set these directly. */
+  --primary-color: #4e81f3;
+  --primary-color-active: #376dd7;
+  --page-background: #f8f7f5;
+  --text-color: #1d1c19;
+  --muted-text-color: #656e6e;
+  --placeholder-text-color: #858071;
+  --sidebar-background: #e1dfdc;
+  --note-list-bar-background: #f1f0ee;
+  --note-list-view-item-selected-background: #c8d8e1;
+  --note-list-view-item-active-background: rgba(255, 255, 255, 0.56);
+  --tabular-menu-active-background: #c8d8e1;
+  --grouped-segment-hover-background: rgba(255, 255, 255, 0.3);
+  --button-hover-background-color: rgba(0, 0, 0, 0.055);
+  --input-background: #ffffff;
+  --editor-background: #f8f7f5;
+  --editor-drawer-background: #ffffff;
+  --inline-dropdown-menu-background: #ffffff;
+  --border-color: rgba(27, 27, 25, 0.1);
+  --solid-border-color: rgba(27, 27, 25, 0.16);
+  --note-status-active-color: #a9bfd9;
+  --note-status-on-hold-color: #ffa500;
+  --note-status-completed-color: #20c997;
+  --note-status-dropped-color: #ff7285;
+  --tag-blue-color: #376dd7;
+  --tag-green-color: #16884a;
+  --tag-red-color: #d94357;
+  --tag-purple-color: #7656d5;
+  --tag-orange-color: #b16c09;
+  --tag-neutral-color: #808080;
+  --tag-blue-background-color: color-mix(in srgb, var(--tag-blue-color) 10%, transparent);
+  --tag-green-background-color: color-mix(in srgb, var(--tag-green-color) 10%, transparent);
+  --tag-red-background-color: color-mix(in srgb, var(--tag-red-color) 10%, transparent);
+  --tag-purple-background-color: color-mix(in srgb, var(--tag-purple-color) 10%, transparent);
+  --tag-orange-background-color: color-mix(in srgb, var(--tag-orange-color) 12%, transparent);
+  --task-progress-view-border-color: color-mix(in srgb, var(--muted-text-color) 28%, transparent);
+  --task-progress-view-background-color: color-mix(in srgb, var(--muted-text-color) 30%, transparent);
+  --task-progress-view-foreground-color: #ffffff;
+  --task-progress-view-completed-color: var(--primary-color);
+
+  /* CodeMirror 6 / syntax.css variables. */
+  --editor-foreground-color: var(--text-color);
+  --editor-caret-color: var(--text-color);
+  --editor-selection-background: rgba(78, 129, 243, 0.15);
+  --editor-active-line-background: #eef3f9;
+  --editor-gutter-foreground-color: #a4aaa9;
+  --editor-gutter-background: var(--editor-background);
+  --editor-tooltip-background: var(--editor-drawer-background);
+  --editor-tooltip-border-color: var(--border-color);
+  --syntax-heading-color: #c63e70;
+  --syntax-punctuation-color: #4e81f3;
+  --syntax-emphasis-color: #4a5150;
+  --syntax-url-color: #376dd7;
+  --syntax-meta-color: #6d5ee7;
+  --syntax-quote-color: #667271;
+  --syntax-comment-color: #75827c;
+  --syntax-keyword-color: #8951a8;
+  --syntax-literal-color: #327d87;
+  --syntax-number-color: #b36c24;
+  --syntax-string-color: #2b7c58;
+  --md-inline-code-color: #3e4f67;
+  --md-inline-code-background-color: rgba(78, 129, 243, 0.09);
+  --md-highlight-background-color: #f4d574;
+  --md-table-header-background-color: rgba(27, 27, 25, 0.05);
+
+  /* markdown.css variables used by the preview surface. */
+  --mde-preview-link-color: var(--syntax-url-color);
+  --mde-preview-heading-color: var(--text-color);
+  --mde-preview-strong-color: var(--text-color);
+  --mde-preview-em-color: var(--text-color);
+  --mde-preview-inline-code-color: var(--md-inline-code-color);
+  --mde-preview-inline-code-background-color: var(--md-inline-code-background-color);
+  --mde-preview-blockquote-text-color: var(--muted-text-color);
+  --mde-preview-blockquote-border-color: var(--primary-color);
+  --mde-preview-codeblock-text-color: var(--text-color);
+  --mde-preview-codeblock-background-color: #eeece9;
+  --mde-preview-codeblock-border-color: rgba(27, 27, 25, 0.08);
+  --mde-preview-table-head-text-color: var(--text-color);
+  --mde-preview-table-head-background-color: var(--md-table-header-background-color);
+  --mde-preview-table-border-color: var(--border-color);
+  --mde-preview-hr-background-color: var(--border-color);
+
+  /* InkNote aliases keep existing components on the public token contract. */
+  --color-text: var(--text-color);
+  --color-text-secondary: var(--muted-text-color);
   --color-text-tertiary: #858071;
 
-  --color-navigation: #e1dfdc;
+  --color-navigation: var(--sidebar-background);
   --color-navigation-selected: #c8d8e1;
 
-  --color-notes: #f1f0ee;
-  --color-workspace: #f8f7f5;
-  --color-surface-elevated: #ffffff;
+  --color-notes: var(--note-list-bar-background);
+  --color-workspace: var(--editor-background);
+  --color-surface-elevated: var(--inline-dropdown-menu-background);
 
-  --color-code-background: #eeece9;
+  --color-code-background: var(--mde-preview-codeblock-background-color);
   --color-code-header: rgba(27, 27, 25, 0.035);
-  --color-code-border: rgba(27, 27, 25, 0.08);
-  --color-inline-code: #3e4f67;
-  --color-inline-code-background: rgba(78, 129, 243, 0.09);
-  --color-mark: #f4d574;
-  --color-table-header: rgba(27, 27, 25, 0.05);
-  --color-editor-active-line: #eef3f9;
-  --color-editor-gutter: #a4aaa9;
+  --color-code-border: var(--mde-preview-codeblock-border-color);
+  --color-inline-code: var(--mde-preview-inline-code-color);
+  --color-inline-code-background: var(--mde-preview-inline-code-background-color);
+  --color-mark: var(--md-highlight-background-color);
+  --color-table-header: var(--mde-preview-table-head-background-color);
+  --color-editor-active-line: var(--editor-active-line-background);
+  --color-editor-gutter: var(--editor-gutter-foreground-color);
 
-  --syntax-heading: #c63e70;
-  --syntax-punctuation: #4e81f3;
-  --syntax-emphasis: #4a5150;
-  --syntax-link: #376dd7;
-  --syntax-meta: #6d5ee7;
-  --syntax-quote: #667271;
-  --syntax-code-comment: #75827c;
-  --syntax-code-keyword: #8951a8;
-  --syntax-code-literal: #327d87;
-  --syntax-code-number: #b36c24;
-  --syntax-code-string: #2b7c58;
+  --syntax-heading: var(--syntax-heading-color);
+  --syntax-punctuation: var(--syntax-punctuation-color);
+  --syntax-emphasis: var(--syntax-emphasis-color);
+  --syntax-link: var(--syntax-url-color);
+  --syntax-meta: var(--syntax-meta-color);
+  --syntax-quote: var(--syntax-quote-color);
+  --syntax-code-comment: var(--syntax-comment-color);
+  --syntax-code-keyword: var(--syntax-keyword-color);
+  --syntax-code-literal: var(--syntax-literal-color);
+  --syntax-code-number: var(--syntax-number-color);
+  --syntax-code-string: var(--syntax-string-color);
 
-  --color-divider: rgba(27, 27, 25, 0.1);
+  --color-divider: var(--border-color);
 
   /* -------------------------------------------------------
      Interactive controls
@@ -66,10 +155,10 @@
   --color-control-hover-background: rgba(0, 0, 0, 0.055);
   --color-control-pressed-background: rgba(0, 0, 0, 0.09);
 
-  --color-selection-background: rgba(78, 129, 243, 0.15);
+  --color-selection-background: var(--editor-selection-background);
 
-  --color-focus: #4e81f3;
-  --focus-ring: 0 0 0 2px rgba(78, 129, 243, 0.4);
+  --color-focus: var(--primary-color);
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--primary-color) 40%, transparent);
 
   /* -------------------------------------------------------
      Navbar
@@ -104,7 +193,7 @@
 
   color: var(--color-text);
 
-  background: var(--color-workspace);
+  background: var(--page-background);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -124,48 +213,115 @@
  * This is InkNote's own dark appearance: the contrast and hierarchy follow
  * the application surfaces rather than reproducing a third-party theme.
  */
-.workspace-shell[data-theme='dark'] {
-  --color-text: #e7eaed;
-  --color-text-secondary: #aab3bb;
+.workspace-shell[data-theme-id='native-dark'] {
+  --primary-color: #86b6f8;
+  --primary-color-active: #80b6ff;
+  --page-background: #282e34;
+  --text-color: #e7eaed;
+  --muted-text-color: #aab3bb;
+  --placeholder-text-color: #7f8a93;
+  --sidebar-background: #171d22;
+  --note-list-bar-background: #20262c;
+  --editor-background: #282e34;
+  --editor-drawer-background: #323941;
+  --inline-dropdown-menu-background: #323941;
+  --border-color: rgba(232, 238, 243, 0.13);
+  --solid-border-color: rgba(232, 238, 243, 0.22);
+  --note-status-active-color: #86b6f8;
+  --note-status-on-hold-color: #f1b56b;
+  --note-status-completed-color: #8fd0a4;
+  --note-status-dropped-color: #f08bad;
+  --tag-blue-color: #80b6ff;
+  --tag-green-color: #8fd0a4;
+  --tag-red-color: #f08bad;
+  --tag-purple-color: #b5a0ef;
+  --tag-orange-color: #f1b56b;
+  --tag-neutral-color: #aab3bb;
+  --tag-blue-background-color: color-mix(in srgb, var(--tag-blue-color) 10%, transparent);
+  --tag-green-background-color: color-mix(in srgb, var(--tag-green-color) 10%, transparent);
+  --tag-red-background-color: color-mix(in srgb, var(--tag-red-color) 10%, transparent);
+  --tag-purple-background-color: color-mix(in srgb, var(--tag-purple-color) 10%, transparent);
+  --tag-orange-background-color: color-mix(in srgb, var(--tag-orange-color) 12%, transparent);
+  --task-progress-view-border-color: color-mix(in srgb, var(--muted-text-color) 28%, transparent);
+  --task-progress-view-background-color: color-mix(in srgb, var(--muted-text-color) 30%, transparent);
+  --task-progress-view-foreground-color: #ffffff;
+  --task-progress-view-completed-color: var(--primary-color);
+  --editor-foreground-color: var(--text-color);
+  --editor-caret-color: var(--text-color);
+  --editor-selection-background: rgba(91, 151, 222, 0.28);
+  --editor-active-line-background: #303a45;
+  --editor-gutter-foreground-color: #75808a;
+  --editor-gutter-background: var(--editor-background);
+  --editor-tooltip-background: var(--editor-drawer-background);
+  --editor-tooltip-border-color: var(--border-color);
+  --syntax-heading-color: #f08bad;
+  --syntax-punctuation-color: #78a9ef;
+  --syntax-emphasis-color: #bdc8d1;
+  --syntax-url-color: #80b6ff;
+  --syntax-meta-color: #b5a0ef;
+  --syntax-quote-color: #a4b1a6;
+  --syntax-comment-color: #89988e;
+  --syntax-keyword-color: #d7a1e5;
+  --syntax-literal-color: #82c9c3;
+  --syntax-number-color: #f1b56b;
+  --syntax-string-color: #8fd0a4;
+  --md-inline-code-color: #b8d2e8;
+  --md-inline-code-background-color: rgba(104, 159, 220, 0.16);
+  --md-highlight-background-color: #765f1d;
+  --md-table-header-background-color: rgba(240, 244, 247, 0.08);
+  --mde-preview-link-color: var(--syntax-url-color);
+  --mde-preview-heading-color: var(--text-color);
+  --mde-preview-strong-color: var(--text-color);
+  --mde-preview-em-color: var(--text-color);
+  --mde-preview-inline-code-color: var(--md-inline-code-color);
+  --mde-preview-inline-code-background-color: var(--md-inline-code-background-color);
+  --mde-preview-blockquote-text-color: var(--muted-text-color);
+  --mde-preview-blockquote-border-color: var(--primary-color);
+  --mde-preview-codeblock-text-color: var(--text-color);
+  --mde-preview-codeblock-background-color: #22282e;
+  --mde-preview-codeblock-border-color: rgba(240, 244, 247, 0.13);
+  --mde-preview-table-head-text-color: var(--text-color);
+  --mde-preview-table-head-background-color: var(--md-table-header-background-color);
+  --mde-preview-table-border-color: var(--border-color);
+  --mde-preview-hr-background-color: var(--border-color);
+
   --color-text-tertiary: #7f8a93;
-
-  --color-navigation: #171d22;
   --color-navigation-selected: #2c4352;
-  --color-notes: #20262c;
-  --color-workspace: #282e34;
-  --color-surface-elevated: #323941;
-
-  --color-code-background: #22282e;
   --color-code-header: rgba(240, 244, 247, 0.055);
-  --color-code-border: rgba(240, 244, 247, 0.13);
-  --color-inline-code: #b8d2e8;
-  --color-inline-code-background: rgba(104, 159, 220, 0.16);
-  --color-mark: #765f1d;
-  --color-table-header: rgba(240, 244, 247, 0.08);
-  --color-editor-active-line: #303a45;
-  --color-editor-gutter: #75808a;
-
-  --syntax-heading: #f08bad;
-  --syntax-punctuation: #78a9ef;
-  --syntax-emphasis: #bdc8d1;
-  --syntax-link: #80b6ff;
-  --syntax-meta: #b5a0ef;
-  --syntax-quote: #a4b1a6;
-  --syntax-code-comment: #89988e;
-  --syntax-code-keyword: #d7a1e5;
-  --syntax-code-literal: #82c9c3;
-  --syntax-code-number: #f1b56b;
-  --syntax-code-string: #8fd0a4;
-
-  --color-divider: rgba(232, 238, 243, 0.13);
   --color-control: #afbac1;
   --color-control-hover: #f1f4f6;
   --color-control-active: #ffffff;
   --color-control-hover-background: rgba(255, 255, 255, 0.08);
   --color-control-pressed-background: rgba(255, 255, 255, 0.14);
-  --color-selection-background: rgba(91, 151, 222, 0.28);
-  --color-focus: #86b6f8;
-  --focus-ring: 0 0 0 2px rgba(134, 182, 248, 0.48);
+}
+
+/* Mirrors Inkdrop's documented hooks for both native and package themes. */
+:root:has(body.acrylic-window) {
+  --page-background: transparent;
+  --editor-background: color-mix(in srgb, var(--page-background) 20%, var(--editor-drawer-background));
+  --note-list-bar-background: color-mix(in srgb, var(--note-list-bar-background) 76%, transparent);
+  --sidebar-background: color-mix(in srgb, var(--sidebar-background) 76%, transparent);
+  --inline-dropdown-menu-background: var(--editor-drawer-background);
+}
+
+:root:has(body.acrylic-window.platform-win32) {
+  --page-background: rgb(0 0 0 / 40%);
+}
+
+/* Native dark stores its defaults on the workspace element, so mirror the
+   documented acrylic surface values there as well. External theme packages
+   keep ownership of their own body.acrylic-window rules. */
+body.acrylic-window .workspace-shell[data-theme-id='native-dark'] {
+  --page-background: transparent;
+  --editor-background: rgb(40 46 52 / 82%);
+  --note-list-bar-background: rgb(32 38 44 / 76%);
+  --sidebar-background: rgb(23 29 34 / 76%);
+}
+
+body.acrylic-window.platform-win32
+  .workspace-shell[data-theme-id='native-dark'] {
+  --page-background: rgb(0 0 0 / 40%);
+}
 }
 
 /* =========================================================
@@ -201,7 +357,7 @@ body {
 
   color: var(--color-text);
 
-  background: var(--color-workspace);
+  background: var(--page-background);
 }
 
 button,
@@ -241,6 +397,67 @@ button {
 ========================================================= */
 
 .workspace-shell {
+  /*
+   * Resolve InkNote's component aliases at the workspace boundary rather than
+   * only on :root. Native appearances are scoped to this element and external
+   * packages may define the documented Inkdrop tokens at a different cascade
+   * layer. Keeping these aliases here makes UI, editor, and preview consume
+   * the same active palette.
+   */
+  --color-text: var(--text-color);
+  --color-text-secondary: var(--muted-text-color);
+  --color-navigation: var(--sidebar-background);
+  --color-notes: var(--note-list-bar-background);
+  --color-workspace: var(--editor-background);
+  --color-surface-elevated: var(--inline-dropdown-menu-background);
+  --color-code-background: var(--mde-preview-codeblock-background-color);
+  --color-code-border: var(--mde-preview-codeblock-border-color);
+  --color-inline-code: var(--mde-preview-inline-code-color);
+  --color-inline-code-background: var(--mde-preview-inline-code-background-color);
+  --color-mark: var(--md-highlight-background-color);
+  --color-table-header: var(--mde-preview-table-head-background-color);
+  --color-editor-active-line: var(--editor-active-line-background);
+  --color-editor-gutter: var(--editor-gutter-foreground-color);
+  --color-divider: var(--border-color);
+  --color-selection-background: var(--editor-selection-background);
+  --syntax-heading: var(--syntax-heading-color);
+  --syntax-punctuation: var(--syntax-punctuation-color);
+  --syntax-emphasis: var(--syntax-emphasis-color);
+  --syntax-link: var(--syntax-url-color);
+  --syntax-meta: var(--syntax-meta-color);
+  --syntax-quote: var(--syntax-quote-color);
+  --syntax-code-comment: var(--syntax-comment-color);
+  --syntax-code-keyword: var(--syntax-keyword-color);
+  --syntax-code-literal: var(--syntax-literal-color);
+  --syntax-code-number: var(--syntax-number-color);
+  --syntax-code-string: var(--syntax-string-color);
+
+  /*
+   * Components use these private aliases rather than guessing a colour. They
+   * retain the native palette by default and can be mapped to the documented
+   * Inkdrop package variables below.
+   */
+  --inknote-navigation-hover-background: rgba(255, 255, 255, 0.3);
+  --inknote-navigation-selected-background: var(--color-navigation-selected);
+  --inknote-notes-hover-background: rgba(255, 255, 255, 0.56);
+  --inknote-notes-selected-background: var(--color-navigation-selected);
+  --inknote-input-focus-background: #ffffff;
+  --inknote-input-hover-background: rgba(255, 255, 255, 0.6);
+  --inknote-status-active-color: var(--note-status-active-color);
+  --inknote-status-on-hold-color: var(--note-status-on-hold-color);
+  --inknote-status-completed-color: var(--note-status-completed-color);
+  --inknote-status-dropped-color: var(--note-status-dropped-color);
+  --inknote-editor-background: var(--editor-background);
+  --inknote-editor-active-line-background: var(--editor-active-line-background);
+  --inknote-editor-active-line-gutter-background: var(--editor-active-line-background);
+  --inknote-editor-gutter-foreground: var(--editor-gutter-foreground-color);
+  --inknote-editor-gutter-background: var(--editor-gutter-background);
+  --inknote-editor-selection-background: var(--editor-selection-background);
+  --inknote-editor-focused-selection-background: var(--editor-selection-background);
+  --inknote-editor-tooltip-background: var(--editor-tooltip-background);
+  --inknote-editor-tooltip-border: var(--editor-tooltip-border-color);
+  --inknote-editor-autocomplete-selected-background: var(--editor-selection-background);
+
   /* -------------------------------------------------------
      Sidebar columns
   ------------------------------------------------------- */
@@ -275,6 +492,80 @@ button {
   overflow: hidden;
 
   background: var(--color-workspace);
+}
+
+/*
+ * Inkdrop v6 packages use semantic variables for navigation, note rows and
+ * CodeMirror that differ slightly from InkNote's original component names.
+ * Keep the adaptation scoped to external packages so native appearances stay
+ * unchanged, while installed packages can be used without rewriting CSS.
+ */
+.workspace-shell[data-theme-id^='external:'] {
+  --color-text-secondary: var(--unselected-text-color, var(--text-color));
+  --color-text-tertiary: var(--unselected-text-color, var(--text-color));
+  --color-control: var(--unselected-text-color, var(--text-color));
+  --color-control-hover: var(--selected-text-color, var(--text-color));
+  --color-control-active: var(--selected-text-color, var(--text-color));
+  --color-control-hover-background: var(--button-hover-background-color);
+  --color-control-pressed-background: var(--grouped-segment-hover-background);
+  --color-navigation-selected: var(--tabular-menu-active-background);
+  --color-inline-code: var(
+    --mde-preview-inline-code-text-color,
+    var(--mde-preview-inline-code-color)
+  );
+  --inknote-navigation-hover-background: var(--grouped-segment-hover-background);
+  --inknote-navigation-selected-background: var(--tabular-menu-active-background);
+  --inknote-notes-hover-background: var(--note-list-view-item-active-background);
+  --inknote-notes-selected-background: var(--note-list-view-item-selected-background);
+  --inknote-input-focus-background: var(--input-background);
+  --inknote-input-hover-background: var(--button-hover-background-color);
+  --inknote-status-active-color: var(
+    --note-status-active,
+    var(--note-status-active-color)
+  );
+  --inknote-status-on-hold-color: var(
+    --note-status-onhold,
+    var(--note-status-on-hold-color)
+  );
+  --inknote-status-completed-color: var(
+    --note-status-completed,
+    var(--note-status-completed-color)
+  );
+  --inknote-status-dropped-color: var(
+    --note-status-dropped,
+    var(--note-status-dropped-color)
+  );
+  --inknote-editor-background: var(--editor-background-color, var(--editor-background));
+  --inknote-editor-active-line-background: var(
+    --editor-active-line-background-color,
+    var(--editor-active-line-background)
+  );
+  --inknote-editor-active-line-gutter-background: var(
+    --editor-active-line-gutter-background-color,
+    var(--inknote-editor-active-line-background)
+  );
+  --inknote-editor-gutter-foreground: var(
+    --editor-gutter-color,
+    var(--editor-gutter-foreground-color)
+  );
+  --inknote-editor-gutter-background: var(
+    --editor-gutter-background-color,
+    var(--editor-gutter-background)
+  );
+  --inknote-editor-selection-background: var(--editor-selection-background);
+  --inknote-editor-focused-selection-background: var(
+    --editor-focused-selection-background,
+    var(--editor-selection-background)
+  );
+  --inknote-editor-tooltip-background: var(
+    --editor-tooltip-background-color,
+    var(--editor-tooltip-background)
+  );
+  --inknote-editor-tooltip-border: var(--editor-tooltip-border-color);
+  --inknote-editor-autocomplete-selected-background: var(
+    --editor-tooltip-autocomplete-item-selected-background-color,
+    var(--editor-selection-background)
+  );
 }
 
 /* =========================================================
@@ -1187,7 +1478,14 @@ button {
   gap: 10px;
 }
 
+.workspace-preferences__theme-choice {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
 .workspace-preferences__theme-option {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1219,6 +1517,127 @@ button {
 
 .workspace-preferences__theme-swatch--dark {
   background: linear-gradient(135deg, #282e34 50%, #171d22 50%);
+}
+
+.workspace-preferences__theme-remove {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.workspace-preferences__theme-remove:hover:not(:disabled) {
+  color: #b33a4b;
+  background: color-mix(in srgb, #d94357 9%, transparent);
+}
+
+.workspace-preferences__theme-remove:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.workspace-preferences__theme-actions {
+  display: flex;
+  margin-top: 12px;
+}
+
+.workspace-preferences__theme-actions button {
+  min-height: 32px;
+  padding: 6px 9px;
+  color: var(--color-text);
+  background: var(--color-code-background);
+  border: 1px solid var(--color-code-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workspace-preferences__theme-actions button:hover:not(:disabled) {
+  background: var(--color-control-hover-background);
+}
+
+.workspace-preferences__theme-actions button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.workspace-preferences__theme-actions button:disabled,
+.workspace-preferences__theme-remove:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.workspace-preferences__theme-help {
+  margin: 10px 0 0 !important;
+}
+
+.workspace-preferences__theme-help code {
+  padding: 1px 3px;
+  color: var(--color-text);
+  background: var(--color-code-background);
+  border: 1px solid var(--color-code-border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.workspace-preferences__acrylic-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--color-code-background) 52%, transparent);
+  border: 1px solid var(--color-code-border);
+  border-radius: 7px;
+}
+
+.workspace-preferences__acrylic-option input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: var(--primary-color);
+}
+
+.workspace-preferences__acrylic-option span {
+  display: grid;
+  gap: 2px;
+}
+
+.workspace-preferences__acrylic-option strong {
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+.workspace-preferences__acrylic-option small {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.workspace-preferences__theme-notice {
+  margin: 12px 0 0 !important;
+  padding: 8px 10px;
+  color: var(--color-text) !important;
+  background: var(--color-code-background);
+  border: 1px solid var(--color-code-border);
+  border-radius: 6px;
+}
+
+.workspace-preferences__theme-notice--success {
+  border-color: color-mix(in srgb, #2ca86c 45%, var(--color-code-border));
+}
+
+.workspace-preferences__theme-notice--error {
+  border-color: color-mix(in srgb, #d35959 50%, var(--color-code-border));
 }
 
 .workspace-preferences__shortcut-list {

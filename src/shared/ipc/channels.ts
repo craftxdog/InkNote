@@ -16,6 +16,15 @@ export const IPC_CHANNELS = {
     deleteNotebook: 'documents:delete-notebook',
     deletePermanently: 'documents:delete-permanently',
   },
+  themes: {
+    list: 'themes:list',
+    choosePackageDirectory: 'themes:choose-package-directory',
+    install: 'themes:install',
+    load: 'themes:load',
+    remove: 'themes:remove',
+    getAppearance: 'themes:get-appearance',
+    setAcrylicEnabled: 'themes:set-acrylic-enabled',
+  },
   window: {
     setTrafficLightsVisibility: 'window:set-traffic-lights-visibility',
   },

@@ -9,7 +9,8 @@ import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { useDocumentWorkspace } from '../platform/documents/useDocumentWorkspace';
-import type { WorkspaceTheme, WorkspaceViewMode } from '../types/workspace';
+import { useWorkspaceThemes } from '../platform/themes/useWorkspaceThemes';
+import type { WorkspaceViewMode } from '../types/workspace';
 import type { NoteId } from '../../shared/documents/document.types';
 
 type PreviewDrafts = ReadonlyMap<NoteId, string>;
@@ -20,24 +21,12 @@ type ScrollSyncTarget = Readonly<{
   sourceLine: number;
 }>;
 
-const workspaceThemeStorageKey = 'inknote.workspace-theme';
-
-const getInitialTheme = (): WorkspaceTheme => {
-  try {
-    return window.localStorage.getItem(workspaceThemeStorageKey) === 'dark'
-      ? 'dark'
-      : 'light';
-  } catch {
-    return 'light';
-  }
-};
-
 export function WorkspacePage() {
   const documentWorkspace = useDocumentWorkspace(window.inknote.documents);
+  const workspaceThemes = useWorkspaceThemes();
   const [isNavigationVisible, setIsNavigationVisible] = useState(true);
   const [isWorkspaceExpanded, setIsWorkspaceExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<WorkspaceViewMode>('split');
-  const [theme, setTheme] = useState<WorkspaceTheme>(getInitialTheme);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [navigationSelection, setNavigationSelection] =
     useState<NavigationSelection>(navigationDestinations.allNotes);
@@ -124,15 +113,6 @@ export function WorkspacePage() {
       });
   }, [shouldShowTrafficLights]);
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(workspaceThemeStorageKey, theme);
-    } catch {
-      // Appearance preference is optional: do not make local storage a
-      // prerequisite for opening a notebook.
-    }
-  }, [theme]);
-
   const createNote = useCallback(() => {
     void documentWorkspace.create().catch(() => undefined);
   }, [documentWorkspace]);
@@ -208,10 +188,19 @@ export function WorkspacePage() {
       isNavigationVisible={isNavigationVisible}
       isWorkspaceExpanded={isWorkspaceExpanded}
       viewMode={viewMode}
-      theme={theme}
+      theme={workspaceThemes.themeAppearance}
+      themeId={workspaceThemes.themeId}
+      themes={workspaceThemes.themes}
+      externalThemeCss={workspaceThemes.externalCss}
+      acrylic={workspaceThemes.acrylic}
+      isThemeCatalogLoading={workspaceThemes.isCatalogLoading}
+      themeError={workspaceThemes.error}
       isPreferencesOpen={isPreferencesOpen}
       onViewModeChange={setViewMode}
-      onThemeChange={setTheme}
+      onThemeChange={workspaceThemes.selectTheme}
+      onInstallTheme={workspaceThemes.installTheme}
+      onRemoveTheme={workspaceThemes.removeTheme}
+      onAcrylicChange={workspaceThemes.setAcrylicEnabled}
       onOpenPreferences={() => setIsPreferencesOpen(true)}
       onClosePreferences={() => setIsPreferencesOpen(false)}
       onCreateNote={createNote}

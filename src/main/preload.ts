@@ -50,6 +50,18 @@ const inknoteApi: InknoteApi = {
     exportMarkdown: (directory: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.data.exportMarkdown, directory),
   },
+  themes: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.themes.list),
+    choosePackageDirectory: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.themes.choosePackageDirectory),
+    install: (directory: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.themes.install, directory),
+    load: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.themes.load, id),
+    remove: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.themes.remove, id),
+    getAppearance: () => ipcRenderer.invoke(IPC_CHANNELS.themes.getAppearance),
+    setAcrylicEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.themes.setAcrylicEnabled, enabled),
+  },
 };
 
 // API propia de Inknote

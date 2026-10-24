@@ -1,5 +1,6 @@
 import type { DocumentIpcResult } from './documents/document.ipc';
 import type { DataIpcResult } from './data/data.ipc';
+import type { ThemeIpcResult } from './themes/theme.ipc';
 import type {
   BackupResult,
   DataManagementInfo,
@@ -17,6 +18,11 @@ import type {
   Notebook,
   NoteDocument,
 } from './documents/document.types';
+import type {
+  ThemeAppearanceSettings,
+  ThemeDescriptor,
+  ThemeStyles,
+} from './themes/theme.types';
 
 export type WindowControlsApi = {
   setTrafficLightsVisible: (visible: boolean) => Promise<boolean>;
@@ -55,8 +61,23 @@ export type DataManagementApi = {
   exportMarkdown: (directory: string) => Promise<DataIpcResult<ExportResult>>;
 };
 
+/** Renderer-safe theme API. Package parsing and filesystem access remain in
+ * the main process, so themes never receive Node or Electron privileges. */
+export type ThemeApi = {
+  list: () => Promise<ThemeIpcResult<readonly ThemeDescriptor[]>>;
+  choosePackageDirectory: () => Promise<ThemeIpcResult<string | null>>;
+  install: (directory: string) => Promise<ThemeIpcResult<ThemeDescriptor>>;
+  load: (id: string) => Promise<ThemeIpcResult<ThemeStyles>>;
+  remove: (id: string) => Promise<ThemeIpcResult<undefined>>;
+  getAppearance: () => Promise<ThemeIpcResult<ThemeAppearanceSettings>>;
+  setAcrylicEnabled: (
+    enabled: boolean,
+  ) => Promise<ThemeIpcResult<ThemeAppearanceSettings>>;
+};
+
 export type InknoteApi = {
   windowControls: WindowControlsApi;
   documents: DocumentApi;
   data: DataManagementApi;
+  themes?: ThemeApi;
 };

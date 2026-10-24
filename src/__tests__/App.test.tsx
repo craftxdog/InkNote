@@ -190,6 +190,103 @@ describe('App', () => {
     );
   });
 
+  it('selects an installed theme and applies its acrylic state without executing package code', async () => {
+    const list = jest.fn().mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          id: 'external:aurora-dark',
+          kind: 'external',
+          name: 'aurora-dark',
+          version: '1.0.0',
+          themeAppearance: 'dark',
+          styleSheets: ['styles/ui.css'],
+        },
+      ],
+    });
+    const setAcrylicEnabled = jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        acrylicEnabled: true,
+        acrylicSupported: true,
+        platform: 'darwin',
+      },
+    });
+
+    Object.defineProperty(window, 'inknote', {
+      configurable: true,
+      value: {
+        windowControls: { setTrafficLightsVisible },
+        documents: {
+          get: jest.fn().mockResolvedValue({ ok: true, value: null }),
+          apply: jest.fn(),
+          listActive: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          createNotebook: jest.fn(),
+        },
+        themes: {
+          list,
+          choosePackageDirectory: jest.fn(),
+          install: jest.fn(),
+          load: jest.fn().mockResolvedValue({
+            ok: true,
+            value: {
+              theme: {
+                id: 'external:aurora-dark',
+                kind: 'external',
+                name: 'aurora-dark',
+                version: '1.0.0',
+                themeAppearance: 'dark',
+                styleSheets: ['styles/ui.css'],
+              },
+              css: '@layer theme.ui { :root { --page-background: #101010; } }',
+            },
+          }),
+          remove: jest.fn(),
+          getAppearance: jest.fn().mockResolvedValue({
+            ok: true,
+            value: {
+              acrylicEnabled: false,
+              acrylicSupported: true,
+              platform: 'darwin',
+            },
+          }),
+          setAcrylicEnabled,
+        },
+      },
+    });
+
+    const { container } = render(<App />);
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Use aurora-dark theme' }),
+    );
+
+    await waitFor(() =>
+      expect(container.querySelector('.workspace-shell')).toHaveAttribute(
+        'data-theme',
+        'dark',
+      ),
+    );
+    const externalThemeStyle = container.querySelector(
+      'style[data-inknote-external-theme="true"]',
+    );
+    expect(externalThemeStyle).toHaveTextContent('@layer inknote.external');
+    expect(externalThemeStyle).toHaveTextContent('--page-background: #101010');
+
+    fireEvent.click(
+      screen.getByRole('checkbox', {
+        name: 'Enable acrylic window background',
+      }),
+    );
+    await waitFor(() => expect(setAcrylicEnabled).toHaveBeenCalledWith(true));
+    await waitFor(() =>
+      expect(document.body).toHaveClass('acrylic-window', 'platform-darwin'),
+    );
+  });
+
   it('configures local backups and announces a completed Markdown export', async () => {
     const getInfo = jest.fn().mockResolvedValue({
       ok: true,

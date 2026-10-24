@@ -5,7 +5,16 @@ import { WorkspacePreferences } from '../components/workspace/WorkspacePreferenc
 
 import type { NavigationSelection } from '../features/navigation/model/navigation.types';
 
-import type { WorkspaceTheme, WorkspaceViewMode } from '../types/workspace';
+import type {
+  ThemeAppearanceSettings,
+  ThemeDescriptor,
+} from '../../shared/themes/theme.types';
+import type {
+  AvailableWorkspaceTheme,
+  WorkspaceTheme,
+  WorkspaceThemeId,
+  WorkspaceViewMode,
+} from '../types/workspace';
 
 type WorkspaceLayoutProps = {
   navigationSelection: NavigationSelection;
@@ -14,11 +23,29 @@ type WorkspaceLayoutProps = {
 
   theme: WorkspaceTheme;
 
+  themeId: WorkspaceThemeId;
+
+  themes: readonly AvailableWorkspaceTheme[];
+
+  externalThemeCss: string | null;
+
+  acrylic: ThemeAppearanceSettings;
+
+  isThemeCatalogLoading: boolean;
+
+  themeError: string | null;
+
   isPreferencesOpen: boolean;
 
   onViewModeChange: (mode: WorkspaceViewMode) => void;
 
-  onThemeChange: (theme: WorkspaceTheme) => void;
+  onThemeChange: (theme: WorkspaceThemeId) => void;
+
+  onInstallTheme: () => Promise<void>;
+
+  onRemoveTheme: (theme: ThemeDescriptor) => Promise<void>;
+
+  onAcrylicChange: (enabled: boolean) => Promise<void>;
 
   onOpenPreferences: () => void;
 
@@ -47,9 +74,18 @@ export function WorkspaceLayout({
   navigationSelection,
   viewMode,
   theme,
+  themeId,
+  themes,
+  externalThemeCss,
+  acrylic,
+  isThemeCatalogLoading,
+  themeError,
   isPreferencesOpen,
   onViewModeChange,
   onThemeChange,
+  onInstallTheme,
+  onRemoveTheme,
+  onAcrylicChange,
   onOpenPreferences,
   onClosePreferences,
   onCreateNote,
@@ -73,7 +109,17 @@ export function WorkspaceLayout({
     .join(' ');
 
   return (
-    <div className={className} data-view-mode={viewMode} data-theme={theme}>
+    <div
+      className={className}
+      data-view-mode={viewMode}
+      data-theme={theme}
+      data-theme-id={themeId}
+    >
+      {externalThemeCss === null ? null : (
+        <style data-inknote-external-theme="true">
+          {wrapExternalThemeCss(externalThemeCss)}
+        </style>
+      )}
       <WorkspaceNavbar
         navigationSelection={navigationSelection}
         isNavigationVisible={isNavigationVisible}
@@ -115,10 +161,26 @@ export function WorkspaceLayout({
 
       <WorkspacePreferences
         isOpen={isPreferencesOpen}
-        theme={theme}
+        themeId={themeId}
+        themes={themes}
+        acrylic={acrylic}
+        isThemeCatalogLoading={isThemeCatalogLoading}
+        themeError={themeError}
         onThemeChange={onThemeChange}
+        onInstallTheme={onInstallTheme}
+        onRemoveTheme={onRemoveTheme}
+        onAcrylicChange={onAcrylicChange}
         onClose={onClosePreferences}
       />
     </div>
   );
 }
+
+/**
+ * Inkdrop packages conventionally use a `theme` cascade layer. Tailwind uses
+ * that same global layer name, so render packages beneath an InkNote-owned
+ * parent layer that is created after the application defaults. The package's
+ * CSS remains otherwise unchanged, including its own nested theme layers.
+ */
+const wrapExternalThemeCss = (css: string): string =>
+  `@layer inknote.external {\n${css}\n}`;
