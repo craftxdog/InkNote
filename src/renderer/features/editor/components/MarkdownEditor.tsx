@@ -33,7 +33,15 @@ import { tags } from '@lezer/highlight';
 
 import { findEmojiCompletions } from '../../markdown/model/emojiCompletions';
 import { formatNoteReference } from '../../references/model/noteReferences';
+import {
+  applySlashCommand,
+  slashCommandsFor,
+  slashQueryForLine,
+} from '../model/markdownAuthoring';
 import type { NoteDocument } from '../../../../shared/documents/document.types';
+
+import { markdownSelectionToolbar } from './MarkdownSelectionToolbar';
+import { dispatchMarkdownTransformation } from './markdownTransformationDispatch';
 
 type MarkdownEditorProps = {
   value: string;
@@ -302,6 +310,44 @@ const noteReferenceCompletionSource = (
   };
 };
 
+const slashCommandCompletionSource = (context: CompletionContext) => {
+  const line = context.state.doc.lineAt(context.pos);
+  const query = slashQueryForLine(line.text, context.pos - line.from);
+
+  if (query === null) {
+    return null;
+  }
+
+  const commands = slashCommandsFor(query.query);
+
+  if (commands.length === 0) {
+    return null;
+  }
+
+  return {
+    from: line.from + query.from,
+    options: commands.map((command) => ({
+      label: command.label,
+      detail: `/${command.id.replaceAll('-', ' ')}`,
+      type: 'keyword',
+      apply: (
+        view: EditorView,
+        _completion: unknown,
+        from: number,
+        to: number,
+      ) =>
+        dispatchMarkdownTransformation(
+          view,
+          applySlashCommand(
+            view.state.doc.toString(),
+            { from, to },
+            command.id,
+          ),
+        ),
+    })),
+  };
+};
+
 /**
  * CodeMirror is deliberately uncontrolled from React while a user types. React
  * supplies authoritative document changes, and this component only emits local
@@ -356,9 +402,11 @@ export function MarkdownEditor({
       syntaxHighlighting(inkNoteMarkdownHighlighting),
       markdown(),
       editorCodeTokenHighlighter,
+      markdownSelectionToolbar,
       autocompletion({
         activateOnTyping: true,
         override: [
+          slashCommandCompletionSource,
           emojiCompletionSource,
           noteReferenceCompletionSource(referenceDocumentsRef),
         ],

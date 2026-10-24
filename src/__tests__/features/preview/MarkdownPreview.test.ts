@@ -10,6 +10,11 @@ import {
 } from '../../../shared/documents/document.types';
 
 describe('enhanceInkNoteMarkdownTree', () => {
+  it('ships Markdown math parser and renderer extensions', () => {
+    expect(require.resolve('remark-math')).toContain('remark-math');
+    expect(require.resolve('rehype-katex')).toContain('rehype-katex');
+  });
+
   it('turns supported callout markers and inline highlight syntax into semantic preview nodes', () => {
     const tree: MarkdownSyntaxTree = {
       type: 'root',
