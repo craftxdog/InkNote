@@ -1,5 +1,6 @@
 import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react';
 
+import { NOTE_STATUS_NONE } from '../../../../shared/documents/document.types';
 import type { NoteSummary } from '../model/note.types';
 
 import { NoteStatusIcon, PinIcon, TaskProgressIcon } from './NotesIcons';
@@ -17,6 +18,8 @@ type NoteListItemProps = {
   ) => void;
 
   onMove?: (noteId: string) => void;
+
+  onTagClick?: (tag: string, event: MouseEvent<HTMLButtonElement>) => void;
 };
 
 const statusLabels = {
@@ -32,6 +35,7 @@ export function NoteListItem({
   onSelect,
   onContextMenu,
   onMove,
+  onTagClick,
 }: NoteListItemProps) {
   const visibleTags = note.tags.slice(0, 2);
   const hiddenTagCount = note.tags.length - visibleTags.length;
@@ -41,109 +45,123 @@ export function NoteListItem({
       : null;
 
   return (
-    <button
-      type="button"
+    <article
       className={['note-list-item', selected ? 'note-list-item--selected' : '']
         .filter(Boolean)
         .join(' ')}
-      onClick={(event) => onSelect(note.id, event)}
-      onContextMenu={(event) => {
-        if (onContextMenu === undefined) {
-          return;
-        }
-
-        event.preventDefault();
-        onContextMenu(note.id, event);
-      }}
-      onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-        if (event.key !== 'm' || onMove === undefined) {
-          return;
-        }
-
-        event.preventDefault();
-        onMove(note.id);
-      }}
-      aria-keyshortcuts={onMove === undefined ? undefined : 'm'}
-      aria-current={selected ? 'true' : undefined}
     >
-      <div className="note-list-item__title-row">
-        {note.pinned && (
-          <span
-            className="note-list-item__pin"
-            aria-label="Pinned note"
-            title="Pinned note"
-          >
-            <PinIcon />
-          </span>
-        )}
+      <button
+        type="button"
+        className="note-list-item__primary"
+        onClick={(event) => onSelect(note.id, event)}
+        onContextMenu={(event) => {
+          if (onContextMenu === undefined) {
+            return;
+          }
 
-        {note.status !== undefined && (
-          <span
-            className={[
-              'note-list-item__status',
-              `note-list-item__status--${note.status}`,
-            ].join(' ')}
-            aria-label={`${statusLabels[note.status]} status`}
-            title={`${statusLabels[note.status]} status`}
-          >
-            <NoteStatusIcon status={note.status} />
-          </span>
-        )}
+          event.preventDefault();
+          onContextMenu(note.id, event);
+        }}
+        onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+          if (event.key !== 'm' || onMove === undefined) {
+            return;
+          }
 
-        <span className="note-list-item__title">{note.title}</span>
-      </div>
-
-      <div className="note-list-item__metadata">
-        <span className="note-list-item__updated">{note.updatedLabel}</span>
-
-        {taskProgress !== null && (
-          <span className="note-list-item__tasks">
-            <span className="note-list-item__task-icon">
-              <TaskProgressIcon />
-            </span>
+          event.preventDefault();
+          onMove(note.id);
+        }}
+        aria-keyshortcuts={onMove === undefined ? undefined : 'm'}
+        aria-current={selected ? 'true' : undefined}
+      >
+        <div className="note-list-item__title-row">
+          {note.pinned && (
             <span
-              className="note-list-item__progress"
-              role="progressbar"
-              aria-label={`${note.completedTasks} of ${note.totalTasks} tasks completed`}
-              aria-valuemin={0}
-              aria-valuemax={note.totalTasks}
-              aria-valuenow={note.completedTasks}
-              aria-valuetext={`${note.completedTasks} of ${note.totalTasks} tasks completed`}
-              style={{ '--task-progress': `${taskProgress}%` } as CSSProperties}
+              className="note-list-item__pin"
+              aria-label="Pinned note"
+              title="Pinned note"
             >
-              <span className="note-list-item__progress-fill" />
+              <PinIcon />
             </span>
-            <span>
-              {note.completedTasks} of {note.totalTasks}
-            </span>
-          </span>
-        )}
+          )}
 
-        <div className="note-list-item__tags" aria-label="Note tags">
-          {visibleTags.map((tag) => (
+          {note.status !== undefined && note.status !== NOTE_STATUS_NONE && (
             <span
-              key={tag.id}
-              className={['note-tag', `note-tag--${tag.color}`].join(' ')}
+              className={[
+                'note-list-item__status',
+                `note-list-item__status--${note.status}`,
+              ].join(' ')}
+              aria-label={`${statusLabels[note.status]} status`}
+              title={`${statusLabels[note.status]} status`}
             >
-              {tag.label}
+              <NoteStatusIcon status={note.status} />
             </span>
-          ))}
-          {hiddenTagCount > 0 && (
-            <span
-              className="note-tag note-tag--more"
-              title={note.tags
-                .slice(visibleTags.length)
-                .map((tag) => tag.label)
-                .join(', ')}
-              aria-label={`${hiddenTagCount} more tags`}
-            >
-              +{hiddenTagCount}
+          )}
+
+          <span className="note-list-item__title">{note.title}</span>
+        </div>
+
+        <div className="note-list-item__metadata">
+          <span className="note-list-item__updated">{note.updatedLabel}</span>
+
+          {taskProgress !== null && (
+            <span className="note-list-item__tasks">
+              <span className="note-list-item__task-icon">
+                <TaskProgressIcon />
+              </span>
+              <span
+                className="note-list-item__progress"
+                role="progressbar"
+                aria-label={`${note.completedTasks} of ${note.totalTasks} tasks completed`}
+                aria-valuemin={0}
+                aria-valuemax={note.totalTasks}
+                aria-valuenow={note.completedTasks}
+                aria-valuetext={`${note.completedTasks} of ${note.totalTasks} tasks completed`}
+                style={
+                  { '--task-progress': `${taskProgress}%` } as CSSProperties
+                }
+              >
+                <span className="note-list-item__progress-fill" />
+              </span>
+              <span>
+                {note.completedTasks} of {note.totalTasks}
+              </span>
             </span>
           )}
         </div>
-      </div>
 
-      <p className="note-list-item__excerpt">{note.excerpt}</p>
-    </button>
+        <p className="note-list-item__excerpt">{note.excerpt}</p>
+      </button>
+
+      <div className="note-list-item__tags" aria-label="Note tags">
+        {visibleTags.map((tag) => (
+          <button
+            key={tag.id}
+            type="button"
+            className={[
+              'note-tag',
+              `note-tag--${tag.color}`,
+              onTagClick === undefined ? '' : 'note-tag--filterable',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onClick={(event) => onTagClick?.(tag.id, event)}
+          >
+            {tag.label}
+          </button>
+        ))}
+        {hiddenTagCount > 0 && (
+          <span
+            className="note-tag note-tag--more"
+            title={note.tags
+              .slice(visibleTags.length)
+              .map((tag) => tag.label)
+              .join(', ')}
+            aria-label={`${hiddenTagCount} more tags`}
+          >
+            +{hiddenTagCount}
+          </span>
+        )}
+      </div>
+    </article>
   );
 }

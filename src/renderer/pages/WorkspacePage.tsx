@@ -4,6 +4,7 @@ import { EditorPanel } from '../features/editor/components/EditorPanel';
 import { NavigationPanel } from '../features/navigation/components/NavigationPanel';
 import { navigationDestinations } from '../features/navigation/data/navigation.data';
 import type { NavigationSelection } from '../features/navigation/model/navigation.types';
+import { selectionForTags } from '../features/navigation/model/navigation.selections';
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
@@ -136,6 +137,20 @@ export function WorkspacePage() {
     void documentWorkspace.create().catch(() => undefined);
   }, [documentWorkspace]);
 
+  const filterByTag = useCallback((tag: string, exclusive: boolean): void => {
+    setNavigationSelection((current) => {
+      const currentTags =
+        current.view.type === 'tag'
+          ? (current.view.tagIds ??
+            (current.view.tagId === undefined ? [] : [current.view.tagId]))
+          : [];
+      const tagIds = exclusive ? [tag] : [...new Set([...currentTags, tag])];
+      const notebookId = notebookIdForTagFilter(current);
+
+      return selectionForTags(tagIds, notebookId);
+    });
+  }, []);
+
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent): void => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey) {
@@ -241,6 +256,7 @@ export function WorkspacePage() {
               currentNotebookId ?? document.notebookId,
             )
           }
+          onFilterByTag={filterByTag}
         />
       }
       editor={
@@ -310,5 +326,25 @@ const notebookIdForSelection = (
     case 'templates':
     case 'trash':
       return null;
+  }
+};
+
+const notebookIdForTagFilter = (
+  selection: NavigationSelection,
+): string | undefined => {
+  switch (selection.view.type) {
+    case 'inbox':
+      return 'inbox';
+    case 'notebook':
+      return selection.view.notebookId;
+    case 'project':
+      return selection.view.projectId;
+    case 'tag':
+      return selection.view.notebookId;
+    case 'all-notes':
+    case 'templates':
+    case 'status':
+    case 'trash':
+      return undefined;
   }
 };

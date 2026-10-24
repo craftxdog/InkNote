@@ -17,6 +17,7 @@ import type {
 import {
   INITIAL_DOCUMENT_REVISION,
   INBOX_NOTEBOOK_ID,
+  NOTE_STATUS_NONE,
   createArchiveMutation,
   createMutationId,
   createNotebook as validateAndCreateNotebook,
@@ -40,6 +41,7 @@ const FIRST_SCHEMA_VERSION = 1;
 const ORGANIZATION_SCHEMA_VERSION = 2;
 const NOTEBOOK_HIERARCHY_SCHEMA_VERSION = 3;
 const NOTEBOOK_ICON_SCHEMA_VERSION = 4;
+const NONE_STATUS_SCHEMA_VERSION = 5;
 
 const PENDING_OUTBOX_STATUS = 'pending';
 
@@ -49,6 +51,7 @@ type NoteRow = Readonly<{
   body: string;
   notebook_id: string;
   status: string;
+  status_is_none: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -477,6 +480,26 @@ export class LocalDocumentStore
           .run(NOTEBOOK_ICON_SCHEMA_VERSION, new Date().toISOString());
       })();
     }
+
+    const hasNoneStatusSchema = this.database
+      .prepare<[number], { version: number }>(
+        'SELECT version FROM schema_migrations WHERE version = ?',
+      )
+      .get(NONE_STATUS_SCHEMA_VERSION);
+
+    if (hasNoneStatusSchema === undefined) {
+      this.database.transaction(() => {
+        this.database.exec(`
+          ALTER TABLE notes ADD COLUMN status_is_none INTEGER NOT NULL DEFAULT 0
+            CHECK (status_is_none IN (0, 1));
+        `);
+        this.database
+          .prepare<[number, string]>(
+            'INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)',
+          )
+          .run(NONE_STATUS_SCHEMA_VERSION, new Date().toISOString());
+      })();
+    }
   }
 
   private applyLocalMutation(mutation: DocumentMutation): NoteDocument {
@@ -855,6 +878,7 @@ export class LocalDocumentStore
           string,
           string,
           string,
+          number,
           string,
           string,
           string | null,
@@ -863,16 +887,17 @@ export class LocalDocumentStore
         ]
       >(
         `INSERT INTO notes(
-          id, title, body, notebook_id, status, created_at, updated_at,
-          deleted_at, projection_generation, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, title, body, notebook_id, status, status_is_none, created_at,
+          updated_at, deleted_at, projection_generation, revision
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         document.id,
         document.title,
         document.body,
         document.notebookId,
-        document.status,
+        persistedStatus(document.status),
+        document.status === NOTE_STATUS_NONE ? 1 : 0,
         document.createdAt,
         document.updatedAt,
         document.deletedAt,
@@ -893,6 +918,7 @@ export class LocalDocumentStore
           string,
           string,
           string,
+          number,
           string,
           string,
           string | null,
@@ -902,7 +928,7 @@ export class LocalDocumentStore
         ]
       >(
         `UPDATE notes
-         SET title = ?, body = ?, notebook_id = ?, status = ?,
+         SET title = ?, body = ?, notebook_id = ?, status = ?, status_is_none = ?,
              created_at = ?, updated_at = ?, deleted_at = ?, projection_generation = ?, revision = ?
          WHERE id = ?`,
       )
@@ -910,7 +936,8 @@ export class LocalDocumentStore
         document.title,
         document.body,
         document.notebookId,
-        document.status,
+        persistedStatus(document.status),
+        document.status === NOTE_STATUS_NONE ? 1 : 0,
         document.createdAt,
         document.updatedAt,
         document.deletedAt,
@@ -1213,7 +1240,7 @@ const documentFromRow = (row: NoteRow, tags: readonly string[]): NoteDocument =>
     title: row.title,
     body: row.body,
     notebookId: row.notebook_id,
-    status: readNoteStatus(row.status),
+    status: readNoteStatus(row.status, row.status_is_none),
     tags: Object.freeze([...tags]),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1345,9 +1372,26 @@ const readNotebookId = (value: unknown): string => {
   );
 };
 
-const readNoteStatus = (value: unknown): NoteDocument['status'] => {
+const persistedStatus = (status: NoteDocument['status']): string =>
+  status === NOTE_STATUS_NONE ? 'active' : status;
+
+const readNoteStatus = (value: unknown, isNone = 0): NoteDocument['status'] => {
+  if (isNone === 1) {
+    return NOTE_STATUS_NONE;
+  }
+
+  if (isNone !== 0) {
+    throw createInvalidMutationError(
+      'A note projection must contain a valid status marker.',
+    );
+  }
+
   if (value === undefined) {
     return 'active';
+  }
+
+  if (value === NOTE_STATUS_NONE) {
+    return NOTE_STATUS_NONE;
   }
 
   if (

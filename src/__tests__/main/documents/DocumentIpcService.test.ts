@@ -65,7 +65,7 @@ describe('DocumentIpcService', () => {
         title: 'First note',
         body: 'first line',
         notebookId: 'inbox',
-        status: 'active',
+        status: 'none',
         tags: [],
         createdAt: '2026-10-21T12:00:00.000Z',
         updatedAt: '2026-10-21T12:00:00.000Z',

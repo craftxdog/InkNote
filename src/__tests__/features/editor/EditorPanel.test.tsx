@@ -341,7 +341,7 @@ describe('EditorPanel', () => {
       />,
     );
 
-    const tagInput = screen.getByRole('textbox', { name: 'Add tag' });
+    const tagInput = screen.getByLabelText('Add tag');
 
     fireEvent.change(tagInput, { target: { value: 'Work' } });
     fireEvent.submit(tagInput);
@@ -349,6 +349,96 @@ describe('EditorPanel', () => {
     await waitFor(() => expect(onSaveDocument).toHaveBeenCalledTimes(1));
     expect(onSaveDocument).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'update-tags', tags: ['work'] }),
+    );
+  });
+
+  it('offers existing tags as suggestions while adding a tag', () => {
+    const note = Object.freeze({
+      ...createDocument(
+        firstNoteId,
+        createRevision('revision-first'),
+        'First body',
+      ),
+      tags: ['project'],
+    });
+    const referenceDocument = Object.freeze({
+      ...createDocument(
+        secondNoteId,
+        createRevision('revision-second'),
+        'Second body',
+      ),
+      tags: ['release'],
+    });
+
+    render(
+      <EditorPanel
+        document={note}
+        referenceDocuments={[note, referenceDocument]}
+        notebooks={[]}
+        isLoading={false}
+        error={null}
+        onSaveDocument={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('Add tag')).toHaveAttribute(
+      'list',
+      'editor-tag-suggestions',
+    );
+    expect(
+      globalThis.document.querySelector(
+        'datalist#editor-tag-suggestions option[value="release"]',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('sets statuses from the documented shortcut, including None', async () => {
+    const document = createDocument(
+      firstNoteId,
+      createRevision('revision-first'),
+      'First body',
+    );
+    const onSaveDocument = jest.fn(async (mutation) =>
+      Object.freeze({
+        ...document,
+        revision: createRevision('revision-status'),
+        status:
+          mutation.kind === 'update-organization'
+            ? mutation.status
+            : document.status,
+      }),
+    );
+
+    render(
+      <EditorPanel
+        document={document}
+        notebooks={[]}
+        isLoading={false}
+        error={null}
+        onSaveDocument={onSaveDocument}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: '4', metaKey: true, ctrlKey: true });
+
+    await waitFor(() =>
+      expect(onSaveDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'update-organization',
+          status: 'completed',
+        }),
+      ),
+    );
+
+    fireEvent.keyDown(window, { key: '1', metaKey: true, ctrlKey: true });
+
+    await waitFor(() =>
+      expect(onSaveDocument).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          kind: 'update-organization',
+          status: 'none',
+        }),
+      ),
     );
   });
 
@@ -376,7 +466,7 @@ describe('EditorPanel', () => {
       />,
     );
 
-    const tagInput = screen.getByRole('textbox', { name: 'Add tag' });
+    const tagInput = screen.getByLabelText('Add tag');
 
     fireEvent.change(tagInput, { target: { value: '#Work, red, work' } });
     fireEvent.submit(tagInput);
@@ -415,7 +505,7 @@ describe('EditorPanel', () => {
       />,
     );
 
-    const tagInput = screen.getByRole('textbox', { name: 'Add tag' });
+    const tagInput = screen.getByLabelText('Add tag');
 
     fireEvent.change(tagInput, { target: { value: 'work' } });
     fireEvent.submit(tagInput);

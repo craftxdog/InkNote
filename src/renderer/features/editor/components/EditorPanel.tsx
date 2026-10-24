@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -14,7 +15,7 @@ import {
   createUpdateTitleMutation,
   type DocumentMutation,
   type Notebook,
-  type NoteStatus,
+  type NoteStatusValue,
   type NoteDocument,
   type NoteId,
 } from '../../../../shared/documents/document.types';
@@ -58,7 +59,7 @@ type PendingTagsSave = Readonly<{
 type PendingOrganizationSave = Readonly<{
   document: NoteDocument;
   notebookId: string;
-  status: NoteStatus;
+  status: NoteStatusValue;
 }>;
 
 type PendingSave =
@@ -85,7 +86,7 @@ type LocalTagsDraft = Readonly<{
 type LocalOrganizationDraft = Readonly<{
   documentId: NoteId;
   notebookId: string;
-  status: NoteStatus;
+  status: NoteStatusValue;
 }>;
 
 export const EditorPanel = ({
@@ -119,6 +120,13 @@ export const EditorPanel = ({
   const [organizationDraft, setOrganizationDraft] =
     useState<LocalOrganizationDraft | null>(null);
   const [tagInput, setTagInput] = useState('');
+  const tagSuggestions = useMemo(
+    () =>
+      [
+        ...new Set(referenceDocuments.flatMap((candidate) => candidate.tags)),
+      ].sort((left, right) => left.localeCompare(right)),
+    [referenceDocuments],
+  );
 
   useEffect(() => {
     if (document !== null) {
@@ -325,6 +333,24 @@ export const EditorPanel = ({
     [document, enqueueSave, organizationDraft],
   );
 
+  useEffect(() => {
+    const handleStatusShortcut = (event: KeyboardEvent): void => {
+      const status = statusForShortcut(event);
+
+      if (status === null) {
+        return;
+      }
+
+      event.preventDefault();
+      saveOrganization({ status });
+    };
+
+    window.addEventListener('keydown', handleStatusShortcut, true);
+
+    return () =>
+      window.removeEventListener('keydown', handleStatusShortcut, true);
+  }, [saveOrganization]);
+
   if (isLoading) {
     return <PanelStatus message="Loading document…" />;
   }
@@ -435,9 +461,12 @@ export const EditorPanel = ({
             aria-label="Status"
             value={visibleOrganization.status}
             onChange={(event) =>
-              saveOrganization({ status: event.target.value as NoteStatus })
+              saveOrganization({
+                status: event.target.value as NoteStatusValue,
+              })
             }
           >
+            <option value="none">Status</option>
             <option value="active">Active</option>
             <option value="on-hold">On Hold</option>
             <option value="completed">Completed</option>
@@ -467,10 +496,17 @@ export const EditorPanel = ({
         <form onSubmit={addTag} className="editor-panel__tag-form">
           <input
             aria-label="Add tag"
+            aria-autocomplete="list"
             value={tagInput}
             onChange={(event) => setTagInput(event.target.value)}
             placeholder="Add tag…"
+            list="editor-tag-suggestions"
           />
+          <datalist id="editor-tag-suggestions">
+            {tagSuggestions.map((tag) => (
+              <option key={tag} value={tag} />
+            ))}
+          </datalist>
         </form>
       </div>
       <div className="panel-content editor-panel__content">
@@ -514,6 +550,32 @@ const normalizeTagInput = (input: string): readonly string[] => [
       .filter(Boolean),
   ),
 ];
+
+const statusForShortcut = (event: KeyboardEvent): NoteStatusValue | null => {
+  const isMacShortcut =
+    event.metaKey && event.ctrlKey && !event.altKey && !event.shiftKey;
+  const isWindowsOrLinuxShortcut =
+    event.shiftKey && event.altKey && !event.metaKey && !event.ctrlKey;
+
+  if (!isMacShortcut && !isWindowsOrLinuxShortcut) {
+    return null;
+  }
+
+  switch (event.key) {
+    case '1':
+      return 'none';
+    case '2':
+      return 'active';
+    case '3':
+      return 'on-hold';
+    case '4':
+      return 'completed';
+    case '5':
+      return 'dropped';
+    default:
+      return null;
+  }
+};
 
 const createMutation = (
   current: NoteDocument,

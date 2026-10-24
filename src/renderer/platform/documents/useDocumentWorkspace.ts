@@ -22,7 +22,7 @@ import {
   type NotebookIconName,
   type NoteDocument,
   type NoteId,
-  type NoteStatus,
+  type NoteStatusValue,
 } from '../../../shared/documents/document.types';
 import {
   DocumentSession,
@@ -48,7 +48,7 @@ export type DocumentWorkspaceActions = Readonly<{
     body?: string,
     options?: Readonly<{
       notebookId?: string;
-      status?: NoteStatus;
+      status?: NoteStatusValue;
       tags?: readonly string[];
     }>,
   ): Promise<NoteDocument>;
@@ -211,7 +211,7 @@ export const useDocumentWorkspace = (
       body = '',
       options: Readonly<{
         notebookId?: string;
-        status?: NoteStatus;
+        status?: NoteStatusValue;
         tags?: readonly string[];
       }> = {},
     ): Promise<NoteDocument> => {

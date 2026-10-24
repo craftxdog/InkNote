@@ -65,12 +65,7 @@ export const selectionForNotebookStatus = (
 export const selectionForNotebookTag = (
   notebookId: string,
   tag: string,
-): NavigationSelection => ({
-  id: `notebook-${notebookId}-tag-${tag}`,
-  label: tag,
-  view: { type: 'tag', tagId: tag, notebookId },
-  icon: { type: 'tag', color: tagColorHex[colorForTag(tag)] },
-});
+): NavigationSelection => selectionForTags([tag], notebookId);
 
 export const selectionForStatus = (
   status: NoteStatus,
@@ -81,9 +76,27 @@ export const selectionForStatus = (
   icon: { type: 'status', status },
 });
 
-export const selectionForTag = (tag: string): NavigationSelection => ({
-  id: `tag-${tag}`,
-  label: tag,
-  view: { type: 'tag', tagId: tag },
-  icon: { type: 'tag', color: tagColorHex[colorForTag(tag)] },
-});
+export const selectionForTag = (tag: string): NavigationSelection =>
+  selectionForTags([tag]);
+
+export const selectionForTags = (
+  tags: readonly string[],
+  notebookId?: string,
+): NavigationSelection => {
+  const tagIds = [...new Set(tags)].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const firstTag = tagIds[0] ?? '';
+  const scope = notebookId === undefined ? '' : `notebook-${notebookId}-`;
+
+  return {
+    id: `${scope}tag-${tagIds.join('-')}`,
+    label: tagIds.join(' + '),
+    view: {
+      type: 'tag',
+      tagIds,
+      ...(notebookId === undefined ? {} : { notebookId }),
+    },
+    icon: { type: 'tag', color: tagColorHex[colorForTag(firstTag)] },
+  };
+};
