@@ -66,6 +66,14 @@ export type CodeFenceMetadata = Readonly<{
 
 type CodeFenceMetadataByLine = ReadonlyMap<number, CodeFenceMetadata>;
 
+type InlineHtmlTagName = 'sub' | 'sup';
+
+type InlineHtmlToken = Readonly<{
+  kind: 'open' | 'close';
+  tagName: InlineHtmlTagName;
+  value: string;
+}>;
+
 const calloutLabels = {
   caution: 'Caution',
   important: 'Important',
@@ -92,6 +100,8 @@ const sourceAnchoredTags = new Set([
   'h2',
   'h3',
   'h4',
+  'h5',
+  'h6',
   'hr',
   'li',
   'p',
@@ -114,9 +124,75 @@ const codeTokenPattern =
 const codeFencePattern = /^ {0,3}(`{3,}|~{3,})[ \t]*(.*?)\s*$/;
 const codeFenceAttributePattern =
   /\b(filename|title)=(?:"([^"]*)"|'([^']*)')/gi;
+const inlineHtmlTokens: readonly InlineHtmlToken[] = [
+  { kind: 'open', tagName: 'sub', value: '\uE000inknote-sub-open\uE001' },
+  { kind: 'close', tagName: 'sub', value: '\uE000inknote-sub-close\uE001' },
+  { kind: 'open', tagName: 'sup', value: '\uE000inknote-sup-open\uE001' },
+  { kind: 'close', tagName: 'sup', value: '\uE000inknote-sup-close\uE001' },
+];
+const inlineHtmlTokenPattern = new RegExp(
+  inlineHtmlTokens.map(({ value }) => value).join('|'),
+  'g',
+);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
+
+const isMarkdownAstContainer = (
+  node: unknown,
+): node is { children: unknown[] } =>
+  isRecord(node) && Array.isArray(node.children);
+
+const inlineHtmlTokenFor = (value: string): InlineHtmlToken | null => {
+  const normalized = value.toLocaleLowerCase();
+
+  switch (normalized) {
+    case '<sub>':
+      return inlineHtmlTokens[0] ?? null;
+    case '</sub>':
+      return inlineHtmlTokens[1] ?? null;
+    case '<sup>':
+      return inlineHtmlTokens[2] ?? null;
+    case '</sup>':
+      return inlineHtmlTokens[3] ?? null;
+    default:
+      return null;
+  }
+};
+
+/**
+ * Preserve only the two inline HTML tags documented by Inkdrop. Raw HTML is
+ * otherwise still discarded by remark-rehype and rehype-sanitize, so enabling
+ * subscript and superscript does not widen the preview's script/style surface.
+ */
+export const preserveSafeInlineHtml =
+  () =>
+  (tree: unknown): void => {
+    const visit = (node: unknown): void => {
+      if (!isMarkdownAstContainer(node)) {
+        return;
+      }
+
+      node.children = node.children.map((child) => {
+        if (
+          isRecord(child) &&
+          child.type === 'html' &&
+          typeof child.value === 'string'
+        ) {
+          const token = inlineHtmlTokenFor(child.value);
+
+          if (token !== null) {
+            return { type: 'text', value: token.value };
+          }
+        }
+
+        visit(child);
+        return child;
+      });
+    };
+
+    visit(tree);
+  };
 
 /**
  * Reads display metadata from a fenced-code info string. We keep it separate
@@ -246,6 +322,16 @@ const createHighlightNode = (value: string): MarkdownElementNode => ({
   children: [createTextNode(value)],
 });
 
+const createInlineHtmlNode = (
+  tagName: InlineHtmlTagName,
+  children: MarkdownSyntaxTree[],
+): MarkdownElementNode => ({
+  type: 'element',
+  tagName,
+  properties: {},
+  children,
+});
+
 const createCodeTokenNode = (
   value: string,
   tokenKind: 'comment' | 'keyword' | 'literal' | 'number' | 'string',
@@ -339,6 +425,137 @@ const enhanceInlineHighlights = (
   }
 
   return nodes;
+};
+
+type InlineColorModel = 'hex' | 'hsl' | 'rgb';
+
+const colorValueForInlineCode = (
+  value: string,
+): Readonly<{ model: InlineColorModel; value: string }> | null => {
+  if (value.length === 0 || value.trim() !== value) {
+    return null;
+  }
+
+  if (/^#[\da-f]{6}$/i.test(value)) {
+    return { model: 'hex', value };
+  }
+
+  const rgb = value.match(
+    /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i,
+  );
+
+  if (rgb !== null && rgb.slice(1).every((part) => Number(part) <= 255)) {
+    return { model: 'rgb', value };
+  }
+
+  const hsl = value.match(
+    /^hsl\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*\)$/i,
+  );
+
+  if (
+    hsl !== null &&
+    Number(hsl[1]) <= 360 &&
+    Number(hsl[2]) <= 100 &&
+    Number(hsl[3]) <= 100
+  ) {
+    return { model: 'hsl', value };
+  }
+
+  return null;
+};
+
+const decorateInlineColorCode = (code: MarkdownElementNode): void => {
+  if (code.children.length !== 1 || !isText(code.children[0])) {
+    return;
+  }
+
+  const color = colorValueForInlineCode(code.children[0].value);
+
+  if (color === null) {
+    return;
+  }
+
+  code.properties = {
+    ...withClassName(code.properties, 'inknote-color-model'),
+    dataColorModel: color.model,
+    style: `--inknote-color-swatch: ${color.value}`,
+  };
+};
+
+const restoreSafeInlineHtml = (
+  parent: MarkdownElementNode | MarkdownRootNode,
+): void => {
+  const children: MarkdownSyntaxTree[] = [];
+  const openTags: Array<{
+    tagName: InlineHtmlTagName;
+    children: MarkdownSyntaxTree[];
+  }> = [];
+  const append = (child: MarkdownSyntaxTree): void => {
+    const current = openTags.at(-1);
+
+    if (current === undefined) {
+      children.push(child);
+    } else {
+      current.children.push(child);
+    }
+  };
+
+  const appendText = (value: string): void => {
+    if (value.length > 0) {
+      append(createTextNode(value));
+    }
+  };
+
+  for (const child of parent.children) {
+    if (!isText(child)) {
+      append(child);
+      continue;
+    }
+
+    inlineHtmlTokenPattern.lastIndex = 0;
+    let offset = 0;
+    let match = inlineHtmlTokenPattern.exec(child.value);
+
+    while (match !== null) {
+      const matchedValue = match[0];
+      const matchedIndex = match.index;
+
+      appendText(child.value.slice(offset, matchedIndex));
+      const token = inlineHtmlTokens.find(
+        ({ value }) => value === matchedValue,
+      );
+
+      if (token === undefined) {
+        appendText(matchedValue);
+      } else if (token.kind === 'open') {
+        openTags.push({ tagName: token.tagName, children: [] });
+      } else {
+        const openTag = openTags.at(-1);
+
+        if (openTag?.tagName === token.tagName) {
+          openTags.pop();
+          append(createInlineHtmlNode(openTag.tagName, openTag.children));
+        } else {
+          appendText(token.tagName === 'sub' ? '</sub>' : '</sup>');
+        }
+      }
+
+      offset = matchedIndex + matchedValue.length;
+      match = inlineHtmlTokenPattern.exec(child.value);
+    }
+
+    appendText(child.value.slice(offset));
+  }
+
+  while (openTags.length > 0) {
+    const openTag = openTags.pop();
+
+    if (openTag !== undefined) {
+      append(createInlineHtmlNode(openTag.tagName, openTag.children));
+    }
+  }
+
+  parent.children = children;
 };
 
 const decorateCallout = (blockquote: MarkdownElementNode): void => {
@@ -491,6 +708,8 @@ const enhanceChildren = (
   codeFenceMetadataByLine: CodeFenceMetadataByLine,
   referenceDocumentsById: ReadonlyMap<NoteId, NoteDocument>,
 ): void => {
+  restoreSafeInlineHtml(parent);
+
   parent.children = parent.children.flatMap((child) => {
     if (isText(child)) {
       return isProtected ? [child] : enhanceInlineHighlights(child);
@@ -508,6 +727,13 @@ const enhanceChildren = (
 
     if (child.tagName === 'pre') {
       decorateCodeBlock(child, codeFenceMetadataByLine);
+    }
+
+    if (
+      child.tagName === 'code' &&
+      (!isElement(parent) || parent.tagName !== 'pre')
+    ) {
+      decorateInlineColorCode(child);
     }
 
     decorateNoteReference(child, referenceDocumentsById);
@@ -590,6 +816,66 @@ const inkNoteMarkdownPresentation =
   };
 
 /**
+ * Builds InkNote's Markdown preview from the same remark → rehype pipeline
+ * documented by Inkdrop. Keeping it exported makes syntax support directly
+ * testable without relying on a rendered React lifecycle.
+ */
+export const renderInkNoteMarkdown = async (
+  markdown: string,
+  codeFenceMetadataByLine = codeFenceMetadataFor(markdown),
+  referenceDocumentsById: ReadonlyMap<NoteId, NoteDocument> = new Map(),
+): Promise<string> => {
+  const [
+    { unified },
+    { default: remarkParse },
+    { default: remarkMath },
+    { default: remarkGfm },
+    { default: remarkRehype },
+    { default: rehypeSanitize, defaultSchema },
+    { default: rehypeKatex },
+    { default: rehypeStringify },
+  ] = await Promise.all([
+    import('unified'),
+    import('remark-parse'),
+    import('remark-math'),
+    import('remark-gfm'),
+    import('remark-rehype'),
+    import('rehype-sanitize'),
+    import('rehype-katex'),
+    import('rehype-stringify'),
+  ]);
+
+  return (
+    unified()
+      .use(remarkParse)
+      .use(remarkMath)
+      .use(remarkGfm)
+      .use(preserveSafeInlineHtml)
+      .use(remarkRehype)
+      .use(rehypeSanitize, {
+        ...defaultSchema,
+        protocols: {
+          ...defaultSchema.protocols,
+          href: [...(defaultSchema.protocols?.href ?? []), 'inknote'],
+        },
+      })
+      // KaTeX receives only the already parsed and sanitized math nodes. Keep
+      // its trust boundary explicit: untrusted TeX cannot enable raw HTML,
+      // links, or style attributes in the preview.
+      .use(rehypeKatex, { trust: false, throwOnError: false })
+      .use(
+        inkNoteMarkdownPresentation(
+          codeFenceMetadataByLine,
+          referenceDocumentsById,
+        ),
+      )
+      .use(rehypeStringify)
+      .process(markdown)
+      .then((result) => result.toString())
+  );
+};
+
+/**
  * Renders Markdown only after it has moved through remark-rehype and the
  * default GitHub-style sanitization schema. Links are delegated to Electron's
  * already allowlisted external-window handler instead of navigating the
@@ -629,62 +915,20 @@ export function MarkdownPreview({
     let isDisposed = false;
     const codeFenceMetadataByLine = codeFenceMetadataFor(deferredMarkdown);
 
-    void Promise.all([
-      import('unified'),
-      import('remark-parse'),
-      import('remark-math'),
-      import('remark-gfm'),
-      import('remark-rehype'),
-      import('rehype-sanitize'),
-      import('rehype-katex'),
-      import('rehype-stringify'),
-    ])
-      .then(
-        ([
-          { unified },
-          { default: remarkParse },
-          { default: remarkMath },
-          { default: remarkGfm },
-          { default: remarkRehype },
-          { default: rehypeSanitize, defaultSchema },
-          { default: rehypeKatex },
-          { default: rehypeStringify },
-        ]) => {
-          const result = unified()
-            .use(remarkParse)
-            .use(remarkMath)
-            .use(remarkGfm)
-            .use(remarkRehype)
-            .use(rehypeSanitize, {
-              ...defaultSchema,
-              protocols: {
-                ...defaultSchema.protocols,
-                href: [...(defaultSchema.protocols?.href ?? []), 'inknote'],
-              },
-            })
-            // KaTeX receives only the already parsed and sanitized math nodes.
-            // Keep its trust boundary explicit: untrusted TeX cannot enable
-            // raw HTML, links, or style attributes in the preview.
-            .use(rehypeKatex, { trust: false, throwOnError: false })
-            .use(
-              inkNoteMarkdownPresentation(
-                codeFenceMetadataByLine,
-                referenceDocumentsById,
-              ),
-            )
-            .use(rehypeStringify)
-            .processSync(deferredMarkdown)
-            .toString();
+    void renderInkNoteMarkdown(
+      deferredMarkdown,
+      codeFenceMetadataByLine,
+      referenceDocumentsById,
+    )
+      .then((result) => {
+        if (!isDisposed && renderedHtmlRef.current !== result) {
+          previewScrollRenderGuardRef.current.beginRender();
+          renderedHtmlRef.current = result;
+          setHtml(result);
+        }
 
-          if (!isDisposed && renderedHtmlRef.current !== result) {
-            previewScrollRenderGuardRef.current.beginRender();
-            renderedHtmlRef.current = result;
-            setHtml(result);
-          }
-
-          return undefined;
-        },
-      )
+        return undefined;
+      })
       .catch(() => {
         const fallback = '<p>Unable to render this document.</p>';
 
@@ -693,6 +937,8 @@ export function MarkdownPreview({
           renderedHtmlRef.current = fallback;
           setHtml(fallback);
         }
+
+        return undefined;
       });
 
     return () => {

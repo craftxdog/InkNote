@@ -15,6 +15,9 @@ export type SlashCommandId =
   | 'heading-1'
   | 'heading-2'
   | 'heading-3'
+  | 'heading-4'
+  | 'heading-5'
+  | 'heading-6'
   | 'horizontal-rule'
   | 'image'
   | 'inline-code'
@@ -29,6 +32,9 @@ export type MarkdownFormatId =
   | 'heading-1'
   | 'heading-2'
   | 'heading-3'
+  | 'heading-4'
+  | 'heading-5'
+  | 'heading-6'
   | 'inline-code'
   | 'italic'
   | 'link'
@@ -72,6 +78,21 @@ const slashCommands: readonly SlashCommand[] = Object.freeze([
     id: 'heading-3',
     label: 'Heading 3',
     keywords: ['heading', 'h3'],
+  },
+  {
+    id: 'heading-4',
+    label: 'Heading 4',
+    keywords: ['heading', 'h4'],
+  },
+  {
+    id: 'heading-5',
+    label: 'Heading 5',
+    keywords: ['heading', 'h5'],
+  },
+  {
+    id: 'heading-6',
+    label: 'Heading 6',
+    keywords: ['heading', 'h6'],
   },
   {
     id: 'horizontal-rule',
@@ -179,6 +200,24 @@ const prefixLines = (
   });
 };
 
+const toggleBlockquote = (
+  source: string,
+  selection: MarkdownSelection,
+): MarkdownTransformation => {
+  const lineRange = lineRangeFor(source, selection);
+  const lines = source.slice(lineRange.from, lineRange.to).split('\n');
+  const quotePrefix = /^ {0,3}>\s?/;
+  const removeQuotes = lines.every((line) => quotePrefix.test(line));
+  const replacement = lines
+    .map((line) => (removeQuotes ? line.replace(quotePrefix, '') : `> ${line}`))
+    .join('\n');
+
+  return replaceSelection(source, lineRange, replacement, {
+    from: lineRange.from + (removeQuotes ? 0 : 2),
+    to: lineRange.from + replacement.length,
+  });
+};
+
 const fencedCodeBlock = (
   source: string,
   selection: MarkdownSelection,
@@ -197,15 +236,54 @@ const fencedCodeBlock = (
 const linkSelection = (
   source: string,
   selection: MarkdownSelection,
+  url = 'url',
 ): MarkdownTransformation => {
   const selected = source.slice(selection.from, selection.to) || 'link text';
-  const replacement = `[${selected}](url)`;
+  const replacement = `[${selected}](${url})`;
   const urlStart = selection.from + selected.length + 3;
 
   return replaceSelection(source, selection, replacement, {
     from: urlStart,
-    to: urlStart + 3,
+    to: urlStart + url.length,
   });
+};
+
+const supportedLinkProtocols = new Set(['http:', 'https:', 'inknote:']);
+
+const normalizedLinkUrl = (candidate: string): string | null => {
+  const url = candidate.trim();
+
+  if (url.length === 0) {
+    return null;
+  }
+
+  try {
+    return supportedLinkProtocols.has(new URL(url).protocol) ? url : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Converts a selected title and a pasted absolute URL into Markdown only when
+ * the clipboard value is a safe link destination supported by the preview.
+ */
+export const applyMarkdownLink = (
+  source: string,
+  initialSelection: MarkdownSelection,
+  candidateUrl: string,
+): MarkdownTransformation | null => {
+  const url = normalizedLinkUrl(candidateUrl);
+
+  if (url === null) {
+    return null;
+  }
+
+  return linkSelection(
+    source,
+    normalizedSelection(source, initialSelection),
+    url,
+  );
 };
 
 const image = (source: string, selection: MarkdownSelection) => {
@@ -281,8 +359,19 @@ export const applyMarkdownFormat = (
       return prefixLines(source, selection, () => '## ', /^ {0,3}#{1,6}\s*/);
     case 'heading-3':
       return prefixLines(source, selection, () => '### ', /^ {0,3}#{1,6}\s*/);
+    case 'heading-4':
+      return prefixLines(source, selection, () => '#### ', /^ {0,3}#{1,6}\s*/);
+    case 'heading-5':
+      return prefixLines(source, selection, () => '##### ', /^ {0,3}#{1,6}\s*/);
+    case 'heading-6':
+      return prefixLines(
+        source,
+        selection,
+        () => '###### ',
+        /^ {0,3}#{1,6}\s*/,
+      );
     case 'blockquote':
-      return prefixLines(source, selection, () => '> ', /^ {0,3}>\s?/);
+      return toggleBlockquote(source, selection);
     case 'bullet-list':
       return prefixLines(source, selection, () => '- ', /^\s*[-*+]\s+/);
     case 'numbered-list':
@@ -334,6 +423,21 @@ export const applySlashCommand = (
       return replaceSelection(source, normalized, '### ', {
         from: normalized.from + 4,
         to: normalized.from + 4,
+      });
+    case 'heading-4':
+      return replaceSelection(source, normalized, '#### ', {
+        from: normalized.from + 5,
+        to: normalized.from + 5,
+      });
+    case 'heading-5':
+      return replaceSelection(source, normalized, '##### ', {
+        from: normalized.from + 6,
+        to: normalized.from + 6,
+      });
+    case 'heading-6':
+      return replaceSelection(source, normalized, '###### ', {
+        from: normalized.from + 7,
+        to: normalized.from + 7,
       });
     case 'horizontal-rule':
       return replaceSelection(source, normalized, '---', {

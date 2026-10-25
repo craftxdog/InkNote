@@ -33,9 +33,12 @@ import { tags } from '@lezer/highlight';
 import { findEmojiCompletions } from '../../markdown/model/emojiCompletions';
 import { formatNoteReference } from '../../references/model/noteReferences';
 import {
+  applyMarkdownLink,
   applySlashCommand,
+  applyMarkdownFormat,
   slashCommandsFor,
   slashQueryForLine,
+  type MarkdownFormatId,
 } from '../model/markdownAuthoring';
 import type { NoteDocument } from '../../../../shared/documents/document.types';
 
@@ -102,7 +105,15 @@ const inkNoteEditorTheme = EditorView.theme(
 
 const inkNoteMarkdownHighlighting = HighlightStyle.define([
   {
-    tag: [tags.heading, tags.heading1, tags.heading2, tags.heading3],
+    tag: [
+      tags.heading,
+      tags.heading1,
+      tags.heading2,
+      tags.heading3,
+      tags.heading4,
+      tags.heading5,
+      tags.heading6,
+    ],
     color: 'var(--syntax-heading-color)',
     fontWeight: '700',
     textDecoration: 'none',
@@ -349,6 +360,70 @@ const slashCommandCompletionSource = (context: CompletionContext) => {
   };
 };
 
+const applyFormatToEditor = (
+  view: EditorView,
+  format: MarkdownFormatId,
+): boolean => {
+  dispatchMarkdownTransformation(
+    view,
+    applyMarkdownFormat(
+      view.state.doc.toString(),
+      view.state.selection.main,
+      format,
+    ),
+  );
+  return true;
+};
+
+const pasteSelectedUrl = (view: EditorView, event: ClipboardEvent): void => {
+  const selection = view.state.selection.main;
+
+  if (selection.empty) {
+    return;
+  }
+
+  const clipboardText = event.clipboardData?.getData('text/plain');
+
+  if (clipboardText === undefined) {
+    return;
+  }
+
+  const transformation = applyMarkdownLink(
+    view.state.doc.toString(),
+    selection,
+    clipboardText,
+  );
+
+  if (transformation === null) {
+    return;
+  }
+
+  event.preventDefault();
+  dispatchMarkdownTransformation(view, transformation);
+};
+
+/**
+ * Intercept a URL paste before CodeMirror replaces the selected label. The
+ * returned cleanup keeps the DOM listener's lifetime tied to its EditorView.
+ */
+export const attachMarkdownPasteHandler = (view: EditorView): (() => void) => {
+  const handlePaste = (event: ClipboardEvent): void =>
+    pasteSelectedUrl(view, event);
+
+  view.contentDOM.addEventListener('paste', handlePaste, true);
+
+  return () => {
+    view.contentDOM.removeEventListener('paste', handlePaste, true);
+  };
+};
+
+const markdownAuthoringKeymap = keymap.of([
+  { key: 'Mod-b', run: (view) => applyFormatToEditor(view, 'bold') },
+  { key: 'Mod-i', run: (view) => applyFormatToEditor(view, 'italic') },
+  { key: "Mod-'", run: (view) => applyFormatToEditor(view, 'blockquote') },
+  { key: 'Mod-Alt-k', run: (view) => applyFormatToEditor(view, 'link') },
+]);
+
 /**
  * CodeMirror is deliberately uncontrolled from React while a user types. React
  * supplies authoritative document changes, and this component only emits local
@@ -403,6 +478,7 @@ export function MarkdownEditor({
       markdown(),
       editorCodeTokenHighlighter,
       markdownSelectionToolbar,
+      markdownAuthoringKeymap,
       autocompletion({
         activateOnTyping: true,
         override: [
@@ -449,12 +525,17 @@ export function MarkdownEditor({
     };
 
     viewRef.current = view;
+
     view.scrollDOM.addEventListener('scroll', reportSourceLine, {
       passive: true,
     });
+    // Capture before CodeMirror mutates the selected source text. This keeps
+    // the selected label and uses the clipboard URL as the link destination.
+    const removeMarkdownPasteHandler = attachMarkdownPasteHandler(view);
 
     return () => {
       view.scrollDOM.removeEventListener('scroll', reportSourceLine);
+      removeMarkdownPasteHandler();
       viewRef.current?.destroy();
       viewRef.current = null;
     };
