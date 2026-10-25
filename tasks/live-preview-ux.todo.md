@@ -8,18 +8,18 @@ and the two documented keymap descriptors without importing React or DOM APIs.
 
 **Acceptance criteria:**
 
-- [ ] All five command IDs from `SPEC-live-preview-ux.md` are registered with
+- [x] All five command IDs from `SPEC-live-preview-ux.md` are registered with
       the existing renderer-local command runtime.
-- [ ] Each command produces an explicit, exhaustive `editor | split | preview`
+- [x] Each command produces an explicit, exhaustive `editor | split | preview`
       transition; `toggle-preview` and `toggle-side-by-side` have defined
       return modes.
-- [ ] `mod-e` resolves to `view:toggle-preview`; `mod-p` resolves to
+- [x] `mod-e` resolves to `view:toggle-preview`; `mod-p` resolves to
       `view:show-side-by-side`; deactivation removes both commands and keys.
 
 **Verification:**
 
-- [ ] Red then green: `npm test -- src/__tests__/features/workspace/viewCommands.test.ts --runInBand`
-- [ ] `npm run typecheck`
+- [x] Red then green: `npm test -- src/__tests__/features/workspace/viewCommands.test.ts --runInBand`
+- [x] `npm run typecheck`
 
 **Dependencies:** None.
 
@@ -40,17 +40,17 @@ shortcuts and draft-preview behavior.
 
 **Acceptance criteria:**
 
-- [ ] `Cmd/Ctrl+E` dispatches `view:toggle-preview` and swaps editor/preview.
-- [ ] `Cmd/Ctrl+P` dispatches `view:show-side-by-side` from every view mode.
-- [ ] Editor, split, and preview buttons invoke the same command dispatcher;
+- [x] `Cmd/Ctrl+E` dispatches `view:toggle-preview` and swaps editor/preview.
+- [x] `Cmd/Ctrl+P` dispatches `view:show-side-by-side` from every view mode.
+- [x] Editor, split, and preview buttons invoke the same command dispatcher;
       their `aria-pressed` state matches `data-view-mode`.
-- [ ] Switching mode does not discard the current unsaved editor draft.
+- [x] Switching mode does not discard the current unsaved editor draft.
 
 **Verification:**
 
-- [ ] Red then green: `npm test -- src/__tests__/App.test.tsx --runInBand`
-- [ ] Regression: `npm test -- src/__tests__/features/markdown/scrollSynchronization.test.ts src/__tests__/features/markdown/previewScrollRenderGuard.test.ts --runInBand`
-- [ ] `npm run lint && npm run typecheck`
+- [x] Red then green: `npm test -- src/__tests__/App.test.tsx --runInBand`
+- [x] Regression: `npm test -- src/__tests__/features/markdown/scrollSynchronization.test.ts src/__tests__/features/markdown/previewScrollRenderGuard.test.ts --runInBand`
+- [x] `npm run lint && npm run typecheck`
 
 **Dependencies:** Task 1.
 
@@ -65,10 +65,10 @@ shortcuts and draft-preview behavior.
 
 ## Checkpoint: Command-driven workspace
 
-- [ ] Tasks 1–2 pass their focused tests, lint, and typecheck.
-- [ ] Keyboard and buttons have one transition source; no direct duplicate
+- [x] Tasks 1–2 pass their focused tests, lint, and typecheck.
+- [x] Keyboard and buttons have one transition source; no direct duplicate
       view-mode mutation remains in those controls.
-- [ ] Existing preview draft and scroll synchronization tests still pass.
+- [x] Existing preview draft and scroll synchronization tests still pass.
 
 ## Task 3: Keep note identity in preview-only mode
 
@@ -79,18 +79,18 @@ editable header in split view.
 
 **Acceptance criteria:**
 
-- [ ] Preview-only renders a meaningful title and organization summary for a
+- [x] Preview-only renders a meaningful title and organization summary for a
       selected note rather than a blank header band.
-- [ ] The header is absent in split mode, which keeps the editor's existing
+- [x] The header is absent in split mode, which keeps the editor's existing
       spanning header and aligned panes.
-- [ ] Loading, empty-note, archived-note, and tag-overflow states remain
+- [x] Loading, empty-note, archived-note, and tag-overflow states remain
       usable and accessible.
 
 **Verification:**
 
-- [ ] Red then green: `npm test -- src/__tests__/App.test.tsx --runInBand`
-- [ ] Renderer regression: `npm test -- src/__tests__/features/preview/MarkdownPreview.test.ts --runInBand`
-- [ ] `npm run lint && npm run typecheck`
+- [x] Red then green: `npm test -- src/__tests__/App.test.tsx --runInBand`
+- [x] Renderer regression: `npm test -- src/__tests__/features/preview/MarkdownPreview.test.ts --runInBand`
+- [x] `npm run lint && npm run typecheck`
 
 **Dependencies:** Task 2.
 
@@ -111,17 +111,19 @@ correctness, readability, architecture, security, and performance.
 
 **Acceptance criteria:**
 
-- [ ] Automated gates pass with no skipped or disabled tests.
+- [x] Automated gates pass with no skipped or disabled tests.
 - [ ] Editor-only, split, and preview-only modes render cleanly in light and
       dark themes; documented shortcuts and button focus behavior work.
-- [ ] Console is free of errors/warnings and no Markdown sanitization behavior
+- [x] Existing Markdown sanitization coverage remains green; renderer-console
+      inspection is pending the visual runtime pass.
       regresses.
 
 **Verification:**
 
-- [ ] `npm run verify`
-- [ ] `npm start` visual check at desktop and narrow workspace widths
-- [ ] Review final diff and verification evidence before commit
+- [x] `npm run verify`
+- [ ] `npm start` visual check at desktop and narrow workspace widths — the
+      app started, but the Mac is locked and its window cannot be inspected.
+- [x] Review final diff and verification evidence before commit
 
 **Dependencies:** Task 3.
 
@@ -134,7 +136,9 @@ correctness, readability, architecture, security, and performance.
 
 ## Checkpoint: Complete
 
-- [ ] All approved success criteria in `SPEC-live-preview-ux.md` are met.
-- [ ] Full verification and visual runtime checks pass.
-- [ ] No dependency, Markdown security, or persistence scope has expanded.
-- [ ] Final code review has no unresolved required findings.
+- [ ] All approved success criteria in `SPEC-live-preview-ux.md` are met —
+      only the pending visual inspection remains.
+- [ ] Full verification and visual runtime checks pass — the runtime window is
+      awaiting an unlocked Mac for inspection.
+- [x] No dependency, Markdown security, or persistence scope has expanded.
+- [x] Final code review has no unresolved required findings.
