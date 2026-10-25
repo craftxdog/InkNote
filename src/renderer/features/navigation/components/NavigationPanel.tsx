@@ -96,7 +96,6 @@ export function NavigationPanel({
             expandedSections={expandedSections}
             onSelectionChange={onSelectionChange}
             onToggleSection={toggleSection}
-            onCreateNotebook={onCreateNotebook}
             onOpenNotebookDetail={(childNotebook) => {
               setDetailNotebookId(childNotebook.id);
               onSelectionChange(selectionForNotebookDetail(childNotebook));
