@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -45,6 +46,18 @@ export const useWorkspaceViewCommands = ({
   setViewMode,
 }: UseWorkspaceViewCommandsOptions): WorkspaceViewCommands => {
   const [runtime] = useState(createWorkspaceRuntime);
+  const lifecycleQueue = useRef<Promise<void>>(Promise.resolve());
+
+  const enqueueLifecycleOperation = useCallback(
+    (operation: () => Promise<void>): Promise<void> => {
+      const scheduled = lifecycleQueue.current.then(operation, operation);
+
+      lifecycleQueue.current = scheduled.catch(() => undefined);
+
+      return scheduled;
+    },
+    [],
+  );
 
   const applyViewCommand = useCallback(
     (command: WorkspaceViewCommand): void => {
@@ -63,20 +76,28 @@ export const useWorkspaceViewCommands = ({
     const plugin = createWorkspaceViewPlugin({
       onViewCommand: applyViewCommand,
     });
-    const activation = runtime.plugins.activate(plugin);
+    const activation = enqueueLifecycleOperation(() =>
+      runtime.plugins.activate(plugin),
+    );
 
     void activation.catch((error: unknown) => {
       console.error('Failed to activate workspace view commands', error);
     });
 
     return () => {
-      void activation
-        .then(() => runtime.plugins.deactivate(plugin.id))
-        .catch((error: unknown) => {
-          console.error('Failed to deactivate workspace view commands', error);
-        });
+      void enqueueLifecycleOperation(async () => {
+        try {
+          await activation;
+        } catch {
+          return;
+        }
+
+        await runtime.plugins.deactivate(plugin.id);
+      }).catch((error: unknown) => {
+        console.error('Failed to deactivate workspace view commands', error);
+      });
     };
-  }, [applyViewCommand, runtime]);
+  }, [applyViewCommand, enqueueLifecycleOperation, runtime]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {

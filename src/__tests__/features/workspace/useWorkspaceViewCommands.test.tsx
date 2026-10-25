@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { act, useState } from 'react';
+import { act, StrictMode, useState } from 'react';
 
 import { useWorkspaceViewCommands } from '../../../renderer/features/workspace/hooks/useWorkspaceViewCommands';
 import { workspaceViewCommandIds } from '../../../renderer/features/workspace/model/viewCommands';
@@ -61,5 +61,58 @@ describe('useWorkspaceViewCommands', () => {
         'split',
       ),
     );
+  });
+
+  it('keeps workspace view commands active after Strict Mode reconnects effects', async () => {
+    const consoleError = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      render(
+        <StrictMode>
+          <WorkspaceViewCommandHarness />
+        </StrictMode>,
+      );
+
+      await act(async () => {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 0);
+        });
+      });
+
+      expect(consoleError).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show preview' }));
+      await waitFor(() =>
+        expect(
+          screen.getByLabelText('Current workspace view'),
+        ).toHaveTextContent('preview'),
+      );
+
+      const togglePreview = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        key: 'e',
+      });
+      window.dispatchEvent(togglePreview);
+
+      expect(togglePreview.defaultPrevented).toBe(true);
+      await waitFor(() =>
+        expect(
+          screen.getByLabelText('Current workspace view'),
+        ).toHaveTextContent('editor'),
+      );
+
+      fireEvent.keyDown(window, { ctrlKey: true, key: 'p' });
+      await waitFor(() =>
+        expect(
+          screen.getByLabelText('Current workspace view'),
+        ).toHaveTextContent('split'),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
