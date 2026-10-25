@@ -267,6 +267,8 @@ export function WorkspacePage() {
       preview={
         <PreviewPanel
           document={selectedDocument}
+          notebooks={documentWorkspace.notebooks}
+          isPreviewOnly={viewMode === 'preview'}
           referenceDocuments={documentWorkspace.documents}
           body={previewBody}
           isLoading={documentWorkspace.session.isLoading}
