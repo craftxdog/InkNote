@@ -125,7 +125,7 @@ describe('App', () => {
     expect(screen.getByLabelText('Markdown editor')).toBeInTheDocument();
   });
 
-  it('switches workspace layouts with the documented shortcuts', () => {
+  it('switches workspace layouts with the documented shortcuts', async () => {
     const { container } = render(<App />);
 
     expect(
@@ -137,16 +137,19 @@ describe('App', () => {
       screen.getByRole('button', { name: 'Show navigation sidebar' }),
     ).toBeInTheDocument();
 
-    fireEvent.keyDown(window, { key: 'p', ctrlKey: true });
-    expect(screen.getByRole('button', { name: 'Split view' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: 'p', ctrlKey: true });
+      expect(
+        screen.getByRole('button', { name: 'Split view' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
 
-    fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
-    expect(
-      screen.getByRole('button', { name: 'Preview only' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
+      expect(
+        screen.getByRole('button', { name: 'Preview only' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
 
     fireEvent.keyDown(window, { key: 'd', ctrlKey: true, shiftKey: true });
     expect(container.querySelector('.workspace-shell')).toHaveClass(
@@ -157,22 +160,41 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps workspace shortcuts available while the Markdown editor has focus', () => {
+  it('keeps workspace shortcuts available while the Markdown editor has focus', async () => {
     render(<App />);
     const editor = document.createElement('div');
     editor.className = 'cm-editor';
     document.body.append(editor);
 
-    fireEvent.keyDown(editor, {
-      key: 'e',
-      ctrlKey: true,
+    await waitFor(() => {
+      fireEvent.keyDown(editor, {
+        key: 'e',
+        ctrlKey: true,
+      });
+      expect(
+        screen.getByRole('button', { name: 'Preview only' }),
+      ).toHaveAttribute('aria-pressed', 'true');
     });
 
     editor.remove();
+  });
 
-    expect(
-      screen.getByRole('button', { name: 'Preview only' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+  it('uses view commands for the view selector buttons', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Preview only' }));
+      expect(
+        screen.getByRole('button', { name: 'Preview only' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Split view' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Split view' }),
+      ).toHaveAttribute('aria-pressed', 'true'),
+    );
   });
 
   it('opens preferences and applies the selected theme', () => {

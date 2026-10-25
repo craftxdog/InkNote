@@ -1,22 +1,20 @@
-import type { WorkspaceViewMode } from '../../../types/workspace';
 import type { InkNotePlugin } from '../../../platform/plugins/plugin.types';
 import { createPluginId } from '../../../platform/plugins/plugin.types';
 
 import {
-  nextWorkspaceViewMode,
   workspaceViewCommandIds,
   type WorkspaceViewCommand,
 } from '../model/viewCommands';
 
 export {
+  isWorkspaceViewCommand,
   nextWorkspaceViewMode,
   workspaceViewCommandIds,
   type WorkspaceViewCommand,
 } from '../model/viewCommands';
 
 type WorkspaceViewPluginOptions = Readonly<{
-  getViewMode(): WorkspaceViewMode;
-  onViewModeChange(mode: WorkspaceViewMode): void;
+  onViewCommand(command: WorkspaceViewCommand): void;
 }>;
 
 const workspaceViewPluginId = createPluginId('workspace-view');
@@ -36,9 +34,7 @@ export const createWorkspaceViewPlugin = (
   activate: (environment) => {
     for (const command of workspaceViewCommands) {
       environment.commands.add(command, () => {
-        options.onViewModeChange(
-          nextWorkspaceViewMode(options.getViewMode(), command),
-        );
+        options.onViewCommand(command);
       });
     }
 

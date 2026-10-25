@@ -1,12 +1,20 @@
 import { createPluginRuntime } from '../../../renderer/platform/environment/runtime';
 import {
   createWorkspaceViewPlugin,
+  isWorkspaceViewCommand,
   nextWorkspaceViewMode,
   workspaceViewCommandIds,
 } from '../../../renderer/features/workspace/runtime/workspaceViewPlugin';
 import type { WorkspaceViewMode } from '../../../renderer/types/workspace';
 
 describe('workspace view commands', () => {
+  it('accepts only its stable view command IDs at the keymap boundary', () => {
+    expect(isWorkspaceViewCommand(workspaceViewCommandIds.showPreview)).toBe(
+      true,
+    );
+    expect(isWorkspaceViewCommand('editor:toggle-vim-mode')).toBe(false);
+  });
+
   it.each([
     ['editor', workspaceViewCommandIds.showEditor, 'editor'],
     ['preview', workspaceViewCommandIds.showEditor, 'editor'],
@@ -20,12 +28,9 @@ describe('workspace view commands', () => {
     ['editor', workspaceViewCommandIds.toggleSideBySide, 'split'],
     ['preview', workspaceViewCommandIds.toggleSideBySide, 'split'],
     ['split', workspaceViewCommandIds.toggleSideBySide, 'editor'],
-  ] as const)(
-    'moves %s with %s to %s',
-    (current, command, expected) => {
-      expect(nextWorkspaceViewMode(current, command)).toBe(expected);
-    },
-  );
+  ] as const)('moves %s with %s to %s', (current, command, expected) => {
+    expect(nextWorkspaceViewMode(current, command)).toBe(expected);
+  });
 
   it('registers commands and documented key bindings through one contribution', async () => {
     const runtime = createPluginRuntime({
@@ -37,8 +42,8 @@ describe('workspace view commands', () => {
       currentMode = nextMode;
     });
     const plugin = createWorkspaceViewPlugin({
-      getViewMode: () => currentMode,
-      onViewModeChange,
+      onViewCommand: (command) =>
+        onViewModeChange(nextWorkspaceViewMode(currentMode, command)),
     });
 
     await runtime.plugins.activate(plugin);
@@ -58,22 +63,21 @@ describe('workspace view commands', () => {
     expect(onViewModeChange).toHaveBeenLastCalledWith('editor');
 
     const workspaceTarget = {
-      matches: (context: string) =>
-        context === 'workspace.global' ? 1 : null,
+      matches: (context: string) => (context === 'workspace.global' ? 1 : null),
     };
 
-    expect(
-      runtime.keymaps.resolve(['mod-e'], [workspaceTarget]),
-    ).toMatchObject({
-      kind: 'matched',
-      binding: { command: workspaceViewCommandIds.togglePreview },
-    });
-    expect(
-      runtime.keymaps.resolve(['mod-p'], [workspaceTarget]),
-    ).toMatchObject({
-      kind: 'matched',
-      binding: { command: workspaceViewCommandIds.showSideBySide },
-    });
+    expect(runtime.keymaps.resolve(['mod-e'], [workspaceTarget])).toMatchObject(
+      {
+        kind: 'matched',
+        binding: { command: workspaceViewCommandIds.togglePreview },
+      },
+    );
+    expect(runtime.keymaps.resolve(['mod-p'], [workspaceTarget])).toMatchObject(
+      {
+        kind: 'matched',
+        binding: { command: workspaceViewCommandIds.showSideBySide },
+      },
+    );
 
     await expect(runtime.plugins.deactivate(plugin.id)).resolves.toBe(true);
     await expect(

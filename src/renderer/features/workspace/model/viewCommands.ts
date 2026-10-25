@@ -11,6 +11,16 @@ export const workspaceViewCommandIds = Object.freeze({
 export type WorkspaceViewCommand =
   (typeof workspaceViewCommandIds)[keyof typeof workspaceViewCommandIds];
 
+const workspaceViewCommands = Object.freeze(
+  Object.values(workspaceViewCommandIds),
+) as readonly WorkspaceViewCommand[];
+
+export const isWorkspaceViewCommand = (
+  value: unknown,
+): value is WorkspaceViewCommand =>
+  typeof value === 'string' &&
+  workspaceViewCommands.includes(value as WorkspaceViewCommand);
+
 export const nextWorkspaceViewMode = (
   current: WorkspaceViewMode,
   command: WorkspaceViewCommand,
