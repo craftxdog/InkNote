@@ -1,6 +1,7 @@
 import {
   codeFenceMetadataFor,
   enhanceInkNoteMarkdownTree,
+  preserveSafeInlineHtml,
   type MarkdownSyntaxTree,
 } from '../../../renderer/features/preview/components/MarkdownPreview';
 import {
@@ -324,5 +325,74 @@ describe('enhanceInkNoteMarkdownTree', () => {
         },
       ],
     });
+  });
+
+  it('adds a safe color swatch only for documented inline color models', () => {
+    const tree: MarkdownSyntaxTree = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'p',
+          properties: {},
+          children: [
+            {
+              type: 'element',
+              tagName: 'code',
+              properties: {},
+              children: [{ type: 'text', value: 'rgb(9, 105, 218)' }],
+            },
+            {
+              type: 'element',
+              tagName: 'code',
+              properties: {},
+              children: [{ type: 'text', value: ' #0969DA ' }],
+            },
+          ],
+        },
+      ],
+    };
+
+    enhanceInkNoteMarkdownTree(tree);
+
+    const paragraph = tree.children[0] as Extract<
+      MarkdownSyntaxTree,
+      { type: 'element' }
+    >;
+    expect(paragraph.children[0]).toMatchObject({
+      properties: {
+        className: ['inknote-color-model'],
+        dataColorModel: 'rgb',
+        style: '--inknote-color-swatch: rgb(9, 105, 218)',
+      },
+    });
+    expect(paragraph.children[1]).toMatchObject({ properties: {} });
+  });
+
+  it('preserves only documented subscript and superscript tags before sanitization', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        { type: 'text', value: 'H' },
+        { type: 'html', value: '<sub>' },
+        { type: 'text', value: '2' },
+        { type: 'html', value: '</sub>' },
+        { type: 'html', value: '<script>' },
+      ],
+    };
+
+    preserveSafeInlineHtml()(tree);
+    enhanceInkNoteMarkdownTree(tree as MarkdownSyntaxTree);
+
+    expect(tree.children).toEqual([
+      { type: 'text', value: 'H' },
+      {
+        type: 'element',
+        tagName: 'sub',
+        properties: {},
+        children: [{ type: 'text', value: '2' }],
+      },
+      { type: 'html', value: '<script>' },
+    ]);
   });
 });

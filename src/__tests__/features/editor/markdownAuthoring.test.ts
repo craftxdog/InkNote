@@ -1,4 +1,5 @@
 import {
+  applyMarkdownLink,
   applyMarkdownFormat,
   applySlashCommand,
   slashQueryForLine,
@@ -63,5 +64,60 @@ describe('Markdown authoring commands', () => {
       text: '# draft',
       selection: { from: 2, to: 7 },
     });
+  });
+
+  it('offers all six documented heading levels from the slash menu', () => {
+    expect(slashCommandsFor('heading')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'heading-4', label: 'Heading 4' }),
+        expect.objectContaining({ id: 'heading-5', label: 'Heading 5' }),
+        expect.objectContaining({ id: 'heading-6', label: 'Heading 6' }),
+      ]),
+    );
+
+    expect(applySlashCommand('', { from: 0, to: 0 }, 'heading-6')).toEqual({
+      text: '###### ',
+      selection: { from: 7, to: 7 },
+    });
+  });
+
+  it('toggles a blockquote across each selected source line', () => {
+    const quoted = applyMarkdownFormat(
+      'first\nsecond',
+      { from: 0, to: 12 },
+      'blockquote',
+    );
+
+    expect(quoted).toEqual({
+      text: '> first\n> second',
+      selection: { from: 2, to: 16 },
+    });
+    expect(
+      applyMarkdownFormat(
+        quoted.text,
+        { from: 0, to: quoted.text.length },
+        'blockquote',
+      ),
+    ).toEqual({
+      text: 'first\nsecond',
+      selection: { from: 0, to: 12 },
+    });
+  });
+
+  it('turns a pasted supported URL into a Markdown link for the selected text', () => {
+    expect(
+      applyMarkdownLink(
+        'Read the Inkdrop manual',
+        { from: 9, to: 16 },
+        'https://docs.inkdrop.app/',
+      ),
+    ).toEqual({
+      text: 'Read the [Inkdrop](https://docs.inkdrop.app/) manual',
+      selection: { from: 19, to: 44 },
+    });
+
+    expect(
+      applyMarkdownLink('Keep this', { from: 0, to: 4 }, 'not a URL'),
+    ).toBeNull();
   });
 });
