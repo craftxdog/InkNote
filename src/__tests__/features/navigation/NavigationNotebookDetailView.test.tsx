@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 import { NavigationNotebookDetailView } from '../../../renderer/features/navigation/components/NavigationNotebookDetailView';
 import { selectionForNotebookDetail } from '../../../renderer/features/navigation/model/navigation.selections';
@@ -44,15 +44,37 @@ const documents: readonly NoteDocument[] = [
 ];
 
 describe('NavigationNotebookDetailView', () => {
-  it('creates a persisted child notebook and exposes the existing hierarchy', async () => {
-    const onCreateNotebook = jest.fn().mockResolvedValue({
-      id: 'commands',
-      name: 'Commands',
-      parentId: 'work',
-      icon: 'terminal',
-      createdAt: '2026-10-22T12:01:00.000Z',
-      updatedAt: '2026-10-22T12:01:00.000Z',
-    } satisfies Notebook);
+  it('keeps ancestors in the breadcrumb trail and the focused notebook on its own line', () => {
+    const onOpenNotebookDetail = jest.fn();
+
+    render(
+      <NavigationNotebookDetailView
+        notebook={projects}
+        notebooks={[work, projects]}
+        documents={documents}
+        selection={selectionForNotebookDetail(projects)}
+        expandedSections={{ work: true, status: true, tags: true }}
+        onSelectionChange={jest.fn()}
+        onToggleSection={jest.fn()}
+        onOpenNotebookDetail={onOpenNotebookDetail}
+        onExit={jest.fn()}
+      />,
+    );
+
+    const breadcrumb = screen.getByLabelText('Notebook breadcrumb');
+
+    expect(breadcrumb).toHaveTextContent('Work');
+    expect(breadcrumb).not.toHaveTextContent('Projects');
+    expect(screen.getByRole('heading', { name: 'Projects' })).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open Work notebook detail' }),
+    );
+
+    expect(onOpenNotebookDetail).toHaveBeenCalledWith(work);
+  });
+
+  it('opens a child notebook detail while retaining the scoped hierarchy', () => {
     const onOpenNotebookDetail = jest.fn();
 
     render(
@@ -64,7 +86,6 @@ describe('NavigationNotebookDetailView', () => {
         expandedSections={{ work: true, status: true, tags: true }}
         onSelectionChange={jest.fn()}
         onToggleSection={jest.fn()}
-        onCreateNotebook={onCreateNotebook}
         onOpenNotebookDetail={onOpenNotebookDetail}
         onExit={jest.fn()}
       />,
@@ -79,28 +100,5 @@ describe('NavigationNotebookDetailView', () => {
       screen.getByRole('button', { name: 'Show details for Projects' }),
     );
     expect(onOpenNotebookDetail).toHaveBeenCalledWith(projects);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add subnotebook' }));
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'New subnotebook in Work' }),
-      { target: { value: 'Commands' } },
-    );
-    fireEvent.change(
-      screen.getByRole('combobox', {
-        name: 'Icon for new subnotebook in Work',
-      }),
-      { target: { value: 'terminal' } },
-    );
-    await act(async () => {
-      fireEvent.submit(
-        screen.getByRole('textbox', { name: 'New subnotebook in Work' }),
-      );
-    });
-
-    expect(onCreateNotebook).toHaveBeenCalledWith(
-      'Commands',
-      'work',
-      'terminal',
-    );
   });
 });

@@ -117,6 +117,7 @@ export function NavigationRow({
         <button
           type="button"
           className="navigation-row__action"
+          tabIndex={-1}
           onClick={(event) => {
             event.stopPropagation();
 

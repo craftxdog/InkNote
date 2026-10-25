@@ -67,13 +67,20 @@ describe('NavigationPanel', () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show details for Work' }),
-    );
+    const detailsButton = screen.getByRole('button', {
+      name: 'Show details for Work',
+    });
+
+    expect(detailsButton).toHaveAttribute('tabindex', '-1');
+
+    fireEvent.click(detailsButton);
 
     expect(
       screen.getByRole('button', { name: 'Back to notebook library' }),
     ).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Show details for Work' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Work' })).toBeVisible();
     expect(
       screen.getByRole('button', { name: /^All Notes/ }),

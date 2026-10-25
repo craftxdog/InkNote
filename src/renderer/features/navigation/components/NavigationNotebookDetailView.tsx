@@ -1,9 +1,8 @@
-import { useMemo, useState, type CSSProperties, type FormEvent } from 'react';
+import { Fragment, useMemo, useState, type CSSProperties } from 'react';
 
 import {
   NOTE_STATUSES,
   type Notebook,
-  type NotebookIconName,
   type NoteDocument,
   type NoteStatus,
 } from '../../../../shared/documents/document.types';
@@ -34,7 +33,6 @@ import {
   SearchIcon,
 } from './NavigationIcons';
 import { NavigationHeader } from './NavigationSectionHeader';
-import { NOTEBOOK_ICON_OPTIONS } from './NavigationLibraryView';
 import { NavigationNotebookIcon } from './NavigationNotebookIcon';
 import { NavigationRow } from './NavigationRow';
 
@@ -46,11 +44,6 @@ type NavigationNotebookDetailViewProps = {
   expandedSections: NavigationSectionsState;
   onSelectionChange: (selection: NavigationSelection) => void;
   onToggleSection: (section: NavigationSectionId) => void;
-  onCreateNotebook: (
-    name: string,
-    parentId?: string | null,
-    icon?: NotebookIconName,
-  ) => Promise<Notebook>;
   onOpenNotebookDetail: (notebook: Notebook) => void;
   onExit: () => void;
 };
@@ -68,18 +61,11 @@ export function NavigationNotebookDetailView({
   expandedSections,
   onSelectionChange,
   onToggleSection,
-  onCreateNotebook,
   onOpenNotebookDetail,
   onExit,
 }: NavigationNotebookDetailViewProps) {
   const [tagQuery, setTagQuery] = useState('');
   const [isTagSearchVisible, setIsTagSearchVisible] = useState(false);
-  const [isCreatingChild, setIsCreatingChild] = useState(false);
-  const [childName, setChildName] = useState('');
-  const [childIcon, setChildIcon] = useState<NotebookIconName | undefined>(
-    undefined,
-  );
-  const [createError, setCreateError] = useState<string | null>(null);
   const scopedNotebookIds = useMemo(
     () => descendantNotebookIds(notebooks, notebook.id),
     [notebooks, notebook.id],
@@ -95,6 +81,7 @@ export function NavigationNotebookDetailView({
     () => notebookBreadcrumbs(notebooks, notebook.id),
     [notebooks, notebook.id],
   );
+  const ancestorBreadcrumbs = breadcrumbs.slice(0, -1);
   const childNotebookRows = useMemo(() => {
     const descendants = descendantNotebookIds(notebooks, notebook.id);
     const childNotebooks = notebooks.filter(
@@ -118,24 +105,6 @@ export function NavigationNotebookDetailView({
   );
   const allNotesSelection = selectionForNotebookDetail(notebook);
   const isSelected = (id: string) => selection.id === id;
-  const submitChildNotebook = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (childName.trim().length === 0) {
-      return;
-    }
-
-    try {
-      const child = await onCreateNotebook(childName, notebook.id, childIcon);
-      setChildName('');
-      setChildIcon(undefined);
-      setIsCreatingChild(false);
-      setCreateError(null);
-      onSelectionChange(selectionForNotebook(child));
-    } catch {
-      setCreateError('The subnotebook could not be created.');
-    }
-  };
 
   return (
     <section
@@ -143,93 +112,62 @@ export function NavigationNotebookDetailView({
       aria-label={`${notebook.name} notebook details`}
     >
       <header className="navigation-notebook-detail__header">
-        <button
-          type="button"
-          className="navigation-notebook-detail__back"
-          aria-label="Back to notebook library"
-          title="Back to notebook library"
-          onClick={onExit}
+        <div
+          className="navigation-notebook-detail__breadcrumb"
+          aria-label="Notebook breadcrumb"
         >
-          <LibraryIcon />
-        </button>
+          <button
+            type="button"
+            className="navigation-notebook-detail__back"
+            aria-label="Back to notebook library"
+            title="Back to notebook library"
+            onClick={onExit}
+          >
+            <LibraryIcon />
+          </button>
 
-        <div className="navigation-notebook-detail__context">
-          <div className="navigation-notebook-detail__breadcrumb">
-            <span>All notebooks</span>
-            {breadcrumbs.map((ancestor) => (
+          {ancestorBreadcrumbs.map((ancestor) => (
+            <Fragment key={ancestor.id}>
               <span
-                key={ancestor.id}
-                className="navigation-notebook-detail__breadcrumb-segment"
+                aria-hidden="true"
+                className="navigation-notebook-detail__separator"
               >
-                <span
-                  aria-hidden="true"
-                  className="navigation-notebook-detail__separator"
-                >
-                  ›
-                </span>
-                <span>{ancestor.name}</span>
+                <ChevronIcon />
               </span>
-            ))}
-          </div>
+              <button
+                type="button"
+                className="navigation-notebook-detail__breadcrumb-link"
+                aria-label={`Open ${ancestor.name} notebook detail`}
+                onClick={() => onOpenNotebookDetail(ancestor)}
+              >
+                <NavigationNotebookIcon notebook={ancestor} />
+                <span>{ancestor.name}</span>
+              </button>
+            </Fragment>
+          ))}
 
+          <span
+            aria-hidden="true"
+            className="navigation-notebook-detail__separator"
+          >
+            <ChevronIcon />
+          </span>
+
+          {ancestorBreadcrumbs.length === 0 ? (
+            <h2 className="navigation-notebook-detail__root-title">
+              <NavigationNotebookIcon notebook={notebook} />
+              <span>{notebook.name}</span>
+            </h2>
+          ) : null}
+        </div>
+
+        {ancestorBreadcrumbs.length > 0 ? (
           <h2 className="navigation-notebook-detail__title">
             <NavigationNotebookIcon notebook={notebook} />
             <span>{notebook.name}</span>
           </h2>
-        </div>
+        ) : null}
       </header>
-
-      <div className="navigation-notebook-detail__child-control">
-        <button
-          type="button"
-          className="navigation-notebook-detail__child-button"
-          aria-expanded={isCreatingChild}
-          onClick={() => {
-            setCreateError(null);
-            setIsCreatingChild((current) => !current);
-          }}
-        >
-          Add subnotebook
-        </button>
-
-        {isCreatingChild && (
-          <form
-            className="navigation-inline-control"
-            onSubmit={submitChildNotebook}
-          >
-            <input
-              aria-label={`New subnotebook in ${notebook.name}`}
-              value={childName}
-              onChange={(event) => setChildName(event.target.value)}
-              placeholder="Subnotebook name"
-            />
-            <select
-              aria-label={`Icon for new subnotebook in ${notebook.name}`}
-              value={childIcon ?? 'auto'}
-              onChange={(event) =>
-                setChildIcon(
-                  event.target.value === 'auto'
-                    ? undefined
-                    : (event.target.value as NotebookIconName),
-                )
-              }
-            >
-              <option value="auto">Auto icon</option>
-              {NOTEBOOK_ICON_OPTIONS.map(({ value, label }) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </form>
-        )}
-      </div>
-
-      {createError !== null && (
-        <p className="navigation-inline-error" role="alert">
-          {createError}
-        </p>
-      )}
 
       <NavigationRow
         label="All Notes"
