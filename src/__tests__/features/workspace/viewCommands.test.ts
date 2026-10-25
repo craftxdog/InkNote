@@ -78,6 +78,12 @@ describe('workspace view commands', () => {
         binding: { command: workspaceViewCommandIds.showSideBySide },
       },
     );
+    expect(
+      runtime.keymaps.resolve(['mod-shift-p'], [workspaceTarget]),
+    ).toMatchObject({
+      kind: 'matched',
+      binding: { command: workspaceViewCommandIds.showSideBySide },
+    });
 
     await expect(runtime.plugins.deactivate(plugin.id)).resolves.toBe(true);
     await expect(

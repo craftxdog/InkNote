@@ -185,7 +185,7 @@ export const WorkspaceNavbar = ({
             }
             aria-label="Split view"
             aria-pressed={viewMode === 'split'}
-            title="Split view (⌘/Ctrl+P)"
+            title="Split view (⌘/Ctrl+P or ⌘/Ctrl+Shift+P)"
           >
             <SplitViewIcon />
           </button>

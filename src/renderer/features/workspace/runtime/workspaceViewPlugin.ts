@@ -49,6 +49,11 @@ export const createWorkspaceViewPlugin = (
         keystrokes: ['mod-p'],
         command: workspaceViewCommandIds.showSideBySide,
       },
+      {
+        context: 'workspace.global',
+        keystrokes: ['mod-shift-p'],
+        command: workspaceViewCommandIds.showSideBySide,
+      },
     ]);
   },
 });

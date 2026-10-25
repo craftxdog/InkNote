@@ -101,12 +101,12 @@ export const useWorkspaceViewCommands = ({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) {
         return;
       }
 
       const resolution = runtime.keymaps.resolve(
-        [`mod-${event.key.toLowerCase()}`],
+        [`${event.shiftKey ? 'mod-shift' : 'mod'}-${event.key.toLowerCase()}`],
         [workspaceKeymapTarget],
       );
 

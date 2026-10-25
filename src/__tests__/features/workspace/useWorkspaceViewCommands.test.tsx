@@ -105,7 +105,7 @@ describe('useWorkspaceViewCommands', () => {
         ).toHaveTextContent('editor'),
       );
 
-      fireEvent.keyDown(window, { ctrlKey: true, key: 'p' });
+      fireEvent.keyDown(window, { ctrlKey: true, shiftKey: true, key: 'p' });
       await waitFor(() =>
         expect(
           screen.getByLabelText('Current workspace view'),
