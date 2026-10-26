@@ -10,14 +10,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] New ID factories generate note:, book:, and tag: IDs; existing non-empty note/notebook IDs remain accepted.
-- [ ] Tag color and tag-summary validation reject malformed values at the shared boundary.
-- [ ] NoteDocument safely exposes doctype, pin, and task metadata defaults; update-pinned is an explicit validated mutation.
+- [x] New ID factories generate note:, book:, and tag: IDs; existing non-empty note/notebook IDs remain accepted.
+- [x] Tag color and tag-summary validation reject malformed values at the shared boundary.
+- [x] NoteDocument safely exposes doctype, pin, and task metadata defaults; update-pinned is an explicit validated mutation.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/platform/documents/document.types.test.ts
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/platform/documents/document.types.test.ts
+- [x] npm run typecheck
 
 **Dependencies:** None.
 
@@ -28,7 +28,7 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 - src/renderer/platform/documents/document.types.type-check.ts
 - src/renderer/platform/documents/useDocumentWorkspace.ts
 
-**Estimated scope:** Medium (3 files).
+**Actual scope:** Medium (5 files, including the test repository update needed for the new mutation kind).
 
 ## Task 2: Make Markdown task counts a shared pure projection
 

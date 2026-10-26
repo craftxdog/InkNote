@@ -13,8 +13,9 @@ import {
   INITIAL_DOCUMENT_REVISION,
   createArchiveMutation,
   createCreateDocumentMutation,
+  createGeneratedNotebookId,
+  createGeneratedNoteId,
   createMutationId,
-  createNoteId,
   createRestoreMutation,
   createUpdateOrganizationMutation,
   type DocumentMutation,
@@ -216,7 +217,7 @@ export const useDocumentWorkspace = (
       }> = {},
     ): Promise<NoteDocument> => {
       const occurredAt = new Date().toISOString();
-      const documentId = createNoteId(createRuntimeId());
+      const documentId = createGeneratedNoteId(createRuntimeId());
       const document = await apply(
         createCreateDocumentMutation({
           id: createMutationId(createRuntimeId()),
@@ -249,7 +250,7 @@ export const useDocumentWorkspace = (
     ): Promise<Notebook> => {
       const occurredAt = new Date().toISOString();
       const notebook = await repository.createNotebook({
-        id: createRuntimeId(),
+        id: createGeneratedNotebookId(createRuntimeId()),
         name,
         parentId,
         icon,

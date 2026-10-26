@@ -4,12 +4,17 @@ import {
   INITIAL_DOCUMENT_REVISION,
   createArchiveMutation,
   createCreateDocumentMutation,
+  createGeneratedNotebookId,
+  createGeneratedNoteId,
+  createGeneratedTagId,
   createMutationId,
   createNoteId,
   createReplaceBodyMutation,
   createRevision,
   createRestoreMutation,
+  createUpdatePinnedMutation,
   createUpdateTagsMutation,
+  validateTagSummary,
   createUpdateTitleMutation,
   validatePermanentlyDeleteNotesInput,
   validateNoteDocument,
@@ -43,6 +48,39 @@ describe('document primitives', () => {
     expect(createMutationId('mutation-1')).toBe('mutation-1');
   });
 
+  it('generates Inkdrop-compatible prefixes while accepting legacy IDs', () => {
+    expect(createGeneratedNoteId('018')).toBe('note:018');
+    expect(createGeneratedNotebookId('019')).toBe('book:019');
+    expect(createGeneratedTagId('020')).toBe('tag:020');
+    expect(createNoteId('legacy-note-id')).toBe('legacy-note-id');
+  });
+
+  it('validates immutable tag summaries at the shared boundary', () => {
+    const tag = validateTagSummary({
+      id: 'tag:018',
+      name: 'Research',
+      color: 'teal',
+      count: 2,
+      createdAt: '2026-10-25T12:00:00.000Z',
+      updatedAt: '2026-10-25T12:01:00.000Z',
+    });
+
+    expect(tag).toEqual({
+      id: 'tag:018',
+      name: 'Research',
+      color: 'teal',
+      count: 2,
+      createdAt: '2026-10-25T12:00:00.000Z',
+      updatedAt: '2026-10-25T12:01:00.000Z',
+    });
+    expect(Object.isFrozen(tag)).toBe(true);
+
+    expectInvalidMutation(() =>
+      validateTagSummary({ ...tag, color: 'cyan' }),
+    );
+    expectInvalidMutation(() => validateTagSummary({ ...tag, count: -1 }));
+  });
+
   it('normalizes Markdown line endings when it creates a body mutation', () => {
     const mutation = createReplaceBodyMutation({
       id: createMutationId('mutation-1'),
@@ -65,7 +103,7 @@ describe('document primitives', () => {
     expect(Object.isFrozen(mutation)).toBe(true);
   });
 
-  it('creates the five discriminated document mutation kinds', () => {
+  it('creates the document mutation kinds including explicit pin updates', () => {
     const common = {
       id: createMutationId('mutation-1'),
       documentId: createNoteId('note-1'),
@@ -90,6 +128,11 @@ describe('document primitives', () => {
     ).toMatchObject({
       kind: 'update-title',
       title: 'Renamed',
+    });
+    expect(createUpdatePinnedMutation({ ...common, pinned: true })).toEqual({
+      ...common,
+      kind: 'update-pinned',
+      pinned: true,
     });
     expect(createArchiveMutation(common)).toMatchObject({ kind: 'archive' });
     expect(
@@ -199,8 +242,27 @@ describe('document primitives', () => {
       updatedAt: '2026-10-21T12:01:00.000Z',
       deletedAt: null,
       revision: 'local-2',
+      doctype: 'markdown',
+      pinned: false,
+      numOfTasks: 0,
+      numOfCheckedTasks: 0,
     });
     expect(Object.isFrozen(document)).toBe(true);
+  });
+
+  it('rejects a pin update that is not boolean', () => {
+    expect.hasAssertions();
+
+    expectInvalidMutation(() =>
+      createUpdatePinnedMutation({
+        id: createMutationId('mutation-pin'),
+        documentId: createNoteId('note-1'),
+        baseRevision: createRevision('revision-1'),
+        source: 'editor',
+        pinned: 'true' as unknown as boolean,
+        occurredAt: '2026-10-21T12:00:00.000Z',
+      }),
+    );
   });
 
   it('rejects malformed document projections at a runtime boundary', () => {

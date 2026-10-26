@@ -259,6 +259,10 @@ export class InMemoryDocumentRepository
       notebookId: mutation.notebookId,
       status: mutation.status,
       tags: Object.freeze([...mutation.tags]),
+      doctype: 'markdown',
+      pinned: false,
+      numOfTasks: 0,
+      numOfCheckedTasks: 0,
       createdAt: mutation.occurredAt,
       updatedAt: mutation.occurredAt,
       revision: this.nextRevision(),
@@ -290,6 +294,8 @@ export class InMemoryDocumentRepository
           ...revised,
           tags: Object.freeze([...mutation.tags]),
         });
+      case 'update-pinned':
+        return freezeDocument({ ...revised, pinned: mutation.pinned });
       case 'update-organization':
         return freezeDocument({
           ...revised,
