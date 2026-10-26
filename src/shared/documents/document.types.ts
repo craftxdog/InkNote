@@ -67,6 +67,32 @@ export type TagSummary = Readonly<{
   updatedAt: string;
 }>;
 
+export const TAG_NAME_MAX_LENGTH = 64;
+
+export type CreateTagInput = Readonly<{
+  id: TagId;
+  name: string;
+  color: TagColor;
+  occurredAt: string;
+}>;
+
+export type UpdateTagInput = Readonly<{
+  id: TagId;
+  name: string;
+  color: TagColor;
+  occurredAt: string;
+}>;
+
+export type DeleteTagInput = Readonly<{
+  id: TagId;
+  occurredAt: string;
+}>;
+
+export type DeleteTagResult = Readonly<{
+  deletedTagId: TagId;
+  affectedNoteIds: readonly NoteId[];
+}>;
+
 export const INBOX_NOTEBOOK_ID = 'inbox';
 
 export const NOTEBOOK_ICON_NAMES = [
@@ -677,6 +703,68 @@ export const validateTagSummary = (value: unknown): TagSummary => {
   });
 };
 
+export const validateCreateTagInput = (value: unknown): CreateTagInput => {
+  const input = validateTagLifecycleInput(value, 'Tag creation');
+
+  if (!input.id.startsWith('tag:')) {
+    throw createInvalidMutationError(
+      'A new tag ID must use the generated tag: prefix.',
+    );
+  }
+
+  return input;
+};
+
+export const validateUpdateTagInput = (value: unknown): UpdateTagInput =>
+  validateTagLifecycleInput(value, 'Tag update');
+
+export const validateDeleteTagInput = (value: unknown): DeleteTagInput => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError('A tag deletion must be an object.');
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return Object.freeze({
+    id: createTagId(readNonEmptyString(candidate.id, 'Tag ID')),
+    occurredAt: readNonEmptyString(candidate.occurredAt, 'Tag timestamp'),
+  });
+};
+
+export const validateDeleteTagResult = (value: unknown): DeleteTagResult => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError(
+      'A tag deletion result must be an object.',
+    );
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const affectedNoteIds = candidate.affectedNoteIds;
+
+  if (!Array.isArray(affectedNoteIds)) {
+    throw createInvalidMutationError(
+      'Tag deletion affected note IDs must be an array.',
+    );
+  }
+
+  const normalizedNoteIds = affectedNoteIds.map((noteId) =>
+    createNoteId(noteId as string),
+  );
+
+  if (new Set(normalizedNoteIds).size !== normalizedNoteIds.length) {
+    throw createInvalidMutationError(
+      'Tag deletion affected note IDs must be unique.',
+    );
+  }
+
+  return Object.freeze({
+    deletedTagId: createTagId(
+      readNonEmptyString(candidate.deletedTagId, 'Deleted tag ID'),
+    ),
+    affectedNoteIds: Object.freeze(normalizedNoteIds),
+  });
+};
+
 const createOpaqueIdentifier = <T extends string>(
   value: string,
   label: string,
@@ -834,6 +922,40 @@ const normalizeTagColor = (value: unknown): TagColor => {
   }
 
   return value as TagColor;
+};
+
+const validateTagLifecycleInput = (
+  value: unknown,
+  label: string,
+): CreateTagInput => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError(`${label} must be an object.`);
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return Object.freeze({
+    id: createTagId(readNonEmptyString(candidate.id, 'Tag ID')),
+    name: normalizeTagLifecycleName(candidate.name),
+    color: normalizeTagColor(candidate.color),
+    occurredAt: readNonEmptyString(candidate.occurredAt, 'Tag timestamp'),
+  });
+};
+
+const normalizeTagLifecycleName = (value: unknown): string => {
+  const name = validateText(value, 'Tag name').trim().toLocaleLowerCase();
+
+  if (name.length === 0) {
+    throw createInvalidMutationError('Tag name must not be empty.');
+  }
+
+  if (name.length > TAG_NAME_MAX_LENGTH) {
+    throw createInvalidMutationError(
+      `Tag name must not exceed ${TAG_NAME_MAX_LENGTH} characters.`,
+    );
+  }
+
+  return name;
 };
 
 const normalizeTagCount = (value: unknown): number => {

@@ -14,6 +14,10 @@ import {
   createRestoreMutation,
   createUpdatePinnedMutation,
   createUpdateTagsMutation,
+  validateCreateTagInput,
+  validateDeleteTagInput,
+  validateDeleteTagResult,
+  validateUpdateTagInput,
   validateUpdateNotebookInput,
   validateTagSummary,
   createUpdateTitleMutation,
@@ -137,6 +141,84 @@ describe('document primitives', () => {
 
     expectInvalidMutation(() => validateTagSummary({ ...tag, color: 'cyan' }));
     expectInvalidMutation(() => validateTagSummary({ ...tag, count: -1 }));
+  });
+
+  it('validates immutable tag lifecycle inputs and deletion results', () => {
+    const created = validateCreateTagInput({
+      id: 'tag:new',
+      name: '  Research  ',
+      color: 'teal',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+    const updated = validateUpdateTagInput({
+      id: 'legacy-tag',
+      name: 'Research notes',
+      color: 'purple',
+      occurredAt: '2026-10-26T12:01:00.000Z',
+    });
+    const deleted = validateDeleteTagInput({
+      id: 'legacy-tag',
+      occurredAt: '2026-10-26T12:02:00.000Z',
+    });
+    const deletion = validateDeleteTagResult({
+      deletedTagId: 'legacy-tag',
+      affectedNoteIds: ['note:one', 'legacy-note'],
+    });
+
+    expect(created).toEqual({
+      id: 'tag:new',
+      name: 'research',
+      color: 'teal',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+    expect(updated).toMatchObject({
+      id: 'legacy-tag',
+      name: 'research notes',
+      color: 'purple',
+    });
+    expect(deleted).toEqual({
+      id: 'legacy-tag',
+      occurredAt: '2026-10-26T12:02:00.000Z',
+    });
+    expect(deletion).toEqual({
+      deletedTagId: 'legacy-tag',
+      affectedNoteIds: ['note:one', 'legacy-note'],
+    });
+    expect(Object.isFrozen(created)).toBe(true);
+    expect(Object.isFrozen(deletion.affectedNoteIds)).toBe(true);
+  });
+
+  it('rejects incomplete, unsafe, and malformed tag lifecycle values', () => {
+    expect.hasAssertions();
+
+    const valid = {
+      id: 'tag:research',
+      name: 'Research',
+      color: 'blue',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    };
+
+    expectInvalidMutation(() =>
+      validateCreateTagInput({ ...valid, name: '   ' }),
+    );
+    expectInvalidMutation(() =>
+      validateCreateTagInput({ ...valid, id: 'legacy-tag' }),
+    );
+    expectInvalidMutation(() =>
+      validateUpdateTagInput({ ...valid, name: 'x'.repeat(65) }),
+    );
+    expectInvalidMutation(() =>
+      validateUpdateTagInput({ ...valid, color: 'cyan' }),
+    );
+    expectInvalidMutation(() =>
+      validateDeleteTagInput({ id: 'tag:research', occurredAt: ' ' }),
+    );
+    expectInvalidMutation(() =>
+      validateDeleteTagResult({
+        deletedTagId: 'tag:research',
+        affectedNoteIds: ['note:one', 42],
+      }),
+    );
   });
 
   it('normalizes Markdown line endings when it creates a body mutation', () => {

@@ -1,10 +1,14 @@
 import type {
+  CreateTagInput,
+  DeleteTagInput,
+  DeleteTagResult,
   CreateNotebookInput,
   DeleteNotebookInput,
   DeleteNotebookResult,
   Notebook,
   NoteDocument,
   TagSummary,
+  UpdateTagInput,
   UpdateNotebookInput,
 } from './document.types';
 
@@ -25,6 +29,16 @@ export interface DocumentQueryRepository {
  */
 export interface TagQueryRepository {
   listTags(): Promise<readonly TagSummary[]>;
+}
+
+/**
+ * Explicit tag lifecycle port. Catalogue writes remain separate from note
+ * mutations because the store must propagate tag-name changes through Yjs.
+ */
+export interface TagRepository extends TagQueryRepository {
+  createTag(input: CreateTagInput): Promise<TagSummary>;
+  updateTag(input: UpdateTagInput): Promise<TagSummary>;
+  deleteTag(input: DeleteTagInput): Promise<DeleteTagResult>;
 }
 
 /**

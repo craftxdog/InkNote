@@ -12,17 +12,17 @@ and delete while keeping legacy rows readable.
 
 **Acceptance criteria:**
 
-- [ ] New tags use generated `tag:` IDs; legacy non-empty IDs remain valid
+- [x] New tags use generated `tag:` IDs; legacy non-empty IDs remain valid
       targets for update/delete.
-- [ ] Create/update accept a trimmed, normalized, non-empty name up to 64
+- [x] Create/update accept a trimmed, normalized, non-empty name up to 64
       characters, a supported color, and a valid timestamp.
-- [ ] Delete returns immutable deterministic affected note IDs; malformed
+- [x] Delete returns immutable deterministic affected note IDs; malformed
       inputs fail before storage and existing `TagSummary` stays compatible.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/platform/documents/document.types.test.ts`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/platform/documents/document.types.test.ts`
+- [x] `npm run typecheck`
 
 **Dependencies:** None.
 
