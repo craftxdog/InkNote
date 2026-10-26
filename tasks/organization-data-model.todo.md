@@ -223,14 +223,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] Renderer callers receive validated frozen summaries through IpcDocumentRepository.
-- [ ] Invalid IPC response shapes raise the existing transport error rather than reaching a component.
-- [ ] The renderer gains no Node, Electron, path, or SQLite capability.
+- [x] Renderer callers receive validated frozen summaries through IpcDocumentRepository.
+- [x] Invalid IPC response shapes raise the existing transport error rather than reaching a component.
+- [x] The renderer gains no Node, Electron, path, or SQLite capability.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/platform/documents/IpcDocumentRepository.test.ts
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/platform/documents/IpcDocumentRepository.test.ts
+- [x] npm run typecheck
 
 **Dependencies:** Task 8.
 

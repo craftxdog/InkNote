@@ -4,6 +4,7 @@ import { unwrapDocumentIpcResult } from '../../../shared/documents/document.ipc'
 import type {
   DocumentQueryRepository,
   NotebookRepository,
+  TagQueryRepository,
 } from '../../../shared/documents/document.query';
 import type {
   DocumentDeletionRepository,
@@ -21,6 +22,8 @@ import {
   type PermanentlyDeleteNotesResult,
   type NoteDocument,
   type NoteId,
+  type TagSummary,
+  validateTagSummary,
 } from '../../../shared/documents/document.types';
 
 /**
@@ -32,7 +35,8 @@ export class IpcDocumentRepository
     DocumentRepository,
     DocumentDeletionRepository,
     DocumentQueryRepository,
-    NotebookRepository
+    NotebookRepository,
+    TagQueryRepository
 {
   constructor(private readonly api: DocumentApi) {}
 
@@ -91,6 +95,21 @@ export class IpcDocumentRepository
       }
 
       return Object.freeze(value.map(validateNotebook));
+    });
+  }
+
+  async listTags(): Promise<readonly TagSummary[]> {
+    const result = await this.api.listTags();
+
+    return unwrapDocumentIpcResult(result, (value) => {
+      if (!Array.isArray(value)) {
+        throw new DocumentTransportError(
+          'INVALID_IPC_RESPONSE',
+          'The tag list response must contain an array.',
+        );
+      }
+
+      return Object.freeze(value.map(validateTagSummary));
     });
   }
 

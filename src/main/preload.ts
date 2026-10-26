@@ -32,6 +32,7 @@ const inknoteApi: InknoteApi = {
     listArchived: () => ipcRenderer.invoke(IPC_CHANNELS.documents.listArchived),
     listNotebooks: () =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.listNotebooks),
+    listTags: () => ipcRenderer.invoke(IPC_CHANNELS.documents.listTags),
     createNotebook: (input: CreateNotebookInput) =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.createNotebook, input),
     deleteNotebook: (input: DeleteNotebookInput) =>

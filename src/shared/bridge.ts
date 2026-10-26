@@ -17,6 +17,7 @@ import type {
   PermanentlyDeleteNotesResult,
   Notebook,
   NoteDocument,
+  TagSummary,
 } from './documents/document.types';
 import type {
   ThemeAppearanceSettings,
@@ -36,6 +37,7 @@ export type DocumentApi = {
   listActive: () => Promise<DocumentIpcResult<readonly NoteDocument[]>>;
   listArchived: () => Promise<DocumentIpcResult<readonly NoteDocument[]>>;
   listNotebooks: () => Promise<DocumentIpcResult<readonly Notebook[]>>;
+  listTags: () => Promise<DocumentIpcResult<readonly TagSummary[]>>;
   createNotebook: (
     input: CreateNotebookInput,
   ) => Promise<DocumentIpcResult<Notebook>>;
