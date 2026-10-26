@@ -2,13 +2,18 @@ import { useState } from 'react';
 
 import { useNavigationState } from '../hooks/useNavigationState';
 
-import { navigationDestinations } from '../data/navigation.data';
-
 import type {
   Notebook,
-  NotebookIconName,
   NoteDocument,
 } from '../../../../shared/documents/document.types';
+import {
+  createOpenNotebookCommandRequest,
+  type NotebookCommandRequest,
+} from '../../organization/model/notebookCommandRequest';
+import {
+  organizationCommandIds,
+  type OrganizationCommand,
+} from '../../organization/model/organizationCommands';
 
 import type { NavigationSelection } from '../model/navigation.types';
 import {
@@ -30,13 +35,11 @@ export type NavigationPanelProps = {
 
   onSelectionChange: (selection: NavigationSelection) => void;
 
-  onCreateNotebook: (
-    name: string,
-    parentId?: string | null,
-    icon?: NotebookIconName,
-  ) => Promise<Notebook>;
-
-  onDeleteNotebook: (notebookId: string) => Promise<void>;
+  onExecuteNotebookCommand: (
+    command: OrganizationCommand,
+    request: NotebookCommandRequest,
+    source: 'menu' | 'context-menu',
+  ) => Promise<unknown>;
 };
 
 export function NavigationPanel({
@@ -44,8 +47,7 @@ export function NavigationPanel({
   notebooks,
   selection,
   onSelectionChange,
-  onCreateNotebook,
-  onDeleteNotebook,
+  onExecuteNotebookCommand,
 }: NavigationPanelProps) {
   const { expandedSections, toggleSection } = useNavigationState();
   const [detailNotebookId, setDetailNotebookId] = useState<string | null>(null);
@@ -54,6 +56,20 @@ export function NavigationPanel({
       ? null
       : (notebooks.find((notebook) => notebook.id === detailNotebookId) ??
         null);
+  const openNotebookDetail = async (notebook: Notebook): Promise<void> => {
+    const result = await onExecuteNotebookCommand(
+      organizationCommandIds.openNotebook,
+      createOpenNotebookCommandRequest(notebook.id),
+      'menu',
+    );
+
+    if (!isNotebook(result)) {
+      throw new Error('The notebook command did not open a notebook.');
+    }
+
+    setDetailNotebookId(result.id);
+    onSelectionChange(selectionForNotebookDetail(result));
+  };
 
   return (
     <nav className="navigation-panel" aria-label="Notebook library">
@@ -66,26 +82,8 @@ export function NavigationPanel({
             expandedSections={expandedSections}
             onSelectionChange={onSelectionChange}
             onToggleSection={toggleSection}
-            onCreateNotebook={onCreateNotebook}
-            onDeleteNotebook={async (notebook) => {
-              await onDeleteNotebook(notebook.id);
-              const parent =
-                notebook.parentId === null || notebook.parentId === undefined
-                  ? undefined
-                  : notebooks.find(
-                      (candidate) => candidate.id === notebook.parentId,
-                    );
-
-              onSelectionChange(
-                parent === undefined
-                  ? navigationDestinations.allNotes
-                  : selectionForNotebook(parent),
-              );
-            }}
-            onOpenNotebookDetail={(notebook) => {
-              setDetailNotebookId(notebook.id);
-              onSelectionChange(selectionForNotebookDetail(notebook));
-            }}
+            onExecuteNotebookCommand={onExecuteNotebookCommand}
+            onOpenNotebookDetail={openNotebookDetail}
           />
         ) : (
           <NavigationNotebookDetailView
@@ -97,8 +95,7 @@ export function NavigationPanel({
             onSelectionChange={onSelectionChange}
             onToggleSection={toggleSection}
             onOpenNotebookDetail={(childNotebook) => {
-              setDetailNotebookId(childNotebook.id);
-              onSelectionChange(selectionForNotebookDetail(childNotebook));
+              void openNotebookDetail(childNotebook).catch(() => undefined);
             }}
             onExit={() => {
               setDetailNotebookId(null);
@@ -110,3 +107,9 @@ export function NavigationPanel({
     </nav>
   );
 }
+
+const isNotebook = (value: unknown): value is Notebook =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as Notebook).id === 'string' &&
+  typeof (value as Notebook).name === 'string';

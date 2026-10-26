@@ -17,6 +17,10 @@ import {
   resolveNavigateForward,
   type NoteNavigationHistory,
 } from '../features/organization/model/noteNavigationHistory';
+import {
+  executeNotebookCommand,
+  isNotebookOrganizationCommand,
+} from '../features/organization/model/executeNotebookCommand';
 import { readNoteCommandRequest } from '../features/organization/model/noteCommandRequest';
 import {
   organizationCommandIds,
@@ -197,6 +201,16 @@ export function WorkspacePage() {
     navigationSelection,
     setCurrentNoteHistory,
   ]);
+  const deleteNotebook = useCallback(
+    async (notebookId: string): Promise<void> => {
+      await documentWorkspace.deleteNotebook(notebookId);
+
+      if (notebookId === defaultNotebookPreference.defaultNotebookId) {
+        await defaultNotebookPreference.setDefaultNotebook('inbox');
+      }
+    },
+    [defaultNotebookPreference, documentWorkspace],
+  );
   const getOrganizationKeymapTargets = useCallback(
     (event: KeyboardEvent): readonly KeymapTarget[] => [
       {
@@ -231,6 +245,15 @@ export function WorkspacePage() {
         }
         if (command === organizationCommandIds.goForward) {
           return navigateNoteHistory('forward');
+        }
+
+        if (isNotebookOrganizationCommand(command)) {
+          return executeNotebookCommand(command, invocation.detail, {
+            notebooks: documentWorkspace.notebooks,
+            createNotebook: documentWorkspace.createNotebook,
+            updateNotebook: documentWorkspace.updateNotebook,
+            deleteNotebook,
+          });
         }
 
         const request = readNoteCommandRequest(invocation.detail);
@@ -349,7 +372,7 @@ export function WorkspacePage() {
       },
       getKeymapTargets: getOrganizationKeymapTargets,
     });
-  const executeNoteCommand = useCallback(
+  const executeOrganizationCommand = useCallback(
     async (
       command: OrganizationCommand,
       request: unknown,
@@ -394,17 +417,6 @@ export function WorkspacePage() {
       return selectionForTags(tagIds, notebookId);
     });
   }, []);
-
-  const deleteNotebook = useCallback(
-    async (notebookId: string): Promise<void> => {
-      await documentWorkspace.deleteNotebook(notebookId);
-
-      if (notebookId === defaultNotebookPreference.defaultNotebookId) {
-        await defaultNotebookPreference.setDefaultNotebook('inbox');
-      }
-    },
-    [defaultNotebookPreference, documentWorkspace],
-  );
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent): void => {
@@ -487,8 +499,7 @@ export function WorkspacePage() {
           notebooks={documentWorkspace.notebooks}
           selection={navigationSelection}
           onSelectionChange={setNavigationSelection}
-          onCreateNotebook={documentWorkspace.createNotebook}
-          onDeleteNotebook={deleteNotebook}
+          onExecuteNotebookCommand={executeOrganizationCommand}
         />
       }
       notes={
@@ -508,7 +519,7 @@ export function WorkspacePage() {
           onSelectNote={(id) => {
             void openNote(id).catch(() => undefined);
           }}
-          onExecuteOrganizationCommand={executeNoteCommand}
+          onExecuteOrganizationCommand={executeOrganizationCommand}
           onFilterByTag={filterByTag}
         />
       }

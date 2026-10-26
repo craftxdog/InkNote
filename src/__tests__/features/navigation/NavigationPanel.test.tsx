@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 
 import { NavigationPanel } from '../../../renderer/features/navigation/components/NavigationPanel';
 import { navigationDestinations } from '../../../renderer/features/navigation/data/navigation.data';
+import { organizationCommandIds } from '../../../renderer/features/organization/model/organizationCommands';
 import {
   createNoteId,
   createRevision,
@@ -53,8 +54,9 @@ const notebooks: readonly Notebook[] = [
 ];
 
 describe('NavigationPanel', () => {
-  it('opens a focused notebook detail view with scoped counts and filters', () => {
+  it('opens a focused notebook detail view with scoped counts and filters', async () => {
     const onSelectionChange = jest.fn();
+    const onExecuteNotebookCommand = jest.fn().mockResolvedValue(notebooks[1]);
 
     render(
       <NavigationPanel
@@ -62,8 +64,7 @@ describe('NavigationPanel', () => {
         notebooks={notebooks}
         selection={navigationDestinations.allNotes}
         onSelectionChange={onSelectionChange}
-        onCreateNotebook={jest.fn()}
-        onDeleteNotebook={jest.fn()}
+        onExecuteNotebookCommand={onExecuteNotebookCommand}
       />,
     );
 
@@ -74,6 +75,14 @@ describe('NavigationPanel', () => {
     expect(detailsButton).toHaveAttribute('tabindex', '-1');
 
     fireEvent.click(detailsButton);
+
+    expect(onExecuteNotebookCommand).toHaveBeenCalledWith(
+      organizationCommandIds.openNotebook,
+      { kind: 'open', notebookId: 'work' },
+      'menu',
+    );
+
+    await screen.findByRole('button', { name: 'Back to notebook library' });
 
     expect(
       screen.getByRole('button', { name: 'Back to notebook library' }),
