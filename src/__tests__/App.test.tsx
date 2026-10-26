@@ -69,7 +69,7 @@ describe('App', () => {
     expect(setTrafficLightsVisible).toHaveBeenCalledWith(true);
   });
 
-  it('creates and opens a local note with the documented new-note shortcut', async () => {
+  it('creates and opens local notes through the new-note control and documented shortcut', async () => {
     const createDocument = (id: string): NoteDocument =>
       Object.freeze({
         id: createNoteId(id),
@@ -114,9 +114,13 @@ describe('App', () => {
 
     render(<App />);
 
-    fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
+
+    await waitFor(() => expect(apply).toHaveBeenCalledTimes(2));
 
     expect(apply).toHaveBeenCalledWith(
       expect.objectContaining({

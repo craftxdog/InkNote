@@ -6,6 +6,8 @@ import { navigationDestinations } from '../features/navigation/data/navigation.d
 import type { NavigationSelection } from '../features/navigation/model/navigation.types';
 import { selectionForTags } from '../features/navigation/model/navigation.selections';
 import { NotesPanel } from '../features/notes/components/NotesPanel';
+import { useOrganizationCommands } from '../features/organization/hooks/useOrganizationCommands';
+import { organizationCommandIds } from '../features/organization/model/organizationCommands';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
 import { useWorkspaceViewCommands } from '../features/workspace/hooks/useWorkspaceViewCommands';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
@@ -117,9 +119,23 @@ export function WorkspacePage() {
       });
   }, [shouldShowTrafficLights]);
 
-  const createNote = useCallback(() => {
-    void documentWorkspace.create().catch(() => undefined);
+  const createNote = useCallback(async (): Promise<void> => {
+    await documentWorkspace.create();
   }, [documentWorkspace]);
+  const { dispatchOrganizationCommand } = useOrganizationCommands({
+    onCreateNote: createNote,
+  });
+  const dispatchCreateNote = useCallback((): void => {
+    void dispatchOrganizationCommand(
+      organizationCommandIds.createNote,
+      'menu',
+    ).catch((error: unknown) => {
+      console.error(
+        'Failed to create note through organization commands',
+        error,
+      );
+    });
+  }, [dispatchOrganizationCommand]);
 
   const filterByTag = useCallback((tag: string, exclusive: boolean): void => {
     setNavigationSelection((current) => {
@@ -143,12 +159,6 @@ export function WorkspacePage() {
 
       const key = event.key.toLowerCase();
 
-      if (key === 'n' && !event.shiftKey) {
-        event.preventDefault();
-        createNote();
-        return;
-      }
-
       if (key === '/' && !event.shiftKey) {
         event.preventDefault();
         setIsNavigationVisible((current) => !current);
@@ -170,7 +180,7 @@ export function WorkspacePage() {
     window.addEventListener('keydown', handleShortcut, true);
 
     return () => window.removeEventListener('keydown', handleShortcut, true);
-  }, [createNote]);
+  }, []);
 
   return (
     <WorkspaceLayout
@@ -195,7 +205,7 @@ export function WorkspacePage() {
       onAcrylicChange={workspaceThemes.setAcrylicEnabled}
       onOpenPreferences={() => setIsPreferencesOpen(true)}
       onClosePreferences={() => setIsPreferencesOpen(false)}
-      onCreateNote={createNote}
+      onCreateNote={dispatchCreateNote}
       onToggleNavigation={() => setIsNavigationVisible((current) => !current)}
       onToggleWorkspaceExpanded={() =>
         setIsWorkspaceExpanded((current) => !current)
