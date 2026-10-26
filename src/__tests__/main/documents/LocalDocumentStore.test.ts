@@ -892,6 +892,89 @@ describe('LocalDocumentStore', () => {
     );
   });
 
+  it('updates a legacy notebook without changing its identity or note associations', async () => {
+    const created = await store.createNotebook({
+      id: 'work',
+      name: 'Work',
+      icon: 'briefcase',
+      occurredAt: '2026-10-21T12:00:00.000Z',
+    });
+    const directNote = await store.apply(
+      createNoteMutation({ notebookId: 'work' }),
+    );
+
+    await expect(
+      store.updateNotebook({
+        id: 'work',
+        name: '  Client work  ',
+        parentId: null,
+        icon: null,
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    ).resolves.toEqual({
+      id: 'work',
+      name: 'Client work',
+      parentId: null,
+      createdAt: created.createdAt,
+      updatedAt: '2026-10-21T12:01:00.000Z',
+    });
+    await expect(store.get(directNote.id)).resolves.toMatchObject({
+      id: directNote.id,
+      notebookId: 'work',
+    });
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.listNotebooks()).resolves.toEqual(
+      expect.arrayContaining([
+        {
+          id: 'work',
+          name: 'Client work',
+          parentId: null,
+          createdAt: created.createdAt,
+          updatedAt: '2026-10-21T12:01:00.000Z',
+        },
+      ]),
+    );
+  });
+
+  it('rejects an unsafe reparent without modifying the existing tree', async () => {
+    await store.createNotebook({
+      id: 'work',
+      name: 'Work',
+      occurredAt: '2026-10-21T12:00:00.000Z',
+    });
+    await store.createNotebook({
+      id: 'projects',
+      name: 'Projects',
+      parentId: 'work',
+      occurredAt: '2026-10-21T12:01:00.000Z',
+    });
+    const before = await store.listNotebooks();
+
+    await expect(
+      store.updateNotebook({
+        id: 'work',
+        name: 'Renamed work',
+        parentId: 'projects',
+        icon: null,
+        occurredAt: '2026-10-21T12:02:00.000Z',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_MUTATION' });
+    await expect(
+      store.updateNotebook({
+        id: 'projects',
+        name: 'Renamed projects',
+        parentId: 'missing',
+        icon: null,
+        occurredAt: '2026-10-21T12:03:00.000Z',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_MUTATION' });
+
+    await expect(store.listNotebooks()).resolves.toEqual(before);
+  });
+
   it("trashes a deleted notebook's direct notes and promotes its subnotebooks", async () => {
     await store.createNotebook({
       id: 'work',

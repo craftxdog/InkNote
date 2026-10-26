@@ -27,12 +27,14 @@ import {
   createNoteId,
   createRevision,
   validateDocumentMutation,
+  validateUpdateNotebookInput,
   validateTagSummary,
   type CreateDocumentMutation,
   type DocumentMutation,
   type CreateNotebookInput,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
+  type UpdateNotebookInput,
   type PermanentlyDeleteNotesInput,
   type PermanentlyDeleteNotesResult,
   type Notebook,
@@ -179,6 +181,10 @@ export class LocalDocumentStore
     input: DeleteNotebookInput,
   ) => DeleteNotebookResult;
 
+  private readonly updateNotebookTransaction: (
+    input: UpdateNotebookInput,
+  ) => Notebook;
+
   private readonly deletePermanentlyTransaction: (
     input: PermanentlyDeleteNotesInput,
   ) => PermanentlyDeleteNotesResult;
@@ -194,6 +200,9 @@ export class LocalDocumentStore
     );
     this.deleteNotebookTransaction = this.database.transaction((input) =>
       this.deleteNotebookAndArchiveDirectNotes(input),
+    );
+    this.updateNotebookTransaction = this.database.transaction((input) =>
+      this.updateNotebookRecord(input),
     );
     this.deletePermanentlyTransaction = this.database.transaction((input) =>
       this.deleteArchivedNotesPermanently(input),
@@ -310,6 +319,10 @@ export class LocalDocumentStore
     input: DeleteNotebookInput,
   ): Promise<DeleteNotebookResult> {
     return this.deleteNotebookTransaction(input);
+  }
+
+  async updateNotebook(input: UpdateNotebookInput): Promise<Notebook> {
+    return this.updateNotebookTransaction(validateUpdateNotebookInput(input));
   }
 
   async deletePermanently(
@@ -848,6 +861,78 @@ export class LocalDocumentStore
       return toNoteDocument(document);
     } finally {
       yDocument.destroy();
+    }
+  }
+
+  private updateNotebookRecord(input: UpdateNotebookInput): Notebook {
+    const notebook = this.database
+      .prepare<[string], NotebookRow>(
+        `SELECT id, name, parent_id, icon, created_at, updated_at
+         FROM notebooks
+         WHERE id = ?`,
+      )
+      .get(input.id);
+
+    if (notebook === undefined) {
+      throw createInvalidMutationError(
+        `Notebook "${input.id}" does not exist.`,
+      );
+    }
+
+    this.assertValidNotebookParent(input.id, input.parentId);
+
+    this.database
+      .prepare<[string, string | null, string | null, string, string]>(
+        `UPDATE notebooks
+         SET name = ?, parent_id = ?, icon = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(input.name, input.parentId, input.icon, input.occurredAt, input.id);
+
+    return notebookFromRow({
+      ...notebook,
+      name: input.name,
+      parent_id: input.parentId,
+      icon: input.icon,
+      updated_at: input.occurredAt,
+    });
+  }
+
+  private assertValidNotebookParent(
+    notebookId: string,
+    parentId: string | null,
+  ): void {
+    let currentParentId = parentId;
+    const visitedParentIds = new Set<string>();
+
+    while (currentParentId !== null) {
+      if (currentParentId === notebookId) {
+        throw createInvalidMutationError(
+          'A notebook cannot be placed under itself or one of its descendants.',
+        );
+      }
+
+      if (visitedParentIds.has(currentParentId)) {
+        throw createInvalidMutationError(
+          'The notebook hierarchy contains a cycle.',
+        );
+      }
+
+      visitedParentIds.add(currentParentId);
+
+      const parent = this.database
+        .prepare<[string], Pick<NotebookRow, 'parent_id'>>(
+          'SELECT parent_id FROM notebooks WHERE id = ?',
+        )
+        .get(currentParentId);
+
+      if (parent === undefined) {
+        throw createInvalidMutationError(
+          `Notebook parent "${currentParentId}" does not exist.`,
+        );
+      }
+
+      currentParentId = parent.parent_id;
     }
   }
 
