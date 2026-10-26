@@ -73,6 +73,14 @@ type WorkspaceLayoutProps = {
 
   onToggleWorkspaceExpanded: () => void;
 
+  canNavigateBack: boolean;
+
+  canNavigateForward: boolean;
+
+  onNavigateBack: () => void;
+
+  onNavigateForward: () => void;
+
   navigation: ReactNode;
 
   notes: ReactNode;
@@ -110,6 +118,10 @@ export function WorkspaceLayout({
   isWorkspaceExpanded,
   onToggleNavigation,
   onToggleWorkspaceExpanded,
+  canNavigateBack,
+  canNavigateForward,
+  onNavigateBack,
+  onNavigateForward,
   navigation,
   notes,
   editor,
@@ -147,6 +159,10 @@ export function WorkspaceLayout({
         onOpenPreferences={onOpenPreferences}
         onToggleNavigation={onToggleNavigation}
         onToggleWorkspaceExpanded={onToggleWorkspaceExpanded}
+        canNavigateBack={canNavigateBack}
+        canNavigateForward={canNavigateForward}
+        onNavigateBack={onNavigateBack}
+        onNavigateForward={onNavigateForward}
       />
 
       <main className="workspace-grid">

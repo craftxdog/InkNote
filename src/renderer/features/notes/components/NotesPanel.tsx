@@ -9,6 +9,10 @@ import type {
   Notebook,
 } from '../../../../shared/documents/document.types';
 import { summarizeMarkdownTaskProgress } from '../../../../shared/documents/taskProgress';
+import {
+  runNoteBatchOperation,
+  type NoteBatchOperationResult,
+} from '../../../platform/documents/noteBatchOperation';
 
 import { useNotesFilter } from '../hooks/useNotesFilter';
 import type { NoteSummary } from '../model/note.types';
@@ -29,14 +33,21 @@ type NotesPanelProps = {
   error: unknown;
   onSelectNote: (noteId: NoteId) => void;
   onArchiveNote?: (note: NoteDocument) => Promise<unknown>;
-  onArchiveNotes?: (notes: readonly NoteDocument[]) => Promise<unknown>;
+  onArchiveNotes?: (
+    notes: readonly NoteDocument[],
+  ) => Promise<NoteBatchOperationResult>;
   onMoveNote?: (note: NoteDocument, notebookId: string) => Promise<unknown>;
+  onMoveNotes?: (
+    notes: readonly NoteDocument[],
+    notebookId: string,
+  ) => Promise<NoteBatchOperationResult>;
   onRestoreNotes?: (
     notes: readonly NoteDocument[],
     notebookId: string,
-  ) => Promise<unknown>;
+  ) => Promise<NoteBatchOperationResult>;
   onDeletePermanently?: (notes: readonly NoteDocument[]) => Promise<unknown>;
   onDuplicateNote?: (note: NoteDocument) => Promise<unknown>;
+  onSetPinned?: (note: NoteDocument, pinned: boolean) => Promise<unknown>;
   onFilterByTag?: (tag: string, exclusive: boolean) => void;
 };
 
@@ -66,9 +77,11 @@ export function NotesPanel({
   onArchiveNote,
   onArchiveNotes,
   onMoveNote,
+  onMoveNotes,
   onRestoreNotes,
   onDeletePermanently,
   onDuplicateNote,
+  onSetPinned,
   onFilterByTag,
 }: NotesPanelProps) {
   const [filterQuery, setFilterQuery] = useState('');
@@ -77,6 +90,7 @@ export function NotesPanel({
   const [contextNoteId, setContextNoteId] = useState<NoteId | null>(null);
   const [contextMenuPosition, setContextMenuPosition] =
     useState<ContextMenuPosition | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [
     isPermanentDeleteConfirmationOpen,
     setPermanentDeleteConfirmationOpen,
@@ -148,23 +162,44 @@ export function NotesPanel({
   };
 
   const archiveNotes = useCallback(
-    async (notesToArchive: readonly NoteDocument[]) => {
+    async (
+      notesToArchive: readonly NoteDocument[],
+    ): Promise<NoteBatchOperationResult> => {
       if (notesToArchive.length === 0) {
-        return;
+        return emptyBatchResult;
       }
+
+      let result: NoteBatchOperationResult;
 
       if (onArchiveNotes !== undefined) {
-        await onArchiveNotes(notesToArchive);
+        result = normalizeBatchResult(
+          await onArchiveNotes(notesToArchive),
+          notesToArchive,
+        );
       } else if (onArchiveNote !== undefined) {
-        for (const note of notesToArchive) {
-          await onArchiveNote(note);
-        }
+        const notesById = new Map(
+          notesToArchive.map((note) => [note.id, note]),
+        );
+        result = await runNoteBatchOperation(
+          notesToArchive.map((note) => note.id),
+          async (noteId) => {
+            const note = notesById.get(noteId);
+
+            if (note === undefined) {
+              throw new Error('The selected note is no longer available.');
+            }
+
+            await onArchiveNote(note);
+          },
+        );
       } else {
-        return;
+        return emptyBatchResult;
       }
 
-      setSelectedNoteIds([]);
+      setSelectedNoteIds(result.remainingNoteIds);
       setContextNoteId(null);
+      setActionError(messageForBatchResult(result, 'move to Trash'));
+      return result;
     },
     [onArchiveNote, onArchiveNotes],
   );
@@ -186,14 +221,85 @@ export function NotesPanel({
   const restoreNotes = async (
     notesToRestore: readonly NoteDocument[],
     notebookId: string,
-  ): Promise<void> => {
+  ): Promise<NoteBatchOperationResult> => {
     if (onRestoreNotes === undefined) {
+      return emptyBatchResult;
+    }
+
+    const result = normalizeBatchResult(
+      await onRestoreNotes(notesToRestore, notebookId),
+      notesToRestore,
+    );
+    setSelectedNoteIds(result.remainingNoteIds);
+    if (result.error !== null) {
+      setMoveRequest((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              notes: remainingNotesForBatch(notesToRestore, result),
+            },
+      );
+    }
+    setActionError(messageForBatchResult(result, 'restore'));
+    return result;
+  };
+
+  const moveNotes = async (
+    notesToMove: readonly NoteDocument[],
+    notebookId: string,
+  ): Promise<NoteBatchOperationResult> => {
+    let result: NoteBatchOperationResult;
+
+    if (onMoveNotes !== undefined) {
+      result = normalizeBatchResult(
+        await onMoveNotes(notesToMove, notebookId),
+        notesToMove,
+      );
+    } else if (onMoveNote !== undefined) {
+      const notesById = new Map(notesToMove.map((note) => [note.id, note]));
+      result = await runNoteBatchOperation(
+        notesToMove.map((note) => note.id),
+        async (noteId) => {
+          const note = notesById.get(noteId);
+
+          if (note === undefined) {
+            throw new Error('The selected note is no longer available.');
+          }
+
+          await onMoveNote(note, notebookId);
+        },
+      );
+    } else {
+      return emptyBatchResult;
+    }
+
+    setSelectedNoteIds(result.remainingNoteIds);
+    if (result.error !== null) {
+      setMoveRequest((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              notes: remainingNotesForBatch(notesToMove, result),
+            },
+      );
+    }
+    setActionError(null);
+    return result;
+  };
+
+  const togglePinned = async (note: NoteDocument): Promise<void> => {
+    if (onSetPinned === undefined) {
       return;
     }
 
-    await onRestoreNotes(notesToRestore, notebookId);
-    setSelectedNoteIds([]);
-    setMoveRequest(null);
+    try {
+      await onSetPinned(note, !note.pinned);
+      setActionError(null);
+    } catch {
+      setActionError('The note pin could not be updated.');
+    }
   };
 
   const permanentlyDeleteNotes = async (): Promise<void> => {
@@ -303,6 +409,12 @@ export function NotesPanel({
         <button type="button" onClick={() => void archiveNotes(selection)}>
           Move {selection.length} {noteLabel} to Trash
         </button>
+        <button
+          type="button"
+          onClick={() => setMoveRequest({ notes: selection, mode: 'move' })}
+        >
+          Move {selection.length} {noteLabel} to notebook
+        </button>
       </div>
     );
   };
@@ -316,6 +428,11 @@ export function NotesPanel({
       <div className="notes-panel__filter">
         <NotesFilter value={filterQuery} onChange={setFilterQuery} />
         {renderSelectionActions()}
+        {actionError === null ? null : (
+          <p className="notes-panel__action-error" role="alert">
+            {actionError}
+          </p>
+        )}
       </div>
 
       <div className="notes-panel__results" aria-live="polite">
@@ -357,7 +474,7 @@ export function NotesPanel({
                   }
             }
             onMoveNote={
-              isTrash || onMoveNote === undefined
+              isTrash || (onMoveNote === undefined && onMoveNotes === undefined)
                 ? undefined
                 : (noteId) => {
                     const note = scopedNotesById.get(noteId as NoteId);
@@ -437,6 +554,28 @@ export function NotesPanel({
                   type="button"
                   role="menuitem"
                   onClick={() => {
+                    setMoveRequest({ notes: [contextNote], mode: 'move' });
+                    closeContextMenu();
+                  }}
+                >
+                  Move to notebook
+                </button>
+                {onSetPinned === undefined ? null : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      closeContextMenu();
+                      void togglePinned(contextNote);
+                    }}
+                  >
+                    {contextNote.pinned ? 'Unpin note' : 'Pin note'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
                     closeContextMenu();
                     void archiveNotes([contextNote]);
                   }}
@@ -459,14 +598,7 @@ export function NotesPanel({
               return restoreNotes(notesToMove, notebookId);
             }
 
-            if (onMoveNote === undefined || notesToMove.length !== 1) {
-              return Promise.resolve();
-            }
-
-            return (async () => {
-              await onMoveNote(notesToMove[0], notebookId);
-              setMoveRequest(null);
-            })();
+            return moveNotes(notesToMove, notebookId);
           }}
           onClose={() => setMoveRequest(null)}
         />
@@ -506,6 +638,62 @@ export function NotesPanel({
     </div>
   );
 }
+
+const emptyBatchResult: NoteBatchOperationResult = Object.freeze({
+  completedNoteIds: Object.freeze([]),
+  remainingNoteIds: Object.freeze([]),
+  error: null,
+});
+
+const normalizeBatchResult = (
+  candidate: unknown,
+  notes: readonly NoteDocument[],
+): NoteBatchOperationResult => {
+  if (
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    Array.isArray(
+      (candidate as Readonly<Partial<NoteBatchOperationResult>>)
+        .completedNoteIds,
+    ) &&
+    Array.isArray(
+      (candidate as Readonly<Partial<NoteBatchOperationResult>>)
+        .remainingNoteIds,
+    )
+  ) {
+    return candidate as NoteBatchOperationResult;
+  }
+
+  return Object.freeze({
+    completedNoteIds: Object.freeze(notes.map((note) => note.id)),
+    remainingNoteIds: Object.freeze([]),
+    error: null,
+  });
+};
+
+const messageForBatchResult = (
+  result: NoteBatchOperationResult,
+  action: string,
+): string | null => {
+  if (result.error === null) {
+    return null;
+  }
+
+  if (result.completedNoteIds.length === 0) {
+    return `Could not ${action} the selected notes.`;
+  }
+
+  return `${result.completedNoteIds.length} ${result.completedNoteIds.length === 1 ? 'note was' : 'notes were'} processed. ${result.remainingNoteIds.length} remain.`;
+};
+
+const remainingNotesForBatch = (
+  notes: readonly NoteDocument[],
+  result: NoteBatchOperationResult,
+): readonly NoteDocument[] => {
+  const remainingIds = new Set(result.remainingNoteIds);
+
+  return notes.filter((note) => remainingIds.has(note.id));
+};
 
 const isEditableTarget = (target: EventTarget | null): boolean =>
   target instanceof Element &&

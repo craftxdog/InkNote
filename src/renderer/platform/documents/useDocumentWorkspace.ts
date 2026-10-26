@@ -71,7 +71,9 @@ export type DocumentWorkspaceActions = Readonly<{
   ): Promise<NoteBatchOperationResult>;
   setPinned(document: NoteDocument, pinned: boolean): Promise<NoteDocument>;
   archive(document: NoteDocument): Promise<NoteDocument>;
-  archiveMany(documents: readonly NoteDocument[]): Promise<void>;
+  archiveMany(
+    documents: readonly NoteDocument[],
+  ): Promise<NoteBatchOperationResult>;
   restore(document: NoteDocument, notebookId?: string): Promise<NoteDocument>;
   restoreMany(
     documents: readonly NoteDocument[],
@@ -404,10 +406,23 @@ export const useDocumentWorkspace = (
   );
 
   const archiveMany = useCallback(
-    async (notes: readonly NoteDocument[]): Promise<void> => {
-      for (const note of notes) {
-        await archive(note);
-      }
+    async (
+      notes: readonly NoteDocument[],
+    ): Promise<NoteBatchOperationResult> => {
+      const notesById = new Map(notes.map((note) => [note.id, note]));
+
+      return runNoteBatchOperation(
+        notes.map((note) => note.id),
+        async (noteId) => {
+          const note = notesById.get(noteId);
+
+          if (note === undefined) {
+            throw new Error('The selected note is no longer available.');
+          }
+
+          await archive(note);
+        },
+      );
     },
     [archive],
   );

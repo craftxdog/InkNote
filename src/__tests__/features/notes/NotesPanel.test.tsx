@@ -536,6 +536,75 @@ describe('NotesPanel note lifecycle actions', () => {
     );
   });
 
+  it('moves every selected note through the batch operation and retains only a failed remainder', async () => {
+    const onMoveNotes = jest.fn().mockResolvedValue({
+      completedNoteIds: [documents[0].id],
+      remainingNoteIds: [documents[1].id],
+      error: new Error('revision conflict'),
+    });
+
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={null}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onMoveNotes={onMoveNotes}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Project work/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Personal inbox/i }), {
+      ctrlKey: true,
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move 2 notes to notebook' }),
+    );
+    fireEvent.change(
+      screen.getByRole('listbox', { name: 'Destination notebook' }),
+      { target: { value: 'work' } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }));
+
+    await waitFor(() =>
+      expect(onMoveNotes).toHaveBeenCalledWith(documents, 'work'),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('1 note was moved');
+    expect(screen.getByText('1 selected')).toBeVisible();
+    expect(
+      screen.getByRole('form', { name: 'Move 1 note to notebook' }),
+    ).toBeVisible();
+  });
+
+  it('pins and unpins a note through its context menu', async () => {
+    const onSetPinned = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={documents[0].id}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onSetPinned={onSetPinned}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      screen.getByRole('button', { name: /Project work/i }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin note' }));
+
+    await waitFor(() =>
+      expect(onSetPinned).toHaveBeenCalledWith(documents[0], true),
+    );
+  });
+
   it('dismisses the note context menu when the user clicks away', () => {
     render(
       <NotesPanel

@@ -170,6 +170,83 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('navigates between explicitly opened notes with the history controls and keymap', async () => {
+    const first: NoteDocument = {
+      id: createNoteId('history-first'),
+      title: 'History first',
+      body: 'first',
+      notebookId: 'inbox',
+      status: 'active',
+      tags: [],
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:00:00.000Z',
+      revision: createRevision('local-history-first'),
+      deletedAt: null,
+    };
+    const second: NoteDocument = {
+      ...first,
+      id: createNoteId('history-second'),
+      title: 'History second',
+      body: 'second',
+      revision: createRevision('local-history-second'),
+    };
+    const byId = new Map([
+      [first.id, first],
+      [second.id, second],
+    ]);
+    Object.defineProperty(window, 'inknote', {
+      configurable: true,
+      value: {
+        windowControls: { setTrafficLightsVisible },
+        documents: {
+          get: jest.fn().mockImplementation(async (id) => ({
+            ok: true,
+            value: byId.get(id) ?? null,
+          })),
+          apply: jest.fn(),
+          listActive: jest.fn().mockResolvedValue({
+            ok: true,
+            value: [first, second],
+          }),
+          listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          createNotebook: jest.fn(),
+        },
+      },
+    });
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: /History first/i });
+    fireEvent.click(screen.getByRole('button', { name: /History first/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History first',
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /History second/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History second',
+      ),
+    );
+
+    expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History first',
+      ),
+    );
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History second',
+      ),
+    );
+  });
+
   it('keeps workspace shortcuts available while the Markdown editor has focus', async () => {
     render(<App />);
     const editor = document.createElement('div');

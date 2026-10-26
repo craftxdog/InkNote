@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { EditorPanel } from '../features/editor/components/EditorPanel';
 import { NavigationPanel } from '../features/navigation/components/NavigationPanel';
@@ -8,6 +8,15 @@ import { selectionForTags } from '../features/navigation/model/navigation.select
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { useOrganizationCommands } from '../features/organization/hooks/useOrganizationCommands';
 import { useDefaultNotebookPreference } from '../features/organization/hooks/useDefaultNotebookPreference';
+import {
+  canNavigateBack,
+  canNavigateForward,
+  emptyNoteNavigationHistory,
+  recordNoteNavigation,
+  resolveNavigateBack,
+  resolveNavigateForward,
+  type NoteNavigationHistory,
+} from '../features/organization/model/noteNavigationHistory';
 import { organizationCommandIds } from '../features/organization/model/organizationCommands';
 import { resolveNoteDestinationNotebookId } from '../features/notes/model/noteDestinationPolicy';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
@@ -17,6 +26,7 @@ import { useDocumentWorkspace } from '../platform/documents/useDocumentWorkspace
 import { useWorkspaceThemes } from '../platform/themes/useWorkspaceThemes';
 import type { WorkspaceViewMode } from '../types/workspace';
 import type { NoteId } from '../../shared/documents/document.types';
+import type { KeymapTarget } from '../platform/keymaps/keymap.types';
 
 type PreviewDrafts = ReadonlyMap<NoteId, string>;
 
@@ -41,6 +51,10 @@ export function WorkspacePage() {
   );
   const [scrollSyncTarget, setScrollSyncTarget] =
     useState<ScrollSyncTarget | null>(null);
+  const [noteHistory, setNoteHistory] = useState<NoteNavigationHistory>(
+    emptyNoteNavigationHistory,
+  );
+  const noteHistoryRef = useRef(noteHistory);
   const { dispatchViewCommand } = useWorkspaceViewCommands({
     setViewMode,
   });
@@ -53,6 +67,45 @@ export function WorkspacePage() {
     selectedDocument === null
       ? undefined
       : (previewDrafts.get(selectedDocument.id) ?? selectedDocument.body);
+
+  const setCurrentNoteHistory = useCallback(
+    (nextHistory: NoteNavigationHistory): void => {
+      noteHistoryRef.current = nextHistory;
+      setNoteHistory(nextHistory);
+    },
+    [],
+  );
+
+  const openNote = useCallback(
+    async (noteId: NoteId): Promise<void> => {
+      const document = await documentWorkspace.open(noteId);
+      setCurrentNoteHistory(
+        recordNoteNavigation(noteHistoryRef.current, document.id),
+      );
+    },
+    [documentWorkspace, setCurrentNoteHistory],
+  );
+
+  const navigateNoteHistory = useCallback(
+    async (direction: 'back' | 'forward'): Promise<void> => {
+      const availableNoteIds = new Set<NoteId>([
+        ...documentWorkspace.documents.map((document) => document.id),
+        ...documentWorkspace.archivedDocuments.map((document) => document.id),
+      ]);
+      const resolution =
+        direction === 'back'
+          ? resolveNavigateBack(noteHistoryRef.current, availableNoteIds)
+          : resolveNavigateForward(noteHistoryRef.current, availableNoteIds);
+
+      if (resolution.noteId === null) {
+        return;
+      }
+
+      await documentWorkspace.open(resolution.noteId);
+      setCurrentNoteHistory(resolution.history);
+    },
+    [documentWorkspace, setCurrentNoteHistory],
+  );
 
   const handleBodyDraftChange = useCallback(
     (documentId: NoteId, body: string): void => {
@@ -127,18 +180,52 @@ export function WorkspacePage() {
       selection: navigationSelection,
       defaultNotebookId: defaultNotebookPreference.defaultNotebookId,
     });
-    await documentWorkspace.create('Untitled', '', { notebookId });
+    const document = await documentWorkspace.create('Untitled', '', {
+      notebookId,
+    });
+    setCurrentNoteHistory(
+      recordNoteNavigation(noteHistoryRef.current, document.id),
+    );
   }, [
     defaultNotebookPreference.defaultNotebookId,
     documentWorkspace,
     navigationSelection,
+    setCurrentNoteHistory,
   ]);
+  const getOrganizationKeymapTargets = useCallback(
+    (event: KeyboardEvent): readonly KeymapTarget[] => [
+      {
+        matches: (context: string): number | null => {
+          if (context === 'workspace.global') {
+            return 1;
+          }
+
+          if (
+            context === 'notes.history' &&
+            !isEditableKeyTarget(event.target) &&
+            (canNavigateBack(noteHistoryRef.current) ||
+              canNavigateForward(noteHistoryRef.current))
+          ) {
+            return 1;
+          }
+
+          return null;
+        },
+      },
+    ],
+    [],
+  );
   const { dispatchOrganizationCommand } = useOrganizationCommands({
     onCommand: async (command) => {
       if (command === organizationCommandIds.createNote) {
         await createNote();
+      } else if (command === organizationCommandIds.goBack) {
+        await navigateNoteHistory('back');
+      } else if (command === organizationCommandIds.goForward) {
+        await navigateNoteHistory('forward');
       }
     },
+    getKeymapTargets: getOrganizationKeymapTargets,
   });
   const dispatchCreateNote = useCallback((): void => {
     void dispatchOrganizationCommand(
@@ -230,6 +317,14 @@ export function WorkspacePage() {
       onToggleWorkspaceExpanded={() =>
         setIsWorkspaceExpanded((current) => !current)
       }
+      canNavigateBack={canNavigateBack(noteHistory)}
+      canNavigateForward={canNavigateForward(noteHistory)}
+      onNavigateBack={() => {
+        void navigateNoteHistory('back');
+      }}
+      onNavigateForward={() => {
+        void navigateNoteHistory('forward');
+      }}
       navigation={
         <NavigationPanel
           documents={documentWorkspace.documents}
@@ -255,12 +350,14 @@ export function WorkspacePage() {
             documentWorkspace.lastError ?? documentWorkspace.session.lastError
           }
           onSelectNote={(id) => {
-            void documentWorkspace.open(id).catch(() => undefined);
+            void openNote(id).catch(() => undefined);
           }}
           onArchiveNotes={documentWorkspace.archiveMany}
           onMoveNote={documentWorkspace.move}
+          onMoveNotes={documentWorkspace.moveMany}
           onRestoreNotes={documentWorkspace.restoreMany}
           onDeletePermanently={documentWorkspace.deletePermanently}
+          onSetPinned={documentWorkspace.setPinned}
           onDuplicateNote={(document) =>
             documentWorkspace.duplicate(
               document,
@@ -314,13 +411,19 @@ export function WorkspacePage() {
               : undefined
           }
           onOpenReference={(documentId) => {
-            void documentWorkspace.open(documentId).catch(() => undefined);
+            void openNote(documentId).catch(() => undefined);
           }}
         />
       }
     />
   );
 }
+
+const isEditableKeyTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element &&
+  target.closest(
+    'input, textarea, select, [contenteditable="true"], .cm-editor',
+  ) !== null;
 
 const notebookIdForSelection = (
   selection: NavigationSelection,

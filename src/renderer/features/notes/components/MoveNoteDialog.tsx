@@ -5,6 +5,7 @@ import type {
   NoteDocument,
 } from '../../../../shared/documents/document.types';
 import { buildNotebookTreeRows } from '../../navigation/model/notebookTree';
+import type { NoteBatchOperationResult } from '../../../platform/documents/noteBatchOperation';
 
 type MoveNoteDialogProps = {
   notes: readonly NoteDocument[];
@@ -12,7 +13,7 @@ type MoveNoteDialogProps = {
   onMove: (
     notes: readonly NoteDocument[],
     notebookId: string,
-  ) => Promise<unknown>;
+  ) => Promise<NoteBatchOperationResult>;
   onClose: () => void;
   actionLabel?: string;
   allowCurrentDestination?: boolean;
@@ -56,7 +57,18 @@ export function MoveNoteDialog({
     }
 
     try {
-      await onMove(notes, notebookId);
+      const result = await onMove(notes, notebookId);
+
+      if (result.error !== null) {
+        const movedCount = result.completedNoteIds.length;
+        setError(
+          movedCount === 0
+            ? 'The notes could not be moved.'
+            : `${movedCount} ${movedCount === 1 ? 'note was' : 'notes were'} moved. Resolve the remaining notes and try again.`,
+        );
+        return;
+      }
+
       onClose();
     } catch {
       setError('The note could not be moved.');

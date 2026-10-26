@@ -67,6 +67,17 @@
   color: #b33a4b;
 }
 
+.notes-panel__action-error {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--color-text);
+  background: color-mix(in srgb, #d35959 8%, var(--color-code-background));
+  border: 1px solid color-mix(in srgb, #d35959 50%, var(--color-code-border));
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 /* =========================================================
    3. Filter control
 
