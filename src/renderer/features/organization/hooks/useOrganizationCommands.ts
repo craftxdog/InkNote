@@ -49,13 +49,9 @@ class OrganizationCommandController {
 
   private isAvailable = false;
 
-  constructor(
-    private onCommand: UseOrganizationCommandsOptions['onCommand'],
-  ) {}
+  constructor(private onCommand: UseOrganizationCommandsOptions['onCommand']) {}
 
-  setOnCommand(
-    onCommand: UseOrganizationCommandsOptions['onCommand'],
-  ): void {
+  setOnCommand(onCommand: UseOrganizationCommandsOptions['onCommand']): void {
     this.onCommand = onCommand;
   }
 

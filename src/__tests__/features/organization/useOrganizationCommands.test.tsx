@@ -146,10 +146,7 @@ describe('useOrganizationCommands', () => {
     const onCommand = jest.fn();
     const onReady = jest.fn();
     const view = render(
-      <OrganizationCommandHarness
-        onCommand={onCommand}
-        onReady={onReady}
-      />,
+      <OrganizationCommandHarness onCommand={onCommand} onReady={onReady} />,
     );
 
     await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));

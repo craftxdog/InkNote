@@ -29,13 +29,10 @@ describe('organization commands', () => {
         detail: { noteIds: ['note:1'], notebookId: 'inbox' },
       }),
     ).resolves.toBe(true);
-    expect(onCommand).toHaveBeenCalledWith(
-      organizationCommandIds.moveNotes,
-      {
-        source: 'menu',
-        detail: { noteIds: ['note:1'], notebookId: 'inbox' },
-      },
-    );
+    expect(onCommand).toHaveBeenCalledWith(organizationCommandIds.moveNotes, {
+      source: 'menu',
+      detail: { noteIds: ['note:1'], notebookId: 'inbox' },
+    });
 
     for (const command of Object.values(organizationCommandIds)) {
       expect(runtime.commands.has(command)).toBe(true);
@@ -69,12 +66,12 @@ describe('organization commands', () => {
         binding: { command: organizationCommandIds.moveNotes },
       },
     );
-    expect(runtime.keymaps.resolve(['mod-left'], [historyTarget])).toMatchObject(
-      {
-        kind: 'matched',
-        binding: { command: organizationCommandIds.goBack },
-      },
-    );
+    expect(
+      runtime.keymaps.resolve(['mod-left'], [historyTarget]),
+    ).toMatchObject({
+      kind: 'matched',
+      binding: { command: organizationCommandIds.goBack },
+    });
     expect(runtime.keymaps.resolve(['mod-p'], [workspaceTarget])).toEqual({
       kind: 'none',
     });
