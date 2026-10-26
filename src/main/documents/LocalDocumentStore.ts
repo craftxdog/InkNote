@@ -26,10 +26,14 @@ import {
   createNotebook as validateAndCreateNotebook,
   createNoteId,
   createRevision,
+  validateCreateTagInput,
   validateDocumentMutation,
+  validateUpdateTagInput,
   validateUpdateNotebookInput,
   validateTagSummary,
+  type CreateTagInput,
   type CreateDocumentMutation,
+  type UpdateTagInput,
   type DocumentMutation,
   type CreateNotebookInput,
   type DeleteNotebookInput,
@@ -185,6 +189,10 @@ export class LocalDocumentStore
     input: UpdateNotebookInput,
   ) => Notebook;
 
+  private readonly createTagTransaction: (input: CreateTagInput) => TagSummary;
+
+  private readonly updateTagTransaction: (input: UpdateTagInput) => TagSummary;
+
   private readonly deletePermanentlyTransaction: (
     input: PermanentlyDeleteNotesInput,
   ) => PermanentlyDeleteNotesResult;
@@ -203,6 +211,12 @@ export class LocalDocumentStore
     );
     this.updateNotebookTransaction = this.database.transaction((input) =>
       this.updateNotebookRecord(input),
+    );
+    this.createTagTransaction = this.database.transaction((input) =>
+      this.createTagRecord(input),
+    );
+    this.updateTagTransaction = this.database.transaction((input) =>
+      this.updateTagRecord(input),
     );
     this.deletePermanentlyTransaction = this.database.transaction((input) =>
       this.deleteArchivedNotesPermanently(input),
@@ -278,6 +292,14 @@ export class LocalDocumentStore
         }),
       ),
     );
+  }
+
+  async createTag(input: CreateTagInput): Promise<TagSummary> {
+    return this.createTagTransaction(validateCreateTagInput(input));
+  }
+
+  async updateTag(input: UpdateTagInput): Promise<TagSummary> {
+    return this.updateTagTransaction(validateUpdateTagInput(input));
   }
 
   async createNotebook(input: CreateNotebookInput): Promise<Notebook> {
@@ -895,6 +917,92 @@ export class LocalDocumentStore
       parent_id: input.parentId,
       icon: input.icon,
       updated_at: input.occurredAt,
+    });
+  }
+
+  private createTagRecord(input: CreateTagInput): TagSummary {
+    const existing = this.database
+      .prepare<[string, string], Pick<TagSummaryRow, 'id'>>(
+        'SELECT id FROM tags WHERE id = ? OR name = ?',
+      )
+      .get(input.id, input.name);
+
+    if (existing !== undefined) {
+      throw createInvalidMutationError(
+        'A tag with the requested ID or name already exists.',
+      );
+    }
+
+    this.database
+      .prepare<[string, string, string, string, string]>(
+        `INSERT INTO tags(id, name, color, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.name,
+        input.color,
+        input.occurredAt,
+        input.occurredAt,
+      );
+
+    return this.readRequiredTagSummary(input.id);
+  }
+
+  private updateTagRecord(input: UpdateTagInput): TagSummary {
+    const existing = this.database
+      .prepare<[string], Pick<TagSummaryRow, 'name'>>(
+        'SELECT name FROM tags WHERE id = ?',
+      )
+      .get(input.id);
+
+    if (existing === undefined) {
+      throw createInvalidMutationError(`Tag "${input.id}" does not exist.`);
+    }
+
+    if (existing.name !== input.name) {
+      throw createInvalidMutationError(
+        'A tag rename must propagate through associated note metadata.',
+      );
+    }
+
+    this.database
+      .prepare<[string, string, string]>(
+        `UPDATE tags
+         SET color = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(input.color, input.occurredAt, input.id);
+
+    return this.readRequiredTagSummary(input.id);
+  }
+
+  private readRequiredTagSummary(id: string): TagSummary {
+    const row = this.database
+      .prepare<[string], TagSummaryRow>(
+        `SELECT tags.id, tags.name, tags.color, tags.created_at, tags.updated_at,
+                COUNT(active_notes.id) AS count
+         FROM tags
+         LEFT JOIN note_tags ON note_tags.tag_id = tags.id
+         LEFT JOIN notes AS active_notes
+           ON active_notes.id = note_tags.note_id
+          AND active_notes.deleted_at IS NULL
+         WHERE tags.id = ?
+         GROUP BY tags.id, tags.name, tags.color, tags.created_at, tags.updated_at`,
+      )
+      .get(id);
+
+    if (row === undefined) {
+      throw createInvalidMutationError(`Tag "${id}" does not exist.`);
+    }
+
+    return validateTagSummary({
+      id: row.id,
+      name: row.name,
+      color: row.color,
+      count: row.count,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     });
   }
 

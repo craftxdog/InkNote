@@ -41,17 +41,17 @@ update before touching any note association.
 
 **Acceptance criteria:**
 
-- [ ] Create persists ID/name/color/timestamps and rejects a
+- [x] Create persists ID/name/color/timestamps and rejects a
       case-insensitive duplicate without modifying notes.
-- [ ] A color-only update preserves ID, name, `createdAt`, note links, and
+- [x] A color-only update preserves ID, name, `createdAt`, note links, and
       outbox rows while advancing `updatedAt`.
-- [ ] Rejection rolls back completely and adds neither schema migration nor
+- [x] Rejection rolls back completely and adds neither schema migration nor
       dependency.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts`
-- [ ] `npm run verify:native-sqlite`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts`
+- [x] `npm run verify:native-sqlite`
 
 **Dependencies:** Task 1.
 

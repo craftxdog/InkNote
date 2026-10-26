@@ -13,6 +13,7 @@ import {
   createArchiveMutation,
   createNotebook,
   createCreateDocumentMutation,
+  createGeneratedTagId,
   createMutationId,
   createNoteId,
   createReplaceBodyMutation,
@@ -576,6 +577,57 @@ describe('LocalDocumentStore', () => {
     expect(Object.isFrozen(tags)).toBe(true);
     expect(Object.isFrozen(tags[0])).toBe(true);
     expect(active.tags).toEqual(['active', 'shared']);
+  });
+
+  it('creates and recolors catalogue tags without mutating note associations', async () => {
+    const associated = await store.apply(
+      createNoteMutation({ tags: ['existing'] }),
+    );
+    const outboxCount = countRows(database, 'sync_outbox');
+
+    const created = await store.createTag({
+      id: createGeneratedTagId('catalogue'),
+      name: '  Catalogue  ',
+      color: 'teal',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+
+    expect(created).toEqual({
+      id: 'tag:catalogue',
+      name: 'catalogue',
+      color: 'teal',
+      count: 0,
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+    });
+    expect(Object.isFrozen(created)).toBe(true);
+
+    const recolored = await store.updateTag({
+      id: created.id,
+      name: created.name,
+      color: 'purple',
+      occurredAt: '2026-10-26T12:01:00.000Z',
+    });
+
+    expect(recolored).toEqual({
+      ...created,
+      color: 'purple',
+      updatedAt: '2026-10-26T12:01:00.000Z',
+    });
+    await expect(store.get(associated.id)).resolves.toEqual(associated);
+    expect(countRows(database, 'sync_outbox')).toBe(outboxCount);
+
+    await expect(
+      store.createTag({
+        id: createGeneratedTagId('duplicate'),
+        name: 'CATALOGUE',
+        color: 'red',
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_MUTATION' });
+    await expect(store.listTags()).resolves.toEqual(
+      expect.arrayContaining([recolored]),
+    );
   });
 
   it('persists None without polluting the task-status sidebar values', async () => {
