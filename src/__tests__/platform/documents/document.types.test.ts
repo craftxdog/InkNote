@@ -88,6 +88,8 @@ describe('document primitives', () => {
   });
 
   it('rejects unsafe or incomplete notebook updates at the shared boundary', () => {
+    expect.hasAssertions();
+
     const validInput = {
       id: 'work',
       name: 'Work',
@@ -108,11 +110,9 @@ describe('document primitives', () => {
     expectInvalidMutation(() =>
       validateUpdateNotebookInput({ ...validInput, icon: 'sparkle' }),
     );
-    expectInvalidMutation(() => {
-      const { icon: _icon, ...withoutIcon } = validInput;
-
-      return validateUpdateNotebookInput(withoutIcon);
-    });
+    expectInvalidMutation(() =>
+      validateUpdateNotebookInput({ ...validInput, icon: undefined }),
+    );
   });
 
   it('validates immutable tag summaries at the shared boundary', () => {

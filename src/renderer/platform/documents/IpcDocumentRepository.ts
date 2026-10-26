@@ -22,7 +22,9 @@ import {
   type PermanentlyDeleteNotesResult,
   type NoteDocument,
   type NoteId,
+  type Notebook,
   type TagSummary,
+  type UpdateNotebookInput,
   validateTagSummary,
 } from '../../../shared/documents/document.types';
 
@@ -115,6 +117,12 @@ export class IpcDocumentRepository
 
   async createNotebook(input: CreateNotebookInput) {
     const result = await this.api.createNotebook(input);
+
+    return unwrapDocumentIpcResult(result, validateNotebook);
+  }
+
+  async updateNotebook(input: UpdateNotebookInput): Promise<Notebook> {
+    const result = await this.api.updateNotebook(input);
 
     return unwrapDocumentIpcResult(result, validateNotebook);
   }

@@ -10,6 +10,7 @@ import {
   createNoteId,
   createRevision,
   createTagId,
+  type Notebook,
   type NoteDocument,
 } from '../../../shared/documents/document.types';
 import { DocumentDomainError } from '../../../shared/documents/document.errors';
@@ -46,6 +47,9 @@ const unusedNotebookApi = {
   listNotebooks: async () => ({ ok: true as const, value: [] }),
   listTags: async () => ({ ok: true as const, value: [] }),
   createNotebook: async () => {
+    throw new Error('not used');
+  },
+  updateNotebook: async () => {
     throw new Error('not used');
   },
   deleteNotebook: async () => {
@@ -160,6 +164,41 @@ describe('IpcDocumentRepository', () => {
       archivedNoteIds: [noteId],
       reparentedNotebookIds: ['projects'],
     });
+  });
+
+  it('revalidates an accepted notebook update from the preload boundary', async () => {
+    const expected = {
+      id: 'work',
+      name: 'Client work',
+      parentId: null,
+      icon: 'briefcase',
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:01:00.000Z',
+    } satisfies Notebook;
+    const updateNotebook = jest.fn().mockResolvedValue({
+      ok: true,
+      value: expected,
+    });
+    const api = {
+      get: async () => ({ ok: true as const, value: null }),
+      listActive: async () => ({ ok: true as const, value: [] }),
+      ...unusedNotebookApi,
+      updateNotebook,
+      apply: async () => {
+        throw new Error('not used');
+      },
+    } as DocumentApi;
+    const repository = new IpcDocumentRepository(api);
+    const input = {
+      id: 'work',
+      name: 'Client work',
+      parentId: null,
+      icon: 'briefcase' as const,
+      occurredAt: '2026-10-26T12:01:00.000Z',
+    };
+
+    await expect(repository.updateNotebook(input)).resolves.toEqual(expected);
+    expect(updateNotebook).toHaveBeenCalledWith(input);
   });
 
   it('validates a permanent deletion result from the preload boundary', async () => {

@@ -19,6 +19,7 @@ import {
   INBOX_NOTEBOOK_ID,
   createNotebook,
   createGeneratedTagId,
+  validateUpdateNotebookInput,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
   type PermanentlyDeleteNotesInput,
@@ -32,6 +33,7 @@ import {
   type NoteDocument,
   type NoteId,
   type TagSummary,
+  type UpdateNotebookInput,
 } from '../../shared/documents/document.types';
 
 /**
@@ -156,6 +158,32 @@ export class InMemoryDocumentRepository
     return Object.freeze({ ...notebook });
   }
 
+  async updateNotebook(input: UpdateNotebookInput): Promise<Notebook> {
+    const update = validateUpdateNotebookInput(input);
+    const notebook = this.notebooks.get(update.id);
+
+    if (notebook === undefined) {
+      throw createInvalidMutationError(
+        `Notebook "${update.id}" does not exist.`,
+      );
+    }
+
+    this.assertValidNotebookParent(update.id, update.parentId);
+
+    const updated = Object.freeze({
+      id: notebook.id,
+      name: update.name,
+      parentId: update.parentId,
+      createdAt: notebook.createdAt,
+      ...(update.icon === null ? {} : { icon: update.icon }),
+      updatedAt: update.occurredAt,
+    });
+
+    this.notebooks.set(updated.id, updated);
+
+    return Object.freeze({ ...updated });
+  }
+
   async deleteNotebook(
     input: DeleteNotebookInput,
   ): Promise<DeleteNotebookResult> {
@@ -214,6 +242,40 @@ export class InMemoryDocumentRepository
       archivedNoteIds: Object.freeze(archivedNoteIds),
       reparentedNotebookIds: Object.freeze(reparentedNotebookIds),
     });
+  }
+
+  private assertValidNotebookParent(
+    notebookId: string,
+    parentId: string | null,
+  ): void {
+    let currentParentId = parentId;
+    const visitedParentIds = new Set<string>();
+
+    while (currentParentId !== null) {
+      if (currentParentId === notebookId) {
+        throw createInvalidMutationError(
+          'A notebook cannot be placed under itself or one of its descendants.',
+        );
+      }
+
+      if (visitedParentIds.has(currentParentId)) {
+        throw createInvalidMutationError(
+          'The notebook hierarchy contains a cycle.',
+        );
+      }
+
+      visitedParentIds.add(currentParentId);
+
+      const parent = this.notebooks.get(currentParentId);
+
+      if (parent === undefined) {
+        throw createInvalidMutationError(
+          `Notebook parent "${currentParentId}" does not exist.`,
+        );
+      }
+
+      currentParentId = parent.parentId ?? null;
+    }
   }
 
   async deletePermanently(

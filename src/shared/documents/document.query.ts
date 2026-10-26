@@ -5,6 +5,7 @@ import type {
   Notebook,
   NoteDocument,
   TagSummary,
+  UpdateNotebookInput,
 } from './document.types';
 
 /**
@@ -33,5 +34,6 @@ export interface TagQueryRepository {
  */
 export interface NotebookRepository {
   createNotebook(input: CreateNotebookInput): Promise<Notebook>;
+  updateNotebook(input: UpdateNotebookInput): Promise<Notebook>;
   deleteNotebook(input: DeleteNotebookInput): Promise<DeleteNotebookResult>;
 }

@@ -103,6 +103,67 @@ describe('DocumentIpcService', () => {
     });
   });
 
+  it('validates a complete notebook update before forwarding it to the repository', async () => {
+    const repository = new InMemoryDocumentRepository();
+    const service = new DocumentIpcService(repository);
+
+    await repository.createNotebook({
+      id: 'work',
+      name: 'Work',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+
+    await expect(
+      service.updateNotebook({
+        id: 'work',
+        name: '  Client work  ',
+        parentId: null,
+        icon: 'briefcase',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        id: 'work',
+        name: 'Client work',
+        parentId: null,
+        icon: 'briefcase',
+        createdAt: '2026-10-26T12:00:00.000Z',
+        updatedAt: '2026-10-26T12:01:00.000Z',
+      },
+    });
+    await expect(
+      service.updateNotebook({
+        id: 'work',
+        name: 'Client work',
+        parentId: null,
+        icon: null,
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        id: 'work',
+        name: 'Client work',
+        parentId: null,
+        createdAt: '2026-10-26T12:00:00.000Z',
+        updatedAt: '2026-10-26T12:02:00.000Z',
+      },
+    });
+    await expect(
+      service.updateNotebook({
+        id: 'work',
+        name: '',
+        parentId: null,
+        icon: null,
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_MUTATION' },
+    });
+  });
+
   it('does not forward malformed tag repository values across IPC', async () => {
     const service = new DocumentIpcService({
       listTags: async () => [

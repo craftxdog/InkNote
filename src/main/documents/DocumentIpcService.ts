@@ -17,6 +17,7 @@ import {
   validateDeleteNotebookInput,
   validateDocumentMutation,
   validatePermanentlyDeleteNotesInput,
+  validateUpdateNotebookInput,
   type DocumentMutation,
   type NoteDocument,
   type Notebook,
@@ -65,6 +66,12 @@ export class DocumentIpcService {
   async createNotebook(input: unknown): Promise<DocumentIpcResult<Notebook>> {
     return runDocumentIpcOperation(() =>
       this.repository.createNotebook(parseCreateNotebookInput(input)),
+    );
+  }
+
+  async updateNotebook(input: unknown): Promise<DocumentIpcResult<Notebook>> {
+    return runDocumentIpcOperation(() =>
+      this.repository.updateNotebook(validateUpdateNotebookInput(input)),
     );
   }
 

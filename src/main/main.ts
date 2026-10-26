@@ -215,6 +215,20 @@ function registerDocumentIpcHandlers(getService: () => DocumentIpcService) {
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.documents.updateNotebook,
+    async (event, input) => {
+      if (!isMainWindowSender(event.sender)) {
+        return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+      }
+
+      const result = await getService().updateNotebook(input);
+      await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+      return result;
+    },
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.documents.deleteNotebook,
     async (event, input) => {
       if (!isMainWindowSender(event.sender)) {

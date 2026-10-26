@@ -14,6 +14,7 @@ import type {
   CreateNotebookInput,
   DeleteNotebookInput,
   DeleteNotebookResult,
+  UpdateNotebookInput,
   PermanentlyDeleteNotesInput,
   PermanentlyDeleteNotesResult,
   Notebook,
@@ -42,6 +43,9 @@ export type DocumentApi = {
   listTags: () => Promise<DocumentIpcResult<readonly TagSummary[]>>;
   createNotebook: (
     input: CreateNotebookInput,
+  ) => Promise<DocumentIpcResult<Notebook>>;
+  updateNotebook: (
+    input: UpdateNotebookInput,
   ) => Promise<DocumentIpcResult<Notebook>>;
   deleteNotebook: (
     input: DeleteNotebookInput,
