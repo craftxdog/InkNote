@@ -114,6 +114,18 @@ export type CreateNotebookInput = Readonly<{
 }>;
 
 /**
+ * Full replacement of the editable notebook fields. Explicit nulls avoid an
+ * ambiguous update where an omitted icon or parent could retain stale state.
+ */
+export type UpdateNotebookInput = Readonly<{
+  id: string;
+  name: string;
+  parentId: string | null;
+  icon: NotebookIconName | null;
+  occurredAt: string;
+}>;
+
+/**
  * A notebook deletion is a durable organization operation. The associated
  * direct notes move to Trash; subnotebooks are preserved by the repository.
  */
@@ -328,6 +340,60 @@ export const createNotebook = (input: CreateNotebookInput): Notebook => {
     ...(icon === undefined ? {} : { icon }),
     createdAt: input.occurredAt,
     updatedAt: input.occurredAt,
+  });
+};
+
+export const validateUpdateNotebookInput = (
+  value: unknown,
+): UpdateNotebookInput => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError('A notebook update must be an object.');
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const id = normalizeNotebookId(candidate.id);
+
+  if (id === INBOX_NOTEBOOK_ID) {
+    throw createInvalidMutationError('The Inbox notebook cannot be updated.');
+  }
+
+  const name = validateText(candidate.name, 'Notebook name').trim();
+
+  if (name.length === 0) {
+    throw createInvalidMutationError('Notebook name must not be empty.');
+  }
+
+  if (candidate.parentId === undefined) {
+    throw createInvalidMutationError(
+      'Notebook update parentId must be explicit.',
+    );
+  }
+
+  const parentId =
+    candidate.parentId === null
+      ? null
+      : normalizeNotebookParentId(candidate.parentId, id);
+
+  if (candidate.icon === undefined) {
+    throw createInvalidMutationError('Notebook update icon must be explicit.');
+  }
+
+  const icon =
+    candidate.icon === null ? null : normalizeNotebookIcon(candidate.icon);
+
+  if (icon === undefined) {
+    throw createInvalidMutationError('Notebook icon must be explicit.');
+  }
+
+  return Object.freeze({
+    id,
+    name,
+    parentId,
+    icon,
+    occurredAt: readNonEmptyString(
+      candidate.occurredAt,
+      'Notebook update timestamp',
+    ),
   });
 };
 

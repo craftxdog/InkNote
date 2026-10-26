@@ -14,6 +14,7 @@ import {
   createRestoreMutation,
   createUpdatePinnedMutation,
   createUpdateTagsMutation,
+  validateUpdateNotebookInput,
   validateTagSummary,
   createUpdateTitleMutation,
   validatePermanentlyDeleteNotesInput,
@@ -53,6 +54,65 @@ describe('document primitives', () => {
     expect(createGeneratedNotebookId('019')).toBe('book:019');
     expect(createGeneratedTagId('020')).toBe('tag:020');
     expect(createNoteId('legacy-note-id')).toBe('legacy-note-id');
+  });
+
+  it('validates an immutable full notebook update for legacy and generated IDs', () => {
+    const legacyUpdate = validateUpdateNotebookInput({
+      id: 'legacy-workspace',
+      name: '  Renamed workspace  ',
+      parentId: null,
+      icon: null,
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+    const generatedUpdate = validateUpdateNotebookInput({
+      id: 'book:projects',
+      name: 'Projects',
+      parentId: 'legacy-workspace',
+      icon: 'rocket',
+      occurredAt: '2026-10-26T12:01:00.000Z',
+    });
+
+    expect(legacyUpdate).toEqual({
+      id: 'legacy-workspace',
+      name: 'Renamed workspace',
+      parentId: null,
+      icon: null,
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+    expect(Object.isFrozen(legacyUpdate)).toBe(true);
+    expect(generatedUpdate).toMatchObject({
+      id: 'book:projects',
+      parentId: 'legacy-workspace',
+      icon: 'rocket',
+    });
+  });
+
+  it('rejects unsafe or incomplete notebook updates at the shared boundary', () => {
+    const validInput = {
+      id: 'work',
+      name: 'Work',
+      parentId: null,
+      icon: null,
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    };
+
+    expectInvalidMutation(() =>
+      validateUpdateNotebookInput({ ...validInput, id: 'inbox' }),
+    );
+    expectInvalidMutation(() =>
+      validateUpdateNotebookInput({ ...validInput, name: '   ' }),
+    );
+    expectInvalidMutation(() =>
+      validateUpdateNotebookInput({ ...validInput, parentId: 'work' }),
+    );
+    expectInvalidMutation(() =>
+      validateUpdateNotebookInput({ ...validInput, icon: 'sparkle' }),
+    );
+    expectInvalidMutation(() => {
+      const { icon: _icon, ...withoutIcon } = validInput;
+
+      return validateUpdateNotebookInput(withoutIcon);
+    });
   });
 
   it('validates immutable tag summaries at the shared boundary', () => {
