@@ -39,7 +39,9 @@ import { runThemeIpcOperation } from '../shared/themes/theme.ipc';
 import { validateExternalThemeId } from '../shared/themes/theme.types';
 
 import { DataManagementService } from './data/DataManagementService';
+import { DocumentStoreStartup } from './data/DocumentStoreStartup';
 import { MarkdownExportService } from './data/MarkdownExportService';
+import { OrganizationMigrationSafetyService } from './data/OrganizationMigrationSafetyService';
 import { RestoreDatabaseService } from './data/RestoreDatabaseService';
 import { DocumentIpcService } from './documents/DocumentIpcService';
 import { LocalDocumentStore } from './documents/LocalDocumentStore';
@@ -55,7 +57,8 @@ import { resolveHtmlPath } from './util';
 
 let mainWindow: BrowserWindow | null = null;
 
-let localDocumentStore: LocalDocumentStore | null = null;
+let documentStoreStartup: DocumentStoreStartup<LocalDocumentStore> | null =
+  null;
 
 let dataManagementService: DataManagementService | null = null;
 
@@ -304,15 +307,15 @@ function registerDataIpcHandlers() {
         databasePath: getDatabasePath(),
         snapshotDatabase: (destination) => activeStore.backupTo(destination),
         closeDatabase: () => {
-          activeStore.close();
-
-          if (localDocumentStore === activeStore) {
-            localDocumentStore = null;
-          }
+          getDocumentStoreStartup().close();
         },
       });
 
-      return restoreService.restoreFrom(backupFile);
+      const result = await restoreService.restoreFrom(backupFile);
+
+      await initializeLocalDocumentStore();
+
+      return result;
     });
   });
 
@@ -441,14 +444,28 @@ function registerThemeIpcHandlers() {
 }
 
 function getLocalDocumentStore(): LocalDocumentStore {
-  if (localDocumentStore === null) {
-    localDocumentStore = new LocalDocumentStore(
-      new Database(getDatabasePath()),
-    );
+  return getDocumentStoreStartup().getInitialized();
+}
+
+function getDocumentStoreStartup(): DocumentStoreStartup<LocalDocumentStore> {
+  if (documentStoreStartup === null) {
+    const migrationSafety = new OrganizationMigrationSafetyService({
+      dataDirectory: app.getPath('userData'),
+      databasePath: getDatabasePath(),
+    });
+
+    documentStoreStartup = new DocumentStoreStartup({
+      ensureMigrationSafety: () =>
+        migrationSafety.ensureSnapshotBeforeMigration(),
+      createStore: () => new LocalDocumentStore(new Database(getDatabasePath())),
+    });
   }
 
-  return localDocumentStore;
+  return documentStoreStartup;
 }
+
+const initializeLocalDocumentStore = async (): Promise<LocalDocumentStore> =>
+  getDocumentStoreStartup().initialize();
 
 function getDataManagementService(): DataManagementService {
   if (dataManagementService === null) {
@@ -678,8 +695,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  localDocumentStore?.close();
-  localDocumentStore = null;
+  documentStoreStartup?.close();
+  documentStoreStartup = null;
   dataManagementService = null;
   themePackageService = null;
 });
@@ -687,6 +704,8 @@ app.on('before-quit', () => {
 app
   .whenReady()
   .then(async () => {
+    await initializeLocalDocumentStore();
+
     /**
      * IMPORTANT:
      *

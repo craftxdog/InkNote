@@ -141,14 +141,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] A failed pending-migration snapshot prevents document handlers and the main window from starting.
-- [ ] A successful preflight initializes one store instance before renderer requests; restore still clears/reopens the store correctly.
-- [ ] Existing databases with no pending organization migration retain current startup behavior.
+- [x] A failed pending-migration snapshot prevents document handlers and the main window from starting.
+- [x] A successful preflight initializes one store instance before renderer requests; restore still clears/reopens the store correctly.
+- [x] Existing databases with no pending organization migration retain current startup behavior.
 
 **Verification:**
 
-- [ ] Focused node/main tests: npm test -- --runInBand src/__tests__/main/data/OrganizationMigrationSafetyService.test.ts src/__tests__/main/documents/LocalDocumentStore.test.ts
-- [ ] npm run typecheck
+- [x] Focused node/main tests: npm test -- --runInBand src/__tests__/main/data/OrganizationMigrationSafetyService.test.ts src/__tests__/main/documents/LocalDocumentStore.test.ts
+- [x] npm run typecheck
 
 **Dependencies:** Task 5.
 
