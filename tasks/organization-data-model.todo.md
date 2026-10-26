@@ -86,14 +86,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] Body changes recalculate task totals while pin changes create one valid Yjs update and one outbox record.
-- [ ] Legacy Yjs metadata reads as Markdown/unpinned without rewriting user content.
-- [ ] Tag display names in Yjs resolve atomically to migrated tag IDs in SQLite for create and update operations.
+- [x] Body changes recalculate task totals while pin changes create one valid Yjs update and one outbox record.
+- [x] Legacy Yjs metadata reads as Markdown/unpinned without rewriting user content.
+- [x] Tag display names in Yjs resolve atomically to migrated tag IDs in SQLite for create and update operations.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts
+- [x] npm run typecheck
 
 **Dependencies:** Tasks 1–3.
 
@@ -106,8 +106,8 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 ## Checkpoint: durable migration boundary
 
-- [ ] Tasks 1–4 pass their focused tests and npm run typecheck.
-- [ ] A v7 fixture can be migrated, reopened, and queried without lost notes, notebooks, Yjs history, trash state, tags, or associations.
+- [x] Tasks 1–4 pass their focused tests and npm run typecheck.
+- [x] A v7 fixture can be migrated, reopened, and queried without lost notes, notebooks, Yjs history, trash state, tags, or associations.
 - [ ] No startup integration has been enabled yet; no user database can reach the migration without the safety-preflight tasks below.
 
 ## Task 5: Add a recoverable migration-safety snapshot service

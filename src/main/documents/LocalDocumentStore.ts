@@ -38,6 +38,7 @@ import {
   type NoteDocument,
   type NoteId,
 } from '../../shared/documents/document.types';
+import { summarizeMarkdownTaskProgress } from '../../shared/documents/taskProgress';
 
 const FIRST_SCHEMA_VERSION = 1;
 const ORGANIZATION_SCHEMA_VERSION = 2;
@@ -51,6 +52,9 @@ const NOTEBOOK_ICON_SCHEMA_VERSION = 4;
  */
 const NONE_STATUS_SCHEMA_VERSION = 7;
 export const ORGANIZATION_TAG_ID_SCHEMA_VERSION = 8;
+export const ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION = 9;
+export const ORGANIZATION_DATA_MODEL_SCHEMA_VERSION =
+  ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION;
 
 const PENDING_OUTBOX_STATUS = 'pending';
 
@@ -61,6 +65,10 @@ type NoteRow = Readonly<{
   notebook_id: string;
   status: string;
   status_is_none: number;
+  doctype: string;
+  pinned: number;
+  num_of_tasks: number;
+  num_of_checked_tasks: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -110,6 +118,11 @@ type InsertResult = Readonly<{
 
 type CountRow = Readonly<{
   count: number;
+}>;
+
+type TaskProjectionRow = Readonly<{
+  id: string;
+  body: string;
 }>;
 
 export type PendingLocalDocumentUpdate = Readonly<{
@@ -536,6 +549,80 @@ export class LocalDocumentStore
 
     if (hasTagIdSchema === undefined) {
       this.database.transaction(() => this.migrateTagsToIdentifiers())();
+    }
+
+    const hasMetadataSchema = this.database
+      .prepare<[number], { version: number }>(
+        'SELECT version FROM schema_migrations WHERE version = ?',
+      )
+      .get(ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION);
+    const hasDoctypeColumn = this.notesTableHasColumn('doctype');
+    const hasPinnedColumn = this.notesTableHasColumn('pinned');
+    const hasTaskCountColumn = this.notesTableHasColumn('num_of_tasks');
+    const hasCheckedTaskCountColumn = this.notesTableHasColumn(
+      'num_of_checked_tasks',
+    );
+
+    if (
+      hasMetadataSchema === undefined ||
+      !hasDoctypeColumn ||
+      !hasPinnedColumn ||
+      !hasTaskCountColumn ||
+      !hasCheckedTaskCountColumn
+    ) {
+      this.database.transaction(() => {
+        if (!hasDoctypeColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN doctype TEXT NOT NULL DEFAULT 'markdown'
+              CHECK (doctype = 'markdown');
+          `);
+        }
+        if (!hasPinnedColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0
+              CHECK (pinned IN (0, 1));
+          `);
+        }
+        if (!hasTaskCountColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN num_of_tasks INTEGER NOT NULL DEFAULT 0
+              CHECK (num_of_tasks >= 0);
+          `);
+        }
+        if (!hasCheckedTaskCountColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN num_of_checked_tasks INTEGER NOT NULL DEFAULT 0
+              CHECK (num_of_checked_tasks >= 0);
+          `);
+        }
+        const existingRows = this.database
+          .prepare<[], TaskProjectionRow>('SELECT id, body FROM notes')
+          .all();
+        const updateTaskCounts = this.database.prepare<[number, number, string]>(
+          `UPDATE notes
+           SET num_of_tasks = ?, num_of_checked_tasks = ?
+           WHERE id = ?`,
+        );
+
+        for (const row of existingRows) {
+          const taskProgress = summarizeMarkdownTaskProgress(row.body);
+
+          updateTaskCounts.run(
+            taskProgress.total,
+            taskProgress.checked,
+            row.id,
+          );
+        }
+        this.database
+          .prepare<[number, string]>(
+            `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)
+             ON CONFLICT(version) DO NOTHING`,
+          )
+          .run(
+            ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION,
+            new Date().toISOString(),
+          );
+      })();
     }
   }
 
@@ -1039,12 +1126,17 @@ export class LocalDocumentStore
           string | null,
           number,
           string,
+          string,
+          number,
+          number,
+          number,
         ]
       >(
         `INSERT INTO notes(
           id, title, body, notebook_id, status, status_is_none, created_at,
-          updated_at, deleted_at, projection_generation, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          updated_at, deleted_at, projection_generation, revision, doctype,
+          pinned, num_of_tasks, num_of_checked_tasks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         document.id,
@@ -1058,6 +1150,10 @@ export class LocalDocumentStore
         document.deletedAt,
         document.projectionGeneration,
         document.revision,
+        document.doctype,
+        document.pinned ? 1 : 0,
+        document.numOfTasks,
+        document.numOfCheckedTasks,
       );
 
     this.replaceTags(document.id, document.tags, document.createdAt);
@@ -1080,11 +1176,16 @@ export class LocalDocumentStore
           number,
           string,
           string,
+          number,
+          number,
+          number,
+          string,
         ]
       >(
         `UPDATE notes
          SET title = ?, body = ?, notebook_id = ?, status = ?, status_is_none = ?,
-             created_at = ?, updated_at = ?, deleted_at = ?, projection_generation = ?, revision = ?
+             created_at = ?, updated_at = ?, deleted_at = ?, projection_generation = ?, revision = ?,
+             doctype = ?, pinned = ?, num_of_tasks = ?, num_of_checked_tasks = ?
          WHERE id = ?`,
       )
       .run(
@@ -1098,6 +1199,10 @@ export class LocalDocumentStore
         document.deletedAt,
         document.projectionGeneration,
         document.revision,
+        document.doctype,
+        document.pinned ? 1 : 0,
+        document.numOfTasks,
+        document.numOfCheckedTasks,
         document.id,
       );
 
@@ -1271,6 +1376,10 @@ export class LocalDocumentStore
 type PersistedDocumentProjection = NoteDocument &
   Readonly<{
     projectionGeneration: number;
+    doctype: 'markdown';
+    pinned: boolean;
+    numOfTasks: number;
+    numOfCheckedTasks: number;
   }>;
 
 const captureYUpdate = (document: Y.Doc, operation: () => void): Uint8Array => {
@@ -1312,7 +1421,9 @@ const applyMutationToYDocument = (
         replaceYText(body, mutation.body);
         metadata.set('createdAt', mutation.occurredAt);
         metadata.set('deletedAt', null);
+        metadata.set('doctype', 'markdown');
         metadata.set('notebookId', mutation.notebookId);
+        metadata.set('pinned', false);
         metadata.set('status', mutation.status);
         replaceYArray(tags, mutation.tags);
         break;
@@ -1324,6 +1435,9 @@ const applyMutationToYDocument = (
         break;
       case 'update-tags':
         replaceYArray(tags, mutation.tags);
+        break;
+      case 'update-pinned':
+        metadata.set('pinned', mutation.pinned);
         break;
       case 'update-organization':
         metadata.set('notebookId', mutation.notebookId);
@@ -1386,11 +1500,13 @@ const projectYDocument = (
     'updatedAt',
   );
   const deletedAt = readDeletedAt(metadata.get('deletedAt'));
+  const body = document.getText('body').toString();
+  const taskProgress = summarizeMarkdownTaskProgress(body);
 
   return Object.freeze({
     id,
     title: document.getText('title').toString(),
-    body: document.getText('body').toString(),
+    body,
     notebookId: readNotebookId(metadata.get('notebookId')),
     status: readNoteStatus(metadata.get('status')),
     tags: Object.freeze(
@@ -1398,6 +1514,10 @@ const projectYDocument = (
         (left, right) => left.localeCompare(right),
       ),
     ),
+    doctype: readDocumentDoctype(metadata.get('doctype')),
+    pinned: readDocumentPinned(metadata.get('pinned')),
+    numOfTasks: taskProgress.total,
+    numOfCheckedTasks: taskProgress.checked,
     createdAt,
     updatedAt,
     deletedAt,
@@ -1414,6 +1534,13 @@ const documentFromRow = (row: NoteRow, tags: readonly string[]): NoteDocument =>
     notebookId: row.notebook_id,
     status: readNoteStatus(row.status, row.status_is_none),
     tags: Object.freeze([...tags]),
+    doctype: readDocumentDoctype(row.doctype),
+    pinned: readDocumentPinned(row.pinned),
+    numOfTasks: readTaskCount(row.num_of_tasks, 'task count'),
+    numOfCheckedTasks: readTaskCount(
+      row.num_of_checked_tasks,
+      'checked task count',
+    ),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -1440,6 +1567,10 @@ const toNoteDocument = (
     notebookId: projection.notebookId,
     status: projection.status,
     tags: Object.freeze([...projection.tags]),
+    doctype: projection.doctype,
+    pinned: projection.pinned,
+    numOfTasks: projection.numOfTasks,
+    numOfCheckedTasks: projection.numOfCheckedTasks,
     createdAt: projection.createdAt,
     updatedAt: projection.updatedAt,
     deletedAt: projection.deletedAt,
@@ -1542,6 +1673,40 @@ const readNotebookId = (value: unknown): string => {
   throw createInvalidMutationError(
     'A CRDT document must contain a non-empty notebookId.',
   );
+};
+
+const readDocumentDoctype = (value: unknown): 'markdown' => {
+  if (value === undefined || value === 'markdown') {
+    return 'markdown';
+  }
+
+  throw createInvalidMutationError(
+    'A note projection must contain the Markdown doctype.',
+  );
+};
+
+const readDocumentPinned = (value: unknown): boolean => {
+  if (value === undefined || value === 0 || value === false) {
+    return false;
+  }
+
+  if (value === 1 || value === true) {
+    return true;
+  }
+
+  throw createInvalidMutationError(
+    'A note projection must contain a valid pinned marker.',
+  );
+};
+
+const readTaskCount = (value: unknown, label: string): number => {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw createInvalidMutationError(
+      `A note projection must contain a non-negative ${label}.`,
+    );
+  }
+
+  return value;
 };
 
 const persistedStatus = (status: NoteDocument['status']): string =>

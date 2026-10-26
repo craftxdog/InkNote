@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import Database from 'better-sqlite3';
+import * as Y from 'yjs';
 
 import { LocalDocumentStore } from '../../../main/documents/LocalDocumentStore';
 import {
@@ -17,6 +18,7 @@ import {
   createReplaceBodyMutation,
   createRestoreMutation,
   createUpdateOrganizationMutation,
+  createUpdatePinnedMutation,
   createUpdateTagsMutation,
   type CreateDocumentMutation,
 } from '../../../shared/documents/document.types';
@@ -99,11 +101,12 @@ const createVersion7TagFixture = (databasePath: string): void => {
       `INSERT INTO notes(
         id, title, body, notebook_id, status, status_is_none, created_at,
         updated_at, deleted_at, projection_generation, revision
-      ) VALUES (?, ?, '', 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
+      ) VALUES (?, ?, ?, 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
     )
     .run(
       'active-note',
       'Active note',
+      '- [x] Migrated task',
       '2026-10-21T12:00:00.000Z',
       '2026-10-21T12:00:00.000Z',
       null,
@@ -113,11 +116,12 @@ const createVersion7TagFixture = (databasePath: string): void => {
       `INSERT INTO notes(
         id, title, body, notebook_id, status, status_is_none, created_at,
         updated_at, deleted_at, projection_generation, revision
-      ) VALUES (?, ?, '', 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
+      ) VALUES (?, ?, ?, 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
     )
     .run(
       'archived-note',
       'Archived note',
+      '- [ ] Archived migrated task',
       '2026-10-21T12:00:00.000Z',
       '2026-10-21T12:00:00.000Z',
       '2026-10-21T12:01:00.000Z',
@@ -173,6 +177,10 @@ describe('LocalDocumentStore', () => {
       notebookId: 'inbox',
       status: 'none',
       tags: [],
+      doctype: 'markdown',
+      pinned: false,
+      numOfTasks: 0,
+      numOfCheckedTasks: 0,
       createdAt: '2026-10-21T12:00:00.000Z',
       updatedAt: '2026-10-21T12:00:00.000Z',
       revision: 'local-1',
@@ -363,6 +371,125 @@ describe('LocalDocumentStore', () => {
     await expect(store.get(noteId)).resolves.toEqual(tagged);
   });
 
+  it('projects Markdown task metadata and pins with one local update and outbox record', async () => {
+    const created = await store.apply(createNoteMutation());
+    const withTasks = await store.apply(
+      createReplaceBodyMutation({
+        id: createMutationId('mutation-tasks'),
+        documentId: created.id,
+        baseRevision: created.revision,
+        source: 'editor',
+        body: '- [x] Complete the migration\n- [ ] Verify the snapshot',
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+    const updatesBeforePin = countRows(database, 'note_crdt_updates');
+    const outboxBeforePin = countRows(database, 'sync_outbox');
+    const pinned = await store.apply(
+      createUpdatePinnedMutation({
+        id: createMutationId('mutation-pin'),
+        documentId: withTasks.id,
+        baseRevision: withTasks.revision,
+        source: 'command',
+        pinned: true,
+        occurredAt: '2026-10-21T12:02:00.000Z',
+      }),
+    );
+
+    expect(withTasks).toMatchObject({
+      doctype: 'markdown',
+      pinned: false,
+      numOfTasks: 2,
+      numOfCheckedTasks: 1,
+    });
+    expect(pinned).toMatchObject({
+      pinned: true,
+      numOfTasks: 2,
+      numOfCheckedTasks: 1,
+    });
+    expect(countRows(database, 'note_crdt_updates')).toBe(updatesBeforePin + 1);
+    expect(countRows(database, 'sync_outbox')).toBe(outboxBeforePin + 1);
+  });
+
+  it('projects legacy Yjs metadata with Markdown and unpinned defaults', async () => {
+    const legacyDocument = new Y.Doc();
+
+    try {
+      legacyDocument.getText('title').insert(0, 'Legacy remote note');
+      legacyDocument.getText('body').insert(0, '- [ ] Preserve defaults');
+      const metadata = legacyDocument.getMap<unknown>('metadata');
+
+      metadata.set('createdAt', '2026-10-21T12:00:00.000Z');
+      metadata.set('updatedAt', '2026-10-21T12:00:00.000Z');
+      metadata.set('deletedAt', null);
+      metadata.set('notebookId', 'inbox');
+      metadata.set('status', 'active');
+
+      const document = await store.applyRemoteUpdate({
+        id: 'legacy-remote-update',
+        documentId: createNoteId('legacy-remote-note'),
+        update: Y.encodeStateAsUpdate(legacyDocument),
+        occurredAt: '2026-10-21T12:00:00.000Z',
+      });
+
+      expect(document).toMatchObject({
+        doctype: 'markdown',
+        pinned: false,
+        numOfTasks: 1,
+        numOfCheckedTasks: 0,
+      });
+    } finally {
+      legacyDocument.destroy();
+    }
+  });
+
+  it('resolves create and update tag names to IDs atomically', async () => {
+    const created = await store.apply(
+      createNoteMutation({ tags: ['draft'] }),
+    );
+
+    expect(
+      database
+        .prepare(
+          `SELECT tags.name
+           FROM note_tags
+           INNER JOIN tags ON tags.id = note_tags.tag_id
+           WHERE note_tags.note_id = ?`,
+        )
+        .all(created.id),
+    ).toEqual([{ name: 'draft' }]);
+
+    database.exec(`
+      CREATE TRIGGER reject_tag_replacement
+      BEFORE INSERT ON note_tags
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated tag attach failure');
+      END;
+    `);
+
+    await expect(
+      store.apply(
+        createUpdateTagsMutation({
+          id: createMutationId('mutation-replace-tags'),
+          documentId: created.id,
+          baseRevision: created.revision,
+          source: 'editor',
+          tags: ['published'],
+          occurredAt: '2026-10-21T12:01:00.000Z',
+        }),
+      ),
+    ).rejects.toThrow('simulated tag attach failure');
+
+    await expect(store.get(created.id)).resolves.toMatchObject({
+      tags: ['draft'],
+    });
+    expect(
+      database
+        .prepare('SELECT name FROM tags ORDER BY name COLLATE NOCASE')
+        .all(),
+    ).toEqual([{ name: 'draft' }]);
+  });
+
   it('persists None without polluting the task-status sidebar values', async () => {
     const created = await store.apply(createNoteMutation({ status: 'active' }));
     const unset = await store.apply(
@@ -491,10 +618,20 @@ describe('LocalDocumentStore', () => {
     store = createStore(databasePath);
 
     await expect(store.listActive()).resolves.toEqual([
-      expect.objectContaining({ id: 'active-note', tags: ['active'] }),
+      expect.objectContaining({
+        id: 'active-note',
+        tags: ['active'],
+        numOfTasks: 1,
+        numOfCheckedTasks: 1,
+      }),
     ]);
     await expect(store.listArchived()).resolves.toEqual([
-      expect.objectContaining({ id: 'archived-note', tags: ['archived'] }),
+      expect.objectContaining({
+        id: 'archived-note',
+        tags: ['archived'],
+        numOfTasks: 1,
+        numOfCheckedTasks: 0,
+      }),
     ]);
     expect(
       database
