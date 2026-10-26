@@ -1,7 +1,7 @@
 # Technical Plan: note-organization
 
-Status: proposed on 2026-10-26. Implementation requires explicit user
-approval after review of this plan.
+Status: implemented on 2026-10-26. Full clean-profile startup and automated
+verification passed; human desktop smoke review remains the final checkpoint.
 
 ## Audit summary
 
@@ -15,14 +15,14 @@ The two prerequisites are complete and verified:
 
 The present gaps are concrete:
 
-| Area | Existing behavior | Required outcome |
-| --- | --- | --- |
-| Creation | New notes omit a destination; duplicates use the source notebook from All Notes. | Resolve the current scope or the persisted default notebook. |
-| Default preference | Generic config is intentionally in-memory; no default-notebook setting exists. | Add a small validated persistent settings boundary and Preferences selector. |
-| Pinning | The database supports it, but `toNoteSummary` drops it and active queries sort only by `updated_at`. | Pin/unpin through the mutation and sort active notes pinned-first. |
-| Multi-move | The picker accepts many notes but its callback returns without moving when `length !== 1`. | Move every selected note with explicit partial-failure behavior. |
-| Commands | Archive, duplicate, move, restore, deletion, and pin call workspace callbacks directly. | Route intents through typed lifecycle-safe commands. |
-| History | Back/Forward buttons have no handlers or disabled state. | Add ephemeral, availability-aware viewed-note history. |
+| Area               | Existing behavior                                                                                    | Required outcome                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Creation           | New notes omit a destination; duplicates use the source notebook from All Notes.                     | Resolve the current scope or the persisted default notebook.                 |
+| Default preference | Generic config is intentionally in-memory; no default-notebook setting exists.                       | Add a small validated persistent settings boundary and Preferences selector. |
+| Pinning            | The database supports it, but `toNoteSummary` drops it and active queries sort only by `updated_at`. | Pin/unpin through the mutation and sort active notes pinned-first.           |
+| Multi-move         | The picker accepts many notes but its callback returns without moving when `length !== 1`.           | Move every selected note with explicit partial-failure behavior.             |
+| Commands           | Archive, duplicate, move, restore, deletion, and pin call workspace callbacks directly.              | Route intents through typed lifecycle-safe commands.                         |
+| History            | Back/Forward buttons have no handlers or disabled state.                                             | Add ephemeral, availability-aware viewed-note history.                       |
 
 ## Decisions fixed by this plan
 
@@ -237,25 +237,25 @@ npm run verify
 
 **Manual smoke matrix**
 
-| Scenario | Evidence |
-| --- | --- |
-| Default preference | Set a custom notebook, restart the isolated profile, create from All Notes, and verify its destination. |
-| Context policy | Create/duplicate from notebook, scoped tag/status, All Notes, and Trash; verify the resolved notebook and active/unpinned defaults. |
-| Multi-move | Move two notes with `m`; inject one controlled failure and verify partial progress plus retryable selection. |
-| Pinning | Pin/unpin, relaunch, and confirm durable marker plus pinned-first ordering. |
-| History | Open A → B → C, use both buttons and platform shortcuts, archive B, then verify unavailable entries are skipped. |
-| Shortcut safety | Verify `Cmd/Ctrl+P` remains preview-only, text input is editable, and no lifecycle error is logged. |
+| Scenario           | Evidence                                                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Default preference | Set a custom notebook, restart the isolated profile, create from All Notes, and verify its destination.                             |
+| Context policy     | Create/duplicate from notebook, scoped tag/status, All Notes, and Trash; verify the resolved notebook and active/unpinned defaults. |
+| Multi-move         | Move two notes with `m`; inject one controlled failure and verify partial progress plus retryable selection.                        |
+| Pinning            | Pin/unpin, relaunch, and confirm durable marker plus pinned-first ordering.                                                         |
+| History            | Open A → B → C, use both buttons and platform shortcuts, archive B, then verify unavailable entries are skipped.                    |
+| Shortcut safety    | Verify `Cmd/Ctrl+P` remains preview-only, text input is editable, and no lifecycle error is logged.                                 |
 
 ## Risks and mitigations
 
-| Risk | Mitigation |
-| --- | --- |
-| Expanding the command hook reintroduces `PLUGIN_LIFECYCLE_IN_PROGRESS`. | Preserve one runtime, serialized lifecycle queue, stable callback refs, and Strict Mode tests before UI migration. |
-| A global key listener steals CodeMirror/browser shortcuts. | Resolve only matching contextual bindings and prevent default only after a match; regression-test editable targets and `Cmd/Ctrl+P`. |
-| Sequential batch movement yields a partial result. | Return completed/remaining IDs, retain retryable selection, and never report full success after an error. |
-| Deleted notebooks leave an unusable preference. | Validate writes, fallback stale reads to Inbox, and test deletion/restart. |
-| Pin order differs after optimistic updates. | Share the exact comparator contract with tests for SQL list and renderer upsert. |
-| History reopens unavailable notes. | Resolve only active IDs at navigation time and skip missing/archive entries. |
+| Risk                                                                    | Mitigation                                                                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Expanding the command hook reintroduces `PLUGIN_LIFECYCLE_IN_PROGRESS`. | Preserve one runtime, serialized lifecycle queue, stable callback refs, and Strict Mode tests before UI migration.                   |
+| A global key listener steals CodeMirror/browser shortcuts.              | Resolve only matching contextual bindings and prevent default only after a match; regression-test editable targets and `Cmd/Ctrl+P`. |
+| Sequential batch movement yields a partial result.                      | Return completed/remaining IDs, retain retryable selection, and never report full success after an error.                            |
+| Deleted notebooks leave an unusable preference.                         | Validate writes, fallback stale reads to Inbox, and test deletion/restart.                                                           |
+| Pin order differs after optimistic updates.                             | Share the exact comparator contract with tests for SQL list and renderer upsert.                                                     |
+| History reopens unavailable notes.                                      | Resolve only active IDs at navigation time and skip missing/archive entries.                                                         |
 
 ## Explicit boundaries
 

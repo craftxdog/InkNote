@@ -473,10 +473,13 @@ export function WorkspacePage() {
       canNavigateBack={canNavigateBack(noteHistory)}
       canNavigateForward={canNavigateForward(noteHistory)}
       onNavigateBack={() => {
-        void navigateNoteHistory('back');
+        void dispatchOrganizationCommand(organizationCommandIds.goBack, 'menu');
       }}
       onNavigateForward={() => {
-        void navigateNoteHistory('forward');
+        void dispatchOrganizationCommand(
+          organizationCommandIds.goForward,
+          'menu',
+        );
       }}
       navigation={
         <NavigationPanel
