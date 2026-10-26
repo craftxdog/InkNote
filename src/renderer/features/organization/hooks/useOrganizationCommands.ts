@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
+  CommandDispatchResult,
   CommandInvocation,
   CommandInvocationSource,
 } from '../../../platform/commands/command.types';
@@ -21,7 +22,7 @@ type UseOrganizationCommandsOptions = Readonly<{
   onCommand(
     command: OrganizationCommand,
     invocation: CommandInvocation,
-  ): void | Promise<void>;
+  ): unknown | Promise<unknown>;
   getKeymapTargets?(event: KeyboardEvent): readonly KeymapTarget[];
 }>;
 
@@ -31,6 +32,11 @@ export type OrganizationCommands = Readonly<{
     source?: CommandInvocationSource,
     detail?: unknown,
   ): Promise<boolean>;
+  dispatchOrganizationCommandWithResult(
+    command: OrganizationCommand,
+    source?: CommandInvocationSource,
+    detail?: unknown,
+  ): Promise<CommandDispatchResult>;
 }>;
 
 const organizationKeymapTarget = Object.freeze({
@@ -70,17 +76,33 @@ class OrganizationCommandController {
     source: CommandInvocationSource,
     detail?: unknown,
   ): Promise<boolean> {
+    const result = await this.dispatchWithResult(
+      runtime,
+      command,
+      source,
+      detail,
+    );
+
+    return result.dispatched;
+  }
+
+  async dispatchWithResult(
+    runtime: PluginRuntime,
+    command: OrganizationCommand,
+    source: CommandInvocationSource,
+    detail?: unknown,
+  ): Promise<CommandDispatchResult> {
     if (!this.isAvailable || this.activation === null) {
-      return false;
+      return Object.freeze({ dispatched: false, value: undefined });
     }
 
     await this.activation;
 
     if (!this.isAvailable) {
-      return false;
+      return Object.freeze({ dispatched: false, value: undefined });
     }
 
-    return runtime.commands.dispatch(
+    return runtime.commands.dispatchWithResult(
       command,
       detail === undefined ? { source } : { source, detail },
     );
@@ -89,7 +111,7 @@ class OrganizationCommandController {
   readonly handleCommand = (
     command: OrganizationCommand,
     invocation: CommandInvocation,
-  ): void | Promise<void> => this.onCommand(command, invocation);
+  ): unknown | Promise<unknown> => this.onCommand(command, invocation);
 }
 
 export const useOrganizationCommands = ({
@@ -120,6 +142,15 @@ export const useOrganizationCommands = ({
       detail?: unknown,
     ): Promise<boolean> =>
       controller.dispatch(runtime, command, source, detail),
+    [controller, runtime],
+  );
+  const dispatchOrganizationCommandWithResult = useCallback(
+    (
+      command: OrganizationCommand,
+      source: CommandInvocationSource = 'api',
+      detail?: unknown,
+    ): Promise<CommandDispatchResult> =>
+      controller.dispatchWithResult(runtime, command, source, detail),
     [controller, runtime],
   );
 
@@ -191,7 +222,10 @@ export const useOrganizationCommands = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [dispatchOrganizationCommand, getKeymapTargets, runtime]);
 
-  return Object.freeze({ dispatchOrganizationCommand });
+  return Object.freeze({
+    dispatchOrganizationCommand,
+    dispatchOrganizationCommandWithResult,
+  });
 };
 
 const keyStrokeForEvent = (event: KeyboardEvent): string | null => {

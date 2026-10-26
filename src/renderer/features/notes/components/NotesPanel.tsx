@@ -13,6 +13,15 @@ import {
   runNoteBatchOperation,
   type NoteBatchOperationResult,
 } from '../../../platform/documents/noteBatchOperation';
+import type { CommandInvocationSource } from '../../../platform/commands/command.types';
+import {
+  createNoteCommandRequest,
+  type NoteCommandRequest,
+} from '../../organization/model/noteCommandRequest';
+import {
+  organizationCommandIds,
+  type OrganizationCommand,
+} from '../../organization/model/organizationCommands';
 
 import { useNotesFilter } from '../hooks/useNotesFilter';
 import type { NoteSummary } from '../model/note.types';
@@ -48,12 +57,18 @@ type NotesPanelProps = {
   onDeletePermanently?: (notes: readonly NoteDocument[]) => Promise<unknown>;
   onDuplicateNote?: (note: NoteDocument) => Promise<unknown>;
   onSetPinned?: (note: NoteDocument, pinned: boolean) => Promise<unknown>;
+  onExecuteOrganizationCommand?: (
+    command: OrganizationCommand,
+    request: NoteCommandRequest,
+    source: CommandInvocationSource,
+  ) => Promise<unknown>;
   onFilterByTag?: (tag: string, exclusive: boolean) => void;
 };
 
 type MoveRequest = Readonly<{
   notes: readonly NoteDocument[];
   mode: 'move' | 'restore';
+  source: CommandInvocationSource;
 }>;
 
 type ContextMenuPosition = Readonly<{
@@ -82,6 +97,7 @@ export function NotesPanel({
   onDeletePermanently,
   onDuplicateNote,
   onSetPinned,
+  onExecuteOrganizationCommand,
   onFilterByTag,
 }: NotesPanelProps) {
   const [filterQuery, setFilterQuery] = useState('');
@@ -164,6 +180,7 @@ export function NotesPanel({
   const archiveNotes = useCallback(
     async (
       notesToArchive: readonly NoteDocument[],
+      source: CommandInvocationSource = 'menu',
     ): Promise<NoteBatchOperationResult> => {
       if (notesToArchive.length === 0) {
         return emptyBatchResult;
@@ -171,7 +188,16 @@ export function NotesPanel({
 
       let result: NoteBatchOperationResult;
 
-      if (onArchiveNotes !== undefined) {
+      if (onExecuteOrganizationCommand !== undefined) {
+        result = normalizeBatchResult(
+          await onExecuteOrganizationCommand(
+            organizationCommandIds.archiveNotes,
+            createNoteCommandRequest(notesToArchive.map((note) => note.id)),
+            source,
+          ),
+          notesToArchive,
+        );
+      } else if (onArchiveNotes !== undefined) {
         result = normalizeBatchResult(
           await onArchiveNotes(notesToArchive),
           notesToArchive,
@@ -201,35 +227,57 @@ export function NotesPanel({
       setActionError(messageForBatchResult(result, 'move to Trash'));
       return result;
     },
-    [onArchiveNote, onArchiveNotes],
+    [onArchiveNote, onArchiveNotes, onExecuteOrganizationCommand],
   );
 
   const duplicateNote = useCallback(
-    async (note: NoteDocument): Promise<void> => {
-      if (onDuplicateNote === undefined) {
+    async (
+      note: NoteDocument,
+      source: CommandInvocationSource = 'menu',
+    ): Promise<void> => {
+      if (onExecuteOrganizationCommand !== undefined) {
+        await onExecuteOrganizationCommand(
+          organizationCommandIds.duplicateNote,
+          createNoteCommandRequest([note.id]),
+          source,
+        );
+      } else if (onDuplicateNote !== undefined) {
+        await onDuplicateNote(note);
+      } else {
         return;
       }
 
-      await onDuplicateNote(note);
       setSelectedNoteIds([]);
       setContextNoteId(null);
       setContextMenuPosition(null);
     },
-    [onDuplicateNote],
+    [onDuplicateNote, onExecuteOrganizationCommand],
   );
 
   const restoreNotes = async (
     notesToRestore: readonly NoteDocument[],
     notebookId: string,
+    source: CommandInvocationSource,
   ): Promise<NoteBatchOperationResult> => {
-    if (onRestoreNotes === undefined) {
-      return emptyBatchResult;
-    }
-
-    const result = normalizeBatchResult(
-      await onRestoreNotes(notesToRestore, notebookId),
-      notesToRestore,
-    );
+    const result =
+      onExecuteOrganizationCommand !== undefined
+        ? normalizeBatchResult(
+            await onExecuteOrganizationCommand(
+              organizationCommandIds.restoreNotes,
+              createNoteCommandRequest(
+                notesToRestore.map((note) => note.id),
+                notebookId,
+              ),
+              source,
+            ),
+            notesToRestore,
+          )
+        : onRestoreNotes === undefined
+          ? emptyBatchResult
+          : normalizeBatchResult(
+              await onRestoreNotes(notesToRestore, notebookId),
+              notesToRestore,
+            );
     setSelectedNoteIds(result.remainingNoteIds);
     if (result.error !== null) {
       setMoveRequest((current) =>
@@ -248,10 +296,23 @@ export function NotesPanel({
   const moveNotes = async (
     notesToMove: readonly NoteDocument[],
     notebookId: string,
+    source: CommandInvocationSource,
   ): Promise<NoteBatchOperationResult> => {
     let result: NoteBatchOperationResult;
 
-    if (onMoveNotes !== undefined) {
+    if (onExecuteOrganizationCommand !== undefined) {
+      result = normalizeBatchResult(
+        await onExecuteOrganizationCommand(
+          organizationCommandIds.moveNotes,
+          createNoteCommandRequest(
+            notesToMove.map((note) => note.id),
+            notebookId,
+          ),
+          source,
+        ),
+        notesToMove,
+      );
+    } else if (onMoveNotes !== undefined) {
       result = normalizeBatchResult(
         await onMoveNotes(notesToMove, notebookId),
         notesToMove,
@@ -290,12 +351,19 @@ export function NotesPanel({
   };
 
   const togglePinned = async (note: NoteDocument): Promise<void> => {
-    if (onSetPinned === undefined) {
-      return;
-    }
-
     try {
-      await onSetPinned(note, !note.pinned);
+      if (onExecuteOrganizationCommand !== undefined) {
+        await onExecuteOrganizationCommand(
+          organizationCommandIds.toggleNotePinned,
+          createNoteCommandRequest([note.id]),
+          'context-menu',
+        );
+      } else if (onSetPinned !== undefined) {
+        await onSetPinned(note, !note.pinned);
+      } else {
+        return;
+      }
+
       setActionError(null);
     } catch {
       setActionError('The note pin could not be updated.');
@@ -303,11 +371,18 @@ export function NotesPanel({
   };
 
   const permanentlyDeleteNotes = async (): Promise<void> => {
-    if (onDeletePermanently === undefined) {
+    if (onExecuteOrganizationCommand !== undefined) {
+      await onExecuteOrganizationCommand(
+        organizationCommandIds.deleteNotesPermanently,
+        createNoteCommandRequest(selection.map((note) => note.id)),
+        'menu',
+      );
+    } else if (onDeletePermanently !== undefined) {
+      await onDeletePermanently(selection);
+    } else {
       return;
     }
 
-    await onDeletePermanently(selection);
     setSelectedNoteIds([]);
     setContextNoteId(null);
     setPermanentDeleteConfirmationOpen(false);
@@ -336,7 +411,7 @@ export function NotesPanel({
 
       if (deletesSelection && !isTrash) {
         event.preventDefault();
-        void archiveNotes(selection);
+        void archiveNotes(selection, 'keymap');
         return;
       }
 
@@ -347,7 +422,7 @@ export function NotesPanel({
         !isTrash
       ) {
         event.preventDefault();
-        void duplicateNote(selection[0]);
+        void duplicateNote(selection[0], 'keymap');
       }
     };
 
@@ -383,7 +458,11 @@ export function NotesPanel({
           <button
             type="button"
             onClick={() =>
-              setMoveRequest({ notes: selection, mode: 'restore' })
+              setMoveRequest({
+                notes: selection,
+                mode: 'restore',
+                source: 'menu',
+              })
             }
           >
             Move {selection.length} {noteLabel} to notebook
@@ -411,7 +490,9 @@ export function NotesPanel({
         </button>
         <button
           type="button"
-          onClick={() => setMoveRequest({ notes: selection, mode: 'move' })}
+          onClick={() =>
+            setMoveRequest({ notes: selection, mode: 'move', source: 'menu' })
+          }
         >
           Move {selection.length} {noteLabel} to notebook
         </button>
@@ -469,18 +550,25 @@ export function NotesPanel({
                     const note = scopedNotesById.get(noteId as NoteId);
 
                     if (note !== undefined) {
-                      void archiveNotes([note]);
+                      void archiveNotes([note], 'menu');
                     }
                   }
             }
             onMoveNote={
-              isTrash || (onMoveNote === undefined && onMoveNotes === undefined)
+              isTrash ||
+              (onExecuteOrganizationCommand === undefined &&
+                onMoveNote === undefined &&
+                onMoveNotes === undefined)
                 ? undefined
                 : (noteId) => {
                     const note = scopedNotesById.get(noteId as NoteId);
 
                     if (note !== undefined) {
-                      setMoveRequest({ notes: [note], mode: 'move' });
+                      setMoveRequest({
+                        notes: [note],
+                        mode: 'move',
+                        source: 'keymap',
+                      });
                     }
                   }
             }
@@ -520,7 +608,11 @@ export function NotesPanel({
                   type="button"
                   role="menuitem"
                   onClick={() => {
-                    setMoveRequest({ notes: [contextNote], mode: 'restore' });
+                    setMoveRequest({
+                      notes: [contextNote],
+                      mode: 'restore',
+                      source: 'context-menu',
+                    });
                     closeContextMenu();
                   }}
                 >
@@ -545,7 +637,7 @@ export function NotesPanel({
                   role="menuitem"
                   onClick={() => {
                     closeContextMenu();
-                    void duplicateNote(contextNote);
+                    void duplicateNote(contextNote, 'context-menu');
                   }}
                 >
                   Duplicate
@@ -554,13 +646,18 @@ export function NotesPanel({
                   type="button"
                   role="menuitem"
                   onClick={() => {
-                    setMoveRequest({ notes: [contextNote], mode: 'move' });
+                    setMoveRequest({
+                      notes: [contextNote],
+                      mode: 'move',
+                      source: 'context-menu',
+                    });
                     closeContextMenu();
                   }}
                 >
                   Move to notebook
                 </button>
-                {onSetPinned === undefined ? null : (
+                {onSetPinned === undefined &&
+                onExecuteOrganizationCommand === undefined ? null : (
                   <button
                     type="button"
                     role="menuitem"
@@ -577,7 +674,7 @@ export function NotesPanel({
                   role="menuitem"
                   onClick={() => {
                     closeContextMenu();
-                    void archiveNotes([contextNote]);
+                    void archiveNotes([contextNote], 'context-menu');
                   }}
                 >
                   Move to Trash
@@ -595,10 +692,10 @@ export function NotesPanel({
           allowCurrentDestination={moveRequest.mode === 'restore'}
           onMove={(notesToMove, notebookId) => {
             if (moveRequest.mode === 'restore') {
-              return restoreNotes(notesToMove, notebookId);
+              return restoreNotes(notesToMove, notebookId, moveRequest.source);
             }
 
-            return moveNotes(notesToMove, notebookId);
+            return moveNotes(notesToMove, notebookId, moveRequest.source);
           }}
           onClose={() => setMoveRequest(null)}
         />

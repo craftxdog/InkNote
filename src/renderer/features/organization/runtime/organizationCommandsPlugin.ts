@@ -20,7 +20,7 @@ type OrganizationCommandsPluginOptions = Readonly<{
   onCommand(
     command: OrganizationCommand,
     invocation: CommandInvocation,
-  ): void | Promise<void>;
+  ): unknown | Promise<unknown>;
 }>;
 
 const organizationCommandsPluginId = createPluginId('organization-commands');

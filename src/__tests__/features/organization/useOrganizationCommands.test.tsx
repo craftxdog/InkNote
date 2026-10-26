@@ -161,4 +161,32 @@ describe('useOrganizationCommands', () => {
     ).resolves.toBe(false);
     expect(onCommand).not.toHaveBeenCalled();
   });
+
+  it('returns a command result to a UI action without bypassing the runtime', async () => {
+    const onReady = jest.fn();
+    const batchResult = Object.freeze({
+      completedNoteIds: ['note-1'],
+      remainingNoteIds: ['note-2'],
+      error: new Error('revision conflict'),
+    });
+    const onCommand = jest.fn().mockResolvedValue(batchResult);
+
+    render(
+      <OrganizationCommandHarness onCommand={onCommand} onReady={onReady} />,
+    );
+
+    await waitFor(() => expect(onReady).toHaveBeenCalled());
+    const commands = onReady.mock.calls.at(-1)?.[0] as OrganizationCommands;
+    const result = await commands.dispatchOrganizationCommandWithResult(
+      organizationCommandIds.moveNotes,
+      'menu',
+      { noteIds: ['note-1', 'note-2'], destinationNotebookId: 'work' },
+    );
+
+    expect(result).toEqual({ dispatched: true, value: batchResult });
+    expect(onCommand).toHaveBeenCalledWith(organizationCommandIds.moveNotes, {
+      source: 'menu',
+      detail: { noteIds: ['note-1', 'note-2'], destinationNotebookId: 'work' },
+    });
+  });
 });

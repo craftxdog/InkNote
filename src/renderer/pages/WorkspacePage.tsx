@@ -17,7 +17,11 @@ import {
   resolveNavigateForward,
   type NoteNavigationHistory,
 } from '../features/organization/model/noteNavigationHistory';
-import { organizationCommandIds } from '../features/organization/model/organizationCommands';
+import { readNoteCommandRequest } from '../features/organization/model/noteCommandRequest';
+import {
+  organizationCommandIds,
+  type OrganizationCommand,
+} from '../features/organization/model/organizationCommands';
 import { resolveNoteDestinationNotebookId } from '../features/notes/model/noteDestinationPolicy';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
 import { useWorkspaceViewCommands } from '../features/workspace/hooks/useWorkspaceViewCommands';
@@ -25,7 +29,10 @@ import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { useDocumentWorkspace } from '../platform/documents/useDocumentWorkspace';
 import { useWorkspaceThemes } from '../platform/themes/useWorkspaceThemes';
 import type { WorkspaceViewMode } from '../types/workspace';
-import type { NoteId } from '../../shared/documents/document.types';
+import type {
+  NoteDocument,
+  NoteId,
+} from '../../shared/documents/document.types';
 import type { KeymapTarget } from '../platform/keymaps/keymap.types';
 
 type PreviewDrafts = ReadonlyMap<NoteId, string>;
@@ -62,7 +69,6 @@ export function WorkspacePage() {
   const shouldShowTrafficLights = isNavigationVisible && !isWorkspaceExpanded;
   const selectedDocument = documentWorkspace.session.document;
   const isTrashSelected = navigationSelection.view.type === 'trash';
-  const currentNotebookId = notebookIdForSelection(navigationSelection);
   const previewBody =
     selectedDocument === null
       ? undefined
@@ -88,10 +94,9 @@ export function WorkspacePage() {
 
   const navigateNoteHistory = useCallback(
     async (direction: 'back' | 'forward'): Promise<void> => {
-      const availableNoteIds = new Set<NoteId>([
-        ...documentWorkspace.documents.map((document) => document.id),
-        ...documentWorkspace.archivedDocuments.map((document) => document.id),
-      ]);
+      const availableNoteIds = new Set<NoteId>(
+        documentWorkspace.documents.map((document) => document.id),
+      );
       const resolution =
         direction === 'back'
           ? resolveNavigateBack(noteHistoryRef.current, availableNoteIds)
@@ -215,18 +220,155 @@ export function WorkspacePage() {
     ],
     [],
   );
-  const { dispatchOrganizationCommand } = useOrganizationCommands({
-    onCommand: async (command) => {
-      if (command === organizationCommandIds.createNote) {
-        await createNote();
-      } else if (command === organizationCommandIds.goBack) {
-        await navigateNoteHistory('back');
-      } else if (command === organizationCommandIds.goForward) {
-        await navigateNoteHistory('forward');
+  const { dispatchOrganizationCommand, dispatchOrganizationCommandWithResult } =
+    useOrganizationCommands({
+      onCommand: async (command, invocation) => {
+        if (command === organizationCommandIds.createNote) {
+          return createNote();
+        }
+        if (command === organizationCommandIds.goBack) {
+          return navigateNoteHistory('back');
+        }
+        if (command === organizationCommandIds.goForward) {
+          return navigateNoteHistory('forward');
+        }
+
+        const request = readNoteCommandRequest(invocation.detail);
+
+        if (request === null) {
+          return undefined;
+        }
+
+        if (command === organizationCommandIds.archiveNotes) {
+          const notes = resolveRequestedNotes(
+            documentWorkspace.documents,
+            request.noteIds,
+          );
+
+          return notes === null
+            ? failedBatchResult(request.noteIds)
+            : documentWorkspace.archiveMany(notes);
+        }
+
+        if (command === organizationCommandIds.moveNotes) {
+          const notes = resolveRequestedNotes(
+            documentWorkspace.documents,
+            request.noteIds,
+          );
+
+          return notes === null ||
+            !isKnownNotebook(
+              request.destinationNotebookId,
+              documentWorkspace.notebooks,
+            )
+            ? failedBatchResult(request.noteIds)
+            : documentWorkspace.moveMany(notes, request.destinationNotebookId);
+        }
+
+        if (command === organizationCommandIds.restoreNotes) {
+          const notes = resolveRequestedNotes(
+            documentWorkspace.archivedDocuments,
+            request.noteIds,
+          );
+
+          if (
+            notes === null ||
+            !isKnownNotebook(
+              request.destinationNotebookId,
+              documentWorkspace.notebooks,
+            )
+          ) {
+            return failedBatchResult(request.noteIds);
+          }
+
+          const result = await documentWorkspace.restoreMany(
+            notes,
+            request.destinationNotebookId,
+          );
+          let nextHistory = noteHistoryRef.current;
+
+          for (const noteId of result.completedNoteIds) {
+            nextHistory = recordNoteNavigation(nextHistory, noteId);
+          }
+
+          setCurrentNoteHistory(nextHistory);
+          return result;
+        }
+
+        if (command === organizationCommandIds.deleteNotesPermanently) {
+          const notes = resolveRequestedNotes(
+            documentWorkspace.archivedDocuments,
+            request.noteIds,
+          );
+
+          if (notes !== null) {
+            await documentWorkspace.deletePermanently(notes);
+          }
+          return undefined;
+        }
+
+        if (command === organizationCommandIds.duplicateNote) {
+          const [note] =
+            resolveRequestedNotes(
+              documentWorkspace.documents,
+              request.noteIds,
+            ) ?? [];
+
+          if (note === undefined || request.noteIds.length !== 1) {
+            return undefined;
+          }
+
+          const duplicate = await documentWorkspace.duplicate(
+            note,
+            resolveNoteDestinationNotebookId({
+              selection: navigationSelection,
+              defaultNotebookId: defaultNotebookPreference.defaultNotebookId,
+            }),
+          );
+          setCurrentNoteHistory(
+            recordNoteNavigation(noteHistoryRef.current, duplicate.id),
+          );
+          return duplicate;
+        }
+
+        if (command === organizationCommandIds.toggleNotePinned) {
+          const [note] =
+            resolveRequestedNotes(
+              documentWorkspace.documents,
+              request.noteIds,
+            ) ?? [];
+
+          if (note === undefined || request.noteIds.length !== 1) {
+            return undefined;
+          }
+
+          return documentWorkspace.setPinned(note, !note.pinned);
+        }
+
+        return undefined;
+      },
+      getKeymapTargets: getOrganizationKeymapTargets,
+    });
+  const executeNoteCommand = useCallback(
+    async (
+      command: OrganizationCommand,
+      request: unknown,
+      source: 'api' | 'keymap' | 'menu' | 'context-menu',
+    ): Promise<unknown> => {
+      const outcome = await dispatchOrganizationCommandWithResult(
+        command,
+        source,
+        request,
+      );
+
+      if (!outcome.dispatched) {
+        throw new Error('The requested note command is unavailable.');
       }
+
+      return outcome.value;
     },
-    getKeymapTargets: getOrganizationKeymapTargets,
-  });
+    [dispatchOrganizationCommandWithResult],
+  );
   const dispatchCreateNote = useCallback((): void => {
     void dispatchOrganizationCommand(
       organizationCommandIds.createNote,
@@ -252,6 +394,17 @@ export function WorkspacePage() {
       return selectionForTags(tagIds, notebookId);
     });
   }, []);
+
+  const deleteNotebook = useCallback(
+    async (notebookId: string): Promise<void> => {
+      await documentWorkspace.deleteNotebook(notebookId);
+
+      if (notebookId === defaultNotebookPreference.defaultNotebookId) {
+        await defaultNotebookPreference.setDefaultNotebook('inbox');
+      }
+    },
+    [defaultNotebookPreference, documentWorkspace],
+  );
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent): void => {
@@ -332,7 +485,7 @@ export function WorkspacePage() {
           selection={navigationSelection}
           onSelectionChange={setNavigationSelection}
           onCreateNotebook={documentWorkspace.createNotebook}
-          onDeleteNotebook={documentWorkspace.deleteNotebook}
+          onDeleteNotebook={deleteNotebook}
         />
       }
       notes={
@@ -352,18 +505,7 @@ export function WorkspacePage() {
           onSelectNote={(id) => {
             void openNote(id).catch(() => undefined);
           }}
-          onArchiveNotes={documentWorkspace.archiveMany}
-          onMoveNote={documentWorkspace.move}
-          onMoveNotes={documentWorkspace.moveMany}
-          onRestoreNotes={documentWorkspace.restoreMany}
-          onDeletePermanently={documentWorkspace.deletePermanently}
-          onSetPinned={documentWorkspace.setPinned}
-          onDuplicateNote={(document) =>
-            documentWorkspace.duplicate(
-              document,
-              currentNotebookId ?? document.notebookId,
-            )
-          }
+          onExecuteOrganizationCommand={executeNoteCommand}
           onFilterByTag={filterByTag}
         />
       }
@@ -425,25 +567,33 @@ const isEditableKeyTarget = (target: EventTarget | null): boolean =>
     'input, textarea, select, [contenteditable="true"], .cm-editor',
   ) !== null;
 
-const notebookIdForSelection = (
-  selection: NavigationSelection,
-): string | null => {
-  switch (selection.view.type) {
-    case 'inbox':
-      return 'inbox';
-    case 'notebook':
-      return selection.view.notebookId;
-    case 'project':
-      return selection.view.projectId;
-    case 'status':
-    case 'tag':
-      return selection.view.notebookId ?? null;
-    case 'all-notes':
-    case 'templates':
-    case 'trash':
-      return null;
-  }
+const resolveRequestedNotes = (
+  documents: readonly NoteDocument[],
+  noteIds: readonly NoteId[],
+): readonly NoteDocument[] | null => {
+  const documentsById = new Map(
+    documents.map((document) => [document.id, document]),
+  );
+  const requested = noteIds.map((noteId) => documentsById.get(noteId));
+
+  return requested.some((document) => document === undefined)
+    ? null
+    : (requested as readonly NoteDocument[]);
 };
+
+const isKnownNotebook = (
+  notebookId: string | undefined,
+  notebooks: readonly { id: string }[],
+): notebookId is string =>
+  notebookId !== undefined &&
+  notebooks.some((notebook) => notebook.id === notebookId);
+
+const failedBatchResult = (noteIds: readonly NoteId[]) =>
+  Object.freeze({
+    completedNoteIds: Object.freeze([]),
+    remainingNoteIds: Object.freeze([...noteIds]),
+    error: new Error('The selected notes are no longer available.'),
+  });
 
 const notebookIdForTagFilter = (
   selection: NavigationSelection,

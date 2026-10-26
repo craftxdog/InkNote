@@ -3,6 +3,7 @@ import {
   toNoteSummary,
   NotesPanel,
 } from '../../../renderer/features/notes/components/NotesPanel';
+import { organizationCommandIds } from '../../../renderer/features/organization/model/organizationCommands';
 import '@testing-library/jest-dom';
 import {
   act,
@@ -533,6 +534,39 @@ describe('NotesPanel note lifecycle actions', () => {
 
     await waitFor(() =>
       expect(onDuplicateNote).toHaveBeenCalledWith(documents[0]),
+    );
+  });
+
+  it('routes list lifecycle actions through an organization command request', async () => {
+    const onExecuteOrganizationCommand = jest.fn().mockResolvedValue({
+      completedNoteIds: [documents[0].id],
+      remainingNoteIds: [],
+      error: null,
+    });
+
+    render(
+      <NotesPanel
+        navigationSelection={allNotesSelection}
+        documents={documents}
+        notebooks={notebooks}
+        selectedNoteId={documents[0].id}
+        isLoading={false}
+        error={null}
+        onSelectNote={jest.fn()}
+        onExecuteOrganizationCommand={onExecuteOrganizationCommand}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move 1 note to Trash' }),
+    );
+
+    await waitFor(() =>
+      expect(onExecuteOrganizationCommand).toHaveBeenCalledWith(
+        organizationCommandIds.archiveNotes,
+        { noteIds: [documents[0].id] },
+        'menu',
+      ),
     );
   });
 

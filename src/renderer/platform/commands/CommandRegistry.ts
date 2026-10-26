@@ -4,6 +4,7 @@ import {
   createCommandInvocation,
   isCommandId,
   type CommandHandler,
+  type CommandDispatchResult,
   type CommandId,
   type CommandInvocation,
 } from './command.types';
@@ -68,16 +69,27 @@ export class CommandRegistry {
     command: string,
     invocation: CommandInvocation = { source: 'api' },
   ): Promise<boolean> {
+    const result = await this.dispatchWithResult(command, invocation);
+
+    return result.dispatched;
+  }
+
+  async dispatchWithResult(
+    command: string,
+    invocation: CommandInvocation = { source: 'api' },
+  ): Promise<CommandDispatchResult> {
     const commandId = createCommandId(command);
     const registration = this.commands.get(commandId);
 
     if (registration === undefined) {
-      return false;
+      return Object.freeze({ dispatched: false, value: undefined });
     }
 
-    await registration.handler(createCommandInvocation(invocation));
+    const value = await registration.handler(
+      createCommandInvocation(invocation),
+    );
 
-    return true;
+    return Object.freeze({ dispatched: true, value });
   }
 
   has(command: string): boolean {
