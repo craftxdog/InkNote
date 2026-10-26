@@ -116,14 +116,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] Existing databases pending this migration receive one online SQLite snapshot before migration; fresh empty databases do not create a needless user-data safety copy.
-- [ ] An incomplete retry reuses only a validated snapshot for the same source version; invalid manifests/snapshots are rejected.
-- [ ] A snapshot write failure leaves the source database unchanged and returns an actionable main-process error.
+- [x] Existing databases pending this migration receive one online SQLite snapshot before migration; fresh empty databases do not create a needless user-data safety copy.
+- [x] An incomplete retry reuses only a validated snapshot for the same source version; invalid manifests/snapshots are rejected.
+- [x] A snapshot write failure leaves the source database unchanged and returns an actionable main-process error.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/main/data/OrganizationMigrationSafetyService.test.ts
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/main/data/OrganizationMigrationSafetyService.test.ts
+- [x] npm run typecheck
 
 **Dependencies:** Task 3.
 
