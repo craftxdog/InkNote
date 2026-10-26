@@ -15,6 +15,7 @@ import type {
   WorkspaceThemeId,
   WorkspaceViewMode,
 } from '../types/workspace';
+import type { WorkspaceViewCommand } from '../features/workspace/model/viewCommands';
 
 type WorkspaceLayoutProps = {
   navigationSelection: NavigationSelection;
@@ -37,7 +38,7 @@ type WorkspaceLayoutProps = {
 
   isPreferencesOpen: boolean;
 
-  onViewModeChange: (mode: WorkspaceViewMode) => void;
+  onViewCommand: (command: WorkspaceViewCommand) => void;
 
   onThemeChange: (theme: WorkspaceThemeId) => void;
 
@@ -81,7 +82,7 @@ export function WorkspaceLayout({
   isThemeCatalogLoading,
   themeError,
   isPreferencesOpen,
-  onViewModeChange,
+  onViewCommand,
   onThemeChange,
   onInstallTheme,
   onRemoveTheme,
@@ -125,7 +126,7 @@ export function WorkspaceLayout({
         isNavigationVisible={isNavigationVisible}
         isWorkspaceExpanded={isWorkspaceExpanded}
         viewMode={viewMode}
-        onViewModeChange={onViewModeChange}
+        onViewCommand={onViewCommand}
         onCreateNote={onCreateNote}
         onOpenPreferences={onOpenPreferences}
         onToggleNavigation={onToggleNavigation}

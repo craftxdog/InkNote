@@ -7,6 +7,7 @@ import type { NavigationSelection } from '../features/navigation/model/navigatio
 import { selectionForTags } from '../features/navigation/model/navigation.selections';
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
+import { useWorkspaceViewCommands } from '../features/workspace/hooks/useWorkspaceViewCommands';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { useDocumentWorkspace } from '../platform/documents/useDocumentWorkspace';
 import { useWorkspaceThemes } from '../platform/themes/useWorkspaceThemes';
@@ -35,6 +36,9 @@ export function WorkspacePage() {
   );
   const [scrollSyncTarget, setScrollSyncTarget] =
     useState<ScrollSyncTarget | null>(null);
+  const { dispatchViewCommand } = useWorkspaceViewCommands({
+    setViewMode,
+  });
 
   const shouldShowTrafficLights = isNavigationVisible && !isWorkspaceExpanded;
   const selectedDocument = documentWorkspace.session.document;
@@ -145,20 +149,6 @@ export function WorkspacePage() {
         return;
       }
 
-      if (key === 'e' && !event.shiftKey) {
-        event.preventDefault();
-        setViewMode((current) =>
-          current === 'preview' ? 'editor' : 'preview',
-        );
-        return;
-      }
-
-      if (key === 'p' && !event.shiftKey) {
-        event.preventDefault();
-        setViewMode('split');
-        return;
-      }
-
       if (key === '/' && !event.shiftKey) {
         event.preventDefault();
         setIsNavigationVisible((current) => !current);
@@ -196,7 +186,9 @@ export function WorkspacePage() {
       isThemeCatalogLoading={workspaceThemes.isCatalogLoading}
       themeError={workspaceThemes.error}
       isPreferencesOpen={isPreferencesOpen}
-      onViewModeChange={setViewMode}
+      onViewCommand={(command) => {
+        void dispatchViewCommand(command, 'menu');
+      }}
       onThemeChange={workspaceThemes.selectTheme}
       onInstallTheme={workspaceThemes.installTheme}
       onRemoveTheme={workspaceThemes.removeTheme}
@@ -275,6 +267,8 @@ export function WorkspacePage() {
       preview={
         <PreviewPanel
           document={selectedDocument}
+          notebooks={documentWorkspace.notebooks}
+          isPreviewOnly={viewMode === 'preview'}
           referenceDocuments={documentWorkspace.documents}
           body={previewBody}
           isLoading={documentWorkspace.session.isLoading}

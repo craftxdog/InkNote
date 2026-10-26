@@ -1,5 +1,11 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import App from '../renderer/App';
 import {
   createNoteId,
@@ -125,7 +131,7 @@ describe('App', () => {
     expect(screen.getByLabelText('Markdown editor')).toBeInTheDocument();
   });
 
-  it('switches workspace layouts with the documented shortcuts', () => {
+  it('switches workspace layouts with the documented shortcuts', async () => {
     const { container } = render(<App />);
 
     expect(
@@ -137,16 +143,19 @@ describe('App', () => {
       screen.getByRole('button', { name: 'Show navigation sidebar' }),
     ).toBeInTheDocument();
 
-    fireEvent.keyDown(window, { key: 'p', ctrlKey: true });
-    expect(screen.getByRole('button', { name: 'Split view' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: 'p', ctrlKey: true });
+      expect(
+        screen.getByRole('button', { name: 'Split view' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
 
-    fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
-    expect(
-      screen.getByRole('button', { name: 'Preview only' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
+      expect(
+        screen.getByRole('button', { name: 'Preview only' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
 
     fireEvent.keyDown(window, { key: 'd', ctrlKey: true, shiftKey: true });
     expect(container.querySelector('.workspace-shell')).toHaveClass(
@@ -157,22 +166,41 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps workspace shortcuts available while the Markdown editor has focus', () => {
+  it('keeps workspace shortcuts available while the Markdown editor has focus', async () => {
     render(<App />);
     const editor = document.createElement('div');
     editor.className = 'cm-editor';
     document.body.append(editor);
 
-    fireEvent.keyDown(editor, {
-      key: 'e',
-      ctrlKey: true,
+    await waitFor(() => {
+      fireEvent.keyDown(editor, {
+        key: 'e',
+        ctrlKey: true,
+      });
+      expect(
+        screen.getByRole('button', { name: 'Preview only' }),
+      ).toHaveAttribute('aria-pressed', 'true');
     });
 
     editor.remove();
+  });
 
-    expect(
-      screen.getByRole('button', { name: 'Preview only' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+  it('uses view commands for the view selector buttons', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Preview only' }));
+      expect(
+        screen.getByRole('button', { name: 'Preview only' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Split view' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Split view' }),
+      ).toHaveAttribute('aria-pressed', 'true'),
+    );
   });
 
   it('opens preferences and applies the selected theme', () => {
@@ -419,5 +447,75 @@ describe('App', () => {
     expect(
       screen.getByLabelText('Rendered Markdown preview'),
     ).toHaveTextContent('# Updated immediately');
+  });
+
+  it('keeps note identity visible only in preview-only mode', async () => {
+    const document = Object.freeze({
+      id: createNoteId('note-preview-identity'),
+      title: 'Preview design',
+      body: '# Document body',
+      notebookId: 'engineering',
+      status: 'on-hold' as const,
+      tags: ['api', 'design'],
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:00:00.000Z',
+      revision: createRevision('preview-identity-1'),
+      deletedAt: null,
+    });
+    const notebook = Object.freeze({
+      id: 'engineering',
+      name: 'Engineering',
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:00:00.000Z',
+    });
+
+    Object.defineProperty(window, 'inknote', {
+      configurable: true,
+      value: {
+        windowControls: { setTrafficLightsVisible },
+        documents: {
+          get: jest.fn().mockResolvedValue({ ok: true, value: document }),
+          apply: jest.fn(),
+          listActive: jest.fn().mockResolvedValue({
+            ok: true,
+            value: [document],
+          }),
+          listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listNotebooks: jest.fn().mockResolvedValue({
+            ok: true,
+            value: [notebook],
+          }),
+          createNotebook: jest.fn(),
+        },
+      },
+    });
+
+    const { container } = render(<App />);
+    await screen.findByRole('textbox', { name: 'Markdown editor' });
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Preview only' }));
+      expect(container.querySelector('.workspace-shell')).toHaveAttribute(
+        'data-view-mode',
+        'preview',
+      );
+    });
+
+    const identity = screen.getByLabelText('Preview note details');
+    expect(
+      within(identity).getByRole('heading', { name: 'Preview design' }),
+    ).toBeInTheDocument();
+    expect(within(identity).getByText('Engineering')).toBeInTheDocument();
+    expect(within(identity).getByText('On Hold')).toBeInTheDocument();
+    const tags = within(identity).getByLabelText('Tags');
+    expect(within(tags).getByText('api')).toBeInTheDocument();
+    expect(within(tags).getByText('design')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Split view' }));
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText('Preview note details'),
+      ).not.toBeInTheDocument(),
+    );
   });
 });

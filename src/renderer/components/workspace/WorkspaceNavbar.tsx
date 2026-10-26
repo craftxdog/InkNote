@@ -15,6 +15,10 @@ import {
 import type { WorkspaceViewMode } from '../../types/workspace';
 import { NavigationContextIcon } from '../../features/navigation/components/NavigationContextIcon';
 import type { NavigationSelection } from '../../features/navigation/model/navigation.types';
+import {
+  workspaceViewCommandIds,
+  type WorkspaceViewCommand,
+} from '../../features/workspace/model/viewCommands';
 
 type WorkspaceNavbarProps = {
   isNavigationVisible: boolean;
@@ -23,7 +27,7 @@ type WorkspaceNavbarProps = {
 
   viewMode: WorkspaceViewMode;
 
-  onViewModeChange: (mode: WorkspaceViewMode) => void;
+  onViewCommand: (command: WorkspaceViewCommand) => void;
 
   onCreateNote: () => void;
 
@@ -38,7 +42,7 @@ export const WorkspaceNavbar = ({
   isWorkspaceExpanded,
   navigationSelection,
   viewMode,
-  onViewModeChange,
+  onViewCommand,
   onCreateNote,
   onOpenPreferences,
   onToggleNavigation,
@@ -160,7 +164,7 @@ export const WorkspaceNavbar = ({
             ]
               .filter(Boolean)
               .join(' ')}
-            onClick={() => onViewModeChange('editor')}
+            onClick={() => onViewCommand(workspaceViewCommandIds.showEditor)}
             aria-label="Editor only"
             aria-pressed={viewMode === 'editor'}
             title="Editor only"
@@ -176,10 +180,12 @@ export const WorkspaceNavbar = ({
             ]
               .filter(Boolean)
               .join(' ')}
-            onClick={() => onViewModeChange('split')}
+            onClick={() =>
+              onViewCommand(workspaceViewCommandIds.showSideBySide)
+            }
             aria-label="Split view"
             aria-pressed={viewMode === 'split'}
-            title="Split view (⌘/Ctrl+P)"
+            title="Split view (⌘/Ctrl+P or ⌘/Ctrl+Shift+P)"
           >
             <SplitViewIcon />
           </button>
@@ -192,7 +198,7 @@ export const WorkspaceNavbar = ({
             ]
               .filter(Boolean)
               .join(' ')}
-            onClick={() => onViewModeChange('preview')}
+            onClick={() => onViewCommand(workspaceViewCommandIds.showPreview)}
             aria-label="Preview only"
             aria-pressed={viewMode === 'preview'}
             title="Preview only (⌘/Ctrl+E)"
