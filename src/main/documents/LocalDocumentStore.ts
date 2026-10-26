@@ -210,7 +210,7 @@ export class LocalDocumentStore
         `SELECT *
          FROM notes
          WHERE deleted_at IS NULL
-         ORDER BY updated_at DESC, id ASC`,
+         ORDER BY pinned DESC, updated_at DESC, id ASC`,
       )
       .all();
 

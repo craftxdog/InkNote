@@ -276,6 +276,40 @@ describe('LocalDocumentStore', () => {
     ]);
   });
 
+  it('lists pinned active notes before newer unpinned notes', async () => {
+    const pinnedNoteId = createNoteId('pinned-note');
+    const pinned = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-pinned'),
+        documentId: pinnedNoteId,
+        occurredAt: '2026-10-21T12:00:00.000Z',
+      }),
+    );
+    const newerUnpinned = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-newer'),
+        documentId: createNoteId('newer-note'),
+        occurredAt: '2026-10-21T12:02:00.000Z',
+      }),
+    );
+
+    await store.apply(
+      createUpdatePinnedMutation({
+        id: createMutationId('mutation-pin-older'),
+        documentId: pinned.id,
+        baseRevision: pinned.revision,
+        source: 'command',
+        pinned: true,
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+
+    await expect(store.listActive()).resolves.toEqual([
+      expect.objectContaining({ id: pinnedNoteId, pinned: true }),
+      expect.objectContaining({ id: newerUnpinned.id, pinned: false }),
+    ]);
+  });
+
   it('restores an archived note into the selected notebook and permanently removes only archived notes', async () => {
     const created = await store.apply(
       createNoteMutation({ tags: ['work', 'reference'] }),

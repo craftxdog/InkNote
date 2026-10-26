@@ -18,6 +18,7 @@ import {
   createMutationId,
   createRestoreMutation,
   createUpdateOrganizationMutation,
+  createUpdatePinnedMutation,
   type DocumentMutation,
   type Notebook,
   type NotebookIconName,
@@ -30,6 +31,10 @@ import {
   type DocumentSessionSnapshot,
 } from './DocumentSession';
 import { IpcDocumentRepository } from './IpcDocumentRepository';
+import {
+  runNoteBatchOperation,
+  type NoteBatchOperationResult,
+} from './noteBatchOperation';
 
 export type DocumentWorkspaceState = Readonly<{
   documents: readonly NoteDocument[];
@@ -60,13 +65,18 @@ export type DocumentWorkspaceActions = Readonly<{
   ): Promise<Notebook>;
   deleteNotebook(notebookId: string): Promise<void>;
   move(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
+  moveMany(
+    documents: readonly NoteDocument[],
+    notebookId: string,
+  ): Promise<NoteBatchOperationResult>;
+  setPinned(document: NoteDocument, pinned: boolean): Promise<NoteDocument>;
   archive(document: NoteDocument): Promise<NoteDocument>;
   archiveMany(documents: readonly NoteDocument[]): Promise<void>;
   restore(document: NoteDocument, notebookId?: string): Promise<NoteDocument>;
   restoreMany(
     documents: readonly NoteDocument[],
     notebookId: string,
-  ): Promise<void>;
+  ): Promise<NoteBatchOperationResult>;
   deletePermanently(documents: readonly NoteDocument[]): Promise<void>;
   duplicate(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
 }>;
@@ -103,21 +113,14 @@ export const useDocumentWorkspace = (
     (
       setCollection: Dispatch<SetStateAction<readonly NoteDocument[]>>,
       document: NoteDocument,
+      compare: (left: NoteDocument, right: NoteDocument) => number,
     ): void => {
       setCollection((current) => {
         const withoutDocument = current.filter(
           (item) => item.id !== document.id,
         );
 
-        return Object.freeze(
-          [document, ...withoutDocument].sort((left, right) => {
-            const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt);
-
-            return byUpdatedAt === 0
-              ? left.id.localeCompare(right.id)
-              : byUpdatedAt;
-          }),
-        );
+        return Object.freeze([document, ...withoutDocument].sort(compare));
       });
     },
     [],
@@ -185,12 +188,16 @@ export const useDocumentWorkspace = (
         const document = await session.apply(mutation);
 
         if (document.deletedAt === null) {
-          upsertDocument(setDocuments, document);
+          upsertDocument(setDocuments, document, compareActiveDocuments);
           setArchivedDocuments((current) =>
             Object.freeze(current.filter((item) => item.id !== document.id)),
           );
         } else {
-          upsertDocument(setArchivedDocuments, document);
+          upsertDocument(
+            setArchivedDocuments,
+            document,
+            compareArchivedDocuments,
+          );
           setDocuments((current) =>
             Object.freeze(current.filter((item) => item.id !== document.id)),
           );
@@ -308,6 +315,44 @@ export const useDocumentWorkspace = (
     [apply],
   );
 
+  const moveMany = useCallback(
+    async (
+      notes: readonly NoteDocument[],
+      notebookId: string,
+    ): Promise<NoteBatchOperationResult> => {
+      const notesById = new Map(notes.map((note) => [note.id, note]));
+
+      return runNoteBatchOperation(
+        notes.map((note) => note.id),
+        async (noteId) => {
+          const note = notesById.get(noteId);
+
+          if (note === undefined) {
+            throw new Error('The selected note is no longer available.');
+          }
+
+          await move(note, notebookId);
+        },
+      );
+    },
+    [move],
+  );
+
+  const setPinned = useCallback(
+    async (document: NoteDocument, pinned: boolean): Promise<NoteDocument> =>
+      apply(
+        createUpdatePinnedMutation({
+          id: createMutationId(createRuntimeId()),
+          documentId: document.id,
+          baseRevision: document.revision,
+          source: 'command',
+          pinned,
+          occurredAt: new Date().toISOString(),
+        }),
+      ),
+    [apply],
+  );
+
   const archive = useCallback(
     async (document: NoteDocument): Promise<NoteDocument> => {
       const archived = await apply(
@@ -371,10 +416,21 @@ export const useDocumentWorkspace = (
     async (
       notes: readonly NoteDocument[],
       notebookId: string,
-    ): Promise<void> => {
-      for (const note of notes) {
-        await restore(note, notebookId);
-      }
+    ): Promise<NoteBatchOperationResult> => {
+      const notesById = new Map(notes.map((note) => [note.id, note]));
+
+      return runNoteBatchOperation(
+        notes.map((note) => note.id),
+        async (noteId) => {
+          const note = notesById.get(noteId);
+
+          if (note === undefined) {
+            throw new Error('The selected note is no longer available.');
+          }
+
+          await restore(note, notebookId);
+        },
+      );
     },
     [restore],
   );
@@ -436,6 +492,8 @@ export const useDocumentWorkspace = (
     createNotebook,
     deleteNotebook,
     move,
+    moveMany,
+    setPinned,
     archive,
     archiveMany,
     restore,
@@ -451,4 +509,28 @@ const createRuntimeId = (): string => {
   }
 
   return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
+const compareActiveDocuments = (
+  left: NoteDocument,
+  right: NoteDocument,
+): number => {
+  if (left.pinned !== right.pinned) {
+    return left.pinned ? -1 : 1;
+  }
+
+  const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt);
+
+  return byUpdatedAt === 0 ? left.id.localeCompare(right.id) : byUpdatedAt;
+};
+
+const compareArchivedDocuments = (
+  left: NoteDocument,
+  right: NoteDocument,
+): number => {
+  const byDeletedAt = (right.deletedAt ?? '').localeCompare(
+    left.deletedAt ?? '',
+  );
+
+  return byDeletedAt === 0 ? left.id.localeCompare(right.id) : byDeletedAt;
 };
