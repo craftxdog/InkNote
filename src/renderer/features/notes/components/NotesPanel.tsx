@@ -8,6 +8,7 @@ import type {
   NoteId,
   Notebook,
 } from '../../../../shared/documents/document.types';
+import { summarizeMarkdownTaskProgress } from '../../../../shared/documents/taskProgress';
 
 import { useNotesFilter } from '../hooks/useNotesFilter';
 import type { NoteSummary } from '../model/note.types';
@@ -513,7 +514,7 @@ const isEditableTarget = (target: EventTarget | null): boolean =>
   ) !== null;
 
 export const toNoteSummary = (document: NoteDocument): NoteSummary => {
-  const taskProgress = summarizeTaskProgress(document.body);
+  const taskProgress = summarizeMarkdownTaskProgress(document.body);
 
   return {
     id: document.id,
@@ -521,10 +522,10 @@ export const toNoteSummary = (document: NoteDocument): NoteSummary => {
     excerpt: excerptFromMarkdown(document.body) || 'Empty note',
     updatedLabel: formatUpdatedAt(document.updatedAt),
     status: document.status,
-    ...(taskProgress === null
+    ...(taskProgress.total === 0
       ? {}
       : {
-          completedTasks: taskProgress.completed,
+          completedTasks: taskProgress.checked,
           totalTasks: taskProgress.total,
         }),
     tags: document.tags.map((tag) => ({
@@ -535,56 +536,7 @@ export const toNoteSummary = (document: NoteDocument): NoteSummary => {
   };
 };
 
-type TaskProgress = Readonly<{
-  completed: number;
-  total: number;
-}>;
-
-const TASK_ITEM = /^\s*[-+*]\s+\[([ xX])\]\s+/;
 const FENCED_CODE = /^\s*(`{3,}|~{3,})/;
-
-/**
- * Lightweight task parsing for the note list. It deliberately skips fenced
- * code, so examples such as `- [x]` do not pretend to be note progress.
- */
-export const summarizeTaskProgress = (
-  markdown: string,
-): TaskProgress | null => {
-  let total = 0;
-  let completed = 0;
-  let activeFence: '`' | '~' | null = null;
-
-  for (const line of markdown.split('\n')) {
-    const fence = line.match(FENCED_CODE)?.[1];
-
-    if (fence !== undefined) {
-      const fenceCharacter = fence[0] as '`' | '~';
-
-      if (activeFence === null) {
-        activeFence = fenceCharacter;
-      } else if (activeFence === fenceCharacter) {
-        activeFence = null;
-      }
-
-      continue;
-    }
-
-    if (activeFence !== null) {
-      continue;
-    }
-
-    const task = line.match(TASK_ITEM);
-
-    if (task === null) {
-      continue;
-    }
-
-    total += 1;
-    completed += task[1].toLocaleLowerCase() === 'x' ? 1 : 0;
-  }
-
-  return total === 0 ? null : { completed, total };
-};
 
 const excerptFromMarkdown = (markdown: string): string | null => {
   for (const rawLine of markdown.split('\n')) {

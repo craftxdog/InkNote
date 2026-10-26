@@ -36,14 +36,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] The helper reports total and checked Markdown tasks as non-negative immutable values and ignores fenced examples.
-- [ ] The note list renders the same task progress as before using the shared helper.
-- [ ] The store can import the helper without depending on renderer code.
+- [x] The helper reports total and checked Markdown tasks as non-negative immutable values and ignores fenced examples.
+- [x] The note list renders the same task progress as before using the shared helper.
+- [x] The store can import the helper without depending on renderer code.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/shared/documents/taskProgress.test.ts src/__tests__/features/notes/NotesPanel.test.tsx
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/shared/documents/taskProgress.test.ts src/__tests__/features/notes/NotesPanel.test.tsx
+- [x] npm run typecheck
 
 **Dependencies:** Task 1.
 
