@@ -901,6 +901,30 @@
   white-space: nowrap;
 }
 
+.navigation-notebook-detail__edit {
+  min-height: 28px;
+  align-self: flex-start;
+  padding: 4px 8px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.navigation-notebook-detail__edit:hover {
+  color: var(--color-text);
+  background: var(--inknote-navigation-hover-background);
+}
+
+.navigation-notebook-detail__edit:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -1px;
+}
+
 /* =========================================================
    13. WORKSPACE VIEW HEADER
 

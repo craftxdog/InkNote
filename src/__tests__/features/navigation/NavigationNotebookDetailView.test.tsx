@@ -101,4 +101,27 @@ describe('NavigationNotebookDetailView', () => {
     );
     expect(onOpenNotebookDetail).toHaveBeenCalledWith(projects);
   });
+
+  it('offers an edit action for non-Inbox notebooks', () => {
+    const onEditNotebook = jest.fn();
+
+    render(
+      <NavigationNotebookDetailView
+        notebook={work}
+        notebooks={[work, projects]}
+        documents={documents}
+        selection={selectionForNotebookDetail(work)}
+        expandedSections={{ work: true, status: true, tags: true }}
+        onSelectionChange={jest.fn()}
+        onToggleSection={jest.fn()}
+        onOpenNotebookDetail={jest.fn()}
+        onEditNotebook={onEditNotebook}
+        onExit={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Work notebook' }));
+
+    expect(onEditNotebook).toHaveBeenCalledWith(work);
+  });
 });

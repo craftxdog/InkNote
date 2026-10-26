@@ -17,7 +17,6 @@ import { colorForTag, tagColorHex } from '../../notes/model/notePresentation';
 import {
   createCreateNotebookCommandRequest,
   createDeleteNotebookCommandRequest,
-  createUpdateNotebookCommandRequest,
   type NotebookCommandRequest,
 } from '../../organization/model/notebookCommandRequest';
 import {
@@ -51,10 +50,6 @@ import {
 } from './NavigationIcons';
 
 import { NavigationHeader } from './NavigationSectionHeader';
-import {
-  NotebookEditorDialog,
-  type NotebookEditorValues,
-} from './NotebookEditorDialog';
 import { NavigationNotebookIcon } from './NavigationNotebookIcon';
 import { NavigationRow } from './NavigationRow';
 
@@ -72,7 +67,11 @@ type NavigationLibraryViewProps = {
     request: NotebookCommandRequest,
     source: NotebookCommandSource,
   ) => Promise<unknown>;
-  onOpenNotebookDetail: (notebook: Notebook) => Promise<void>;
+  onOpenNotebookDetail: (
+    notebook: Notebook,
+    source: NotebookCommandSource,
+  ) => Promise<void>;
+  onEditNotebook: (notebook: Notebook) => void;
 };
 
 /**
@@ -89,6 +88,7 @@ export function NavigationLibraryView({
   onToggleSection,
   onExecuteNotebookCommand,
   onOpenNotebookDetail,
+  onEditNotebook,
 }: NavigationLibraryViewProps) {
   const [notebookQuery, setNotebookQuery] = useState('');
   const [collapsedNotebookIds, setCollapsedNotebookIds] = useState<
@@ -116,7 +116,6 @@ export function NavigationLibraryView({
     NotebookIconName | undefined
   >(undefined);
   const [subnotebookError, setSubnotebookError] = useState<string | null>(null);
-  const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
 
   const isSelected = (id: string) => selection.id === id;
   const noteCountByNotebook = useMemo(
@@ -193,8 +192,11 @@ export function NavigationLibraryView({
     return result;
   };
 
-  const openNotebookDetail = (notebook: Notebook): void => {
-    void onOpenNotebookDetail(notebook).catch(() => {
+  const openNotebookDetail = (
+    notebook: Notebook,
+    source: NotebookCommandSource,
+  ): void => {
+    void onOpenNotebookDetail(notebook, source).catch(() => {
       setCreateError('The notebook detail could not be opened.');
     });
   };
@@ -437,7 +439,7 @@ export function NavigationLibraryView({
 
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  openNotebookDetail(notebook);
+                  openNotebookDetail(notebook, 'menu');
                 }
               }}
               toggle={
@@ -465,7 +467,7 @@ export function NavigationLibraryView({
               action={{
                 label: 'Detail',
                 title: `Show details for ${notebook.name}`,
-                onClick: () => openNotebookDetail(notebook),
+                onClick: () => openNotebookDetail(notebook, 'menu'),
               }}
             />
           );
@@ -628,7 +630,7 @@ export function NavigationLibraryView({
               type="button"
               role="menuitem"
               onClick={() => {
-                openNotebookDetail(contextMenu.notebook);
+                openNotebookDetail(contextMenu.notebook, 'context-menu');
                 setContextMenu(null);
               }}
             >
@@ -639,7 +641,7 @@ export function NavigationLibraryView({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  setEditingNotebook(contextMenu.notebook);
+                  onEditNotebook(contextMenu.notebook);
                   setContextMenu(null);
                 }}
               >
@@ -717,32 +719,6 @@ export function NavigationLibraryView({
             </div>
           </form>
         </div>
-      )}
-
-      {editingNotebook !== null && (
-        <NotebookEditorDialog
-          notebook={editingNotebook}
-          notebooks={notebooks}
-          onCancel={() => setEditingNotebook(null)}
-          onSave={async (values: NotebookEditorValues) => {
-            const result = await onExecuteNotebookCommand(
-              organizationCommandIds.updateNotebook,
-              createUpdateNotebookCommandRequest({
-                notebookId: editingNotebook.id,
-                ...values,
-              }),
-              'context-menu',
-            );
-
-            if (!isNotebook(result)) {
-              throw new Error(
-                'The notebook command did not update a notebook.',
-              );
-            }
-
-            onSelectionChange(selectionForNotebook(result));
-          }}
-        />
       )}
     </>
   );

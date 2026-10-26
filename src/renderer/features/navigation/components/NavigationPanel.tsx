@@ -8,6 +8,7 @@ import type {
 } from '../../../../shared/documents/document.types';
 import {
   createOpenNotebookCommandRequest,
+  createUpdateNotebookCommandRequest,
   type NotebookCommandRequest,
 } from '../../organization/model/notebookCommandRequest';
 import {
@@ -22,9 +23,20 @@ import {
 } from '../model/navigation.selections';
 
 import { NavigationLibraryView } from './NavigationLibraryView';
+import {
+  NotebookEditorDialog,
+  type NotebookEditorValues,
+} from './NotebookEditorDialog';
 import { NavigationNotebookDetailView } from './NavigationNotebookDetailView';
 
 import '../styles/navigation.css';
+
+type NotebookCommandSource = 'menu' | 'context-menu';
+
+type NotebookEditRequest = Readonly<{
+  notebook: Notebook;
+  source: NotebookCommandSource;
+}>;
 
 export type NavigationPanelProps = {
   documents: readonly NoteDocument[];
@@ -38,7 +50,7 @@ export type NavigationPanelProps = {
   onExecuteNotebookCommand: (
     command: OrganizationCommand,
     request: NotebookCommandRequest,
-    source: 'menu' | 'context-menu',
+    source: NotebookCommandSource,
   ) => Promise<unknown>;
 };
 
@@ -51,16 +63,21 @@ export function NavigationPanel({
 }: NavigationPanelProps) {
   const { expandedSections, toggleSection } = useNavigationState();
   const [detailNotebookId, setDetailNotebookId] = useState<string | null>(null);
+  const [editingNotebook, setEditingNotebook] =
+    useState<NotebookEditRequest | null>(null);
   const detailNotebook =
     detailNotebookId === null
       ? null
       : (notebooks.find((notebook) => notebook.id === detailNotebookId) ??
         null);
-  const openNotebookDetail = async (notebook: Notebook): Promise<void> => {
+  const openNotebookDetail = async (
+    notebook: Notebook,
+    source: NotebookCommandSource,
+  ): Promise<void> => {
     const result = await onExecuteNotebookCommand(
       organizationCommandIds.openNotebook,
       createOpenNotebookCommandRequest(notebook.id),
-      'menu',
+      source,
     );
 
     if (!isNotebook(result)) {
@@ -69,6 +86,32 @@ export function NavigationPanel({
 
     setDetailNotebookId(result.id);
     onSelectionChange(selectionForNotebookDetail(result));
+  };
+  const updateNotebook = async (
+    values: NotebookEditorValues,
+  ): Promise<void> => {
+    if (editingNotebook === null) {
+      throw new Error('No notebook is selected for editing.');
+    }
+
+    const result = await onExecuteNotebookCommand(
+      organizationCommandIds.updateNotebook,
+      createUpdateNotebookCommandRequest({
+        notebookId: editingNotebook.notebook.id,
+        ...values,
+      }),
+      editingNotebook.source,
+    );
+
+    if (!isNotebook(result)) {
+      throw new Error('The notebook command did not update a notebook.');
+    }
+
+    onSelectionChange(
+      detailNotebookId === result.id
+        ? selectionForNotebookDetail(result)
+        : selectionForNotebook(result),
+    );
   };
 
   return (
@@ -84,6 +127,9 @@ export function NavigationPanel({
             onToggleSection={toggleSection}
             onExecuteNotebookCommand={onExecuteNotebookCommand}
             onOpenNotebookDetail={openNotebookDetail}
+            onEditNotebook={(notebook) =>
+              setEditingNotebook({ notebook, source: 'context-menu' })
+            }
           />
         ) : (
           <NavigationNotebookDetailView
@@ -95,12 +141,25 @@ export function NavigationPanel({
             onSelectionChange={onSelectionChange}
             onToggleSection={toggleSection}
             onOpenNotebookDetail={(childNotebook) => {
-              void openNotebookDetail(childNotebook).catch(() => undefined);
+              void openNotebookDetail(childNotebook, 'menu').catch(
+                () => undefined,
+              );
             }}
+            onEditNotebook={(notebook) =>
+              setEditingNotebook({ notebook, source: 'menu' })
+            }
             onExit={() => {
               setDetailNotebookId(null);
               onSelectionChange(selectionForNotebook(detailNotebook));
             }}
+          />
+        )}
+        {editingNotebook !== null && (
+          <NotebookEditorDialog
+            notebook={editingNotebook.notebook}
+            notebooks={notebooks}
+            onCancel={() => setEditingNotebook(null)}
+            onSave={updateNotebook}
           />
         )}
       </div>

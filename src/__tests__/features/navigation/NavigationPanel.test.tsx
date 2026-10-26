@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 
 import { NavigationPanel } from '../../../renderer/features/navigation/components/NavigationPanel';
 import { navigationDestinations } from '../../../renderer/features/navigation/data/navigation.data';
@@ -111,6 +111,94 @@ describe('NavigationPanel', () => {
         id: 'notebook-work-status-active',
         view: { type: 'status', status: 'active', notebookId: 'work' },
       }),
+    );
+  });
+
+  it('routes a notebook edit from the navigation UI through the command runtime', async () => {
+    const onExecuteNotebookCommand = jest.fn().mockResolvedValue({
+      ...notebooks[1],
+      name: 'Focused work',
+    } satisfies Notebook);
+
+    render(
+      <NavigationPanel
+        documents={documents}
+        notebooks={notebooks}
+        selection={navigationDestinations.allNotes}
+        onSelectionChange={jest.fn()}
+        onExecuteNotebookCommand={onExecuteNotebookCommand}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /^Work/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit Notebook…' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Notebook name' }), {
+      target: { value: 'Focused work' },
+    });
+
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole('dialog', { name: 'Edit Work notebook' }),
+      );
+    });
+
+    expect(onExecuteNotebookCommand).toHaveBeenCalledWith(
+      organizationCommandIds.updateNotebook,
+      {
+        kind: 'update',
+        notebookId: 'work',
+        name: 'Focused work',
+        parentId: null,
+        icon: null,
+      },
+      'context-menu',
+    );
+  });
+
+  it('keeps menu provenance when editing from a notebook detail view', async () => {
+    const onExecuteNotebookCommand = jest
+      .fn()
+      .mockImplementation(async (command) =>
+        command === organizationCommandIds.openNotebook
+          ? notebooks[1]
+          : ({ ...notebooks[1], name: 'Renamed work' } satisfies Notebook),
+      );
+
+    render(
+      <NavigationPanel
+        documents={documents}
+        notebooks={notebooks}
+        selection={navigationDestinations.allNotes}
+        onSelectionChange={jest.fn()}
+        onExecuteNotebookCommand={onExecuteNotebookCommand}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show details for Work' }),
+    );
+    await screen.findByRole('button', { name: 'Edit Work notebook' });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Work notebook' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Notebook name' }), {
+      target: { value: 'Renamed work' },
+    });
+
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole('dialog', { name: 'Edit Work notebook' }),
+      );
+    });
+
+    expect(onExecuteNotebookCommand).toHaveBeenLastCalledWith(
+      organizationCommandIds.updateNotebook,
+      {
+        kind: 'update',
+        notebookId: 'work',
+        name: 'Renamed work',
+        parentId: null,
+        icon: null,
+      },
+      'menu',
     );
   });
 });
