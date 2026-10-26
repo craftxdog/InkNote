@@ -70,17 +70,17 @@ active/archived Yjs tag arrays, projections, CRDT updates, and outbox rows.
 
 **Acceptance criteria:**
 
-- [ ] Rename survives reopening the store, preserves unrelated note fields,
+- [x] Rename survives reopening the store, preserves unrelated note fields,
       and never recreates the previous name.
-- [ ] Delete removes the association from every active/archived note before
+- [x] Delete removes the association from every active/archived note before
       deleting links and the catalogue row; it never restores or purges notes.
-- [ ] A duplicate, missing tag, or injected mid-batch failure rolls back the
+- [x] A duplicate, missing tag, or injected mid-batch failure rolls back the
       catalogue, notes, update history, and outbox as one transaction.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts`
-- [ ] `npm run verify:native-sqlite`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts`
+- [x] `npm run verify:native-sqlite`
 
 **Dependencies:** Task 2.
 
@@ -93,10 +93,10 @@ active/archived Yjs tag arrays, projections, CRDT updates, and outbox rows.
 
 ## Checkpoint: durable tag boundary
 
-- [ ] Domain and SQLite tests pass.
-- [ ] A failed batch preserves an active note, archived note, catalogue row,
+- [x] Domain and SQLite tests pass.
+- [x] A failed batch preserves an active note, archived note, catalogue row,
       CRDT-update history, and outbox row.
-- [ ] No migration, dependency, public mutation loophole, or renderer database
+- [x] No migration, dependency, public mutation loophole, or renderer database
       access was introduced.
 
 ## Task 4: Add main-process tag lifecycle handlers

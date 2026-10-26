@@ -630,6 +630,173 @@ describe('LocalDocumentStore', () => {
     );
   });
 
+  it('renames and deletes a tag through active and archived Yjs documents', async () => {
+    const active = await store.apply(
+      createNoteMutation({ tags: ['active-only', 'shared'] }),
+    );
+    const archivedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-archived-shared'),
+        documentId: createNoteId('archived-shared-note'),
+        tags: ['archived-only', 'shared'],
+      }),
+    );
+    const archived = await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive-shared'),
+        documentId: archivedSource.id,
+        baseRevision: archivedSource.revision,
+        source: 'command',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    );
+    const shared = (await store.listTags()).find(
+      (tag) => tag.name === 'shared',
+    );
+
+    if (shared === undefined) {
+      throw new Error('Expected the shared tag to exist.');
+    }
+
+    const updatesBeforeRename = countRows(database, 'note_crdt_updates');
+    const outboxBeforeRename = countRows(database, 'sync_outbox');
+    const renamed = await store.updateTag({
+      id: shared.id,
+      name: 'Team Shared',
+      color: 'violet',
+      occurredAt: '2026-10-26T12:02:00.000Z',
+    });
+
+    expect(renamed).toMatchObject({
+      id: shared.id,
+      name: 'team shared',
+      color: 'violet',
+      count: 1,
+      createdAt: shared.createdAt,
+      updatedAt: '2026-10-26T12:02:00.000Z',
+    });
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only', 'team shared'],
+      deletedAt: null,
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only', 'team shared'],
+      deletedAt: archived.deletedAt,
+    });
+    expect(countRows(database, 'note_crdt_updates')).toBe(
+      updatesBeforeRename + 2,
+    );
+    expect(countRows(database, 'sync_outbox')).toBe(outboxBeforeRename + 2);
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only', 'team shared'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only', 'team shared'],
+      deletedAt: archived.deletedAt,
+    });
+
+    const deletion = await store.deleteTag({
+      id: renamed.id,
+      occurredAt: '2026-10-26T12:03:00.000Z',
+    });
+
+    expect(deletion).toEqual({
+      deletedTagId: renamed.id,
+      affectedNoteIds: [archived.id, active.id],
+    });
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only'],
+      deletedAt: archived.deletedAt,
+    });
+    await expect(store.listTags()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: renamed.id })]),
+    );
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only'],
+      deletedAt: archived.deletedAt,
+    });
+  });
+
+  it('rolls back a tag rename when one associated Yjs update fails', async () => {
+    const active = await store.apply(createNoteMutation({ tags: ['shared'] }));
+    const archivedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-rollback-archived'),
+        documentId: createNoteId('tag-rollback-archived'),
+        tags: ['shared'],
+      }),
+    );
+    const archived = await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive-rollback'),
+        documentId: archivedSource.id,
+        baseRevision: archivedSource.revision,
+        source: 'command',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    );
+    const shared = (await store.listTags()).find(
+      (tag) => tag.name === 'shared',
+    );
+
+    if (shared === undefined) {
+      throw new Error('Expected the shared tag to exist.');
+    }
+
+    const updateCount = countRows(database, 'note_crdt_updates');
+    const outboxCount = countRows(database, 'sync_outbox');
+    database.exec(`
+      CREATE TRIGGER fail_tag_rename_on_archived_note
+      BEFORE INSERT ON note_crdt_updates
+      WHEN NEW.note_id = 'tag-rollback-archived'
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated tag propagation failure');
+      END;
+    `);
+
+    await expect(
+      store.updateTag({
+        id: shared.id,
+        name: 'renamed shared',
+        color: 'teal',
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).rejects.toThrow('simulated tag propagation failure');
+
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['shared'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['shared'],
+      deletedAt: archived.deletedAt,
+    });
+    await expect(store.listTags()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: shared.id,
+          name: 'shared',
+          color: 'default',
+        }),
+      ]),
+    );
+    expect(countRows(database, 'note_crdt_updates')).toBe(updateCount);
+    expect(countRows(database, 'sync_outbox')).toBe(outboxCount);
+  });
+
   it('persists None without polluting the task-status sidebar values', async () => {
     const created = await store.apply(createNoteMutation({ status: 'active' }));
     const unset = await store.apply(

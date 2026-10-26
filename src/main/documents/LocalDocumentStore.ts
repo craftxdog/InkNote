@@ -10,7 +10,7 @@ import {
 import type {
   DocumentQueryRepository,
   NotebookRepository,
-  TagQueryRepository,
+  TagRepository,
 } from '../../shared/documents/document.query';
 import type {
   DocumentDeletionRepository,
@@ -27,12 +27,16 @@ import {
   createNoteId,
   createRevision,
   validateCreateTagInput,
+  validateDeleteTagInput,
   validateDocumentMutation,
   validateUpdateTagInput,
+  validateDeleteTagResult,
   validateUpdateNotebookInput,
   validateTagSummary,
   type CreateTagInput,
   type CreateDocumentMutation,
+  type DeleteTagInput,
+  type DeleteTagResult,
   type UpdateTagInput,
   type DocumentMutation,
   type CreateNotebookInput,
@@ -171,7 +175,7 @@ export class LocalDocumentStore
     DocumentDeletionRepository,
     DocumentQueryRepository,
     NotebookRepository,
-    TagQueryRepository
+    TagRepository
 {
   private readonly applyLocalTransaction: (
     mutation: DocumentMutation,
@@ -192,6 +196,10 @@ export class LocalDocumentStore
   private readonly createTagTransaction: (input: CreateTagInput) => TagSummary;
 
   private readonly updateTagTransaction: (input: UpdateTagInput) => TagSummary;
+
+  private readonly deleteTagTransaction: (
+    input: DeleteTagInput,
+  ) => DeleteTagResult;
 
   private readonly deletePermanentlyTransaction: (
     input: PermanentlyDeleteNotesInput,
@@ -217,6 +225,9 @@ export class LocalDocumentStore
     );
     this.updateTagTransaction = this.database.transaction((input) =>
       this.updateTagRecord(input),
+    );
+    this.deleteTagTransaction = this.database.transaction((input) =>
+      this.deleteTagRecord(input),
     );
     this.deletePermanentlyTransaction = this.database.transaction((input) =>
       this.deleteArchivedNotesPermanently(input),
@@ -300,6 +311,10 @@ export class LocalDocumentStore
 
   async updateTag(input: UpdateTagInput): Promise<TagSummary> {
     return this.updateTagTransaction(validateUpdateTagInput(input));
+  }
+
+  async deleteTag(input: DeleteTagInput): Promise<DeleteTagResult> {
+    return this.deleteTagTransaction(validateDeleteTagInput(input));
   }
 
   async createNotebook(input: CreateNotebookInput): Promise<Notebook> {
@@ -951,8 +966,8 @@ export class LocalDocumentStore
 
   private updateTagRecord(input: UpdateTagInput): TagSummary {
     const existing = this.database
-      .prepare<[string], Pick<TagSummaryRow, 'name'>>(
-        'SELECT name FROM tags WHERE id = ?',
+      .prepare<[string], Pick<TagSummaryRow, 'id' | 'name'>>(
+        'SELECT id, name FROM tags WHERE id = ?',
       )
       .get(input.id);
 
@@ -960,21 +975,139 @@ export class LocalDocumentStore
       throw createInvalidMutationError(`Tag "${input.id}" does not exist.`);
     }
 
-    if (existing.name !== input.name) {
+    if (existing.name === input.name) {
+      this.database
+        .prepare<[string, string, string]>(
+          `UPDATE tags
+           SET color = ?, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(input.color, input.occurredAt, input.id);
+
+      return this.readRequiredTagSummary(input.id);
+    }
+
+    const duplicate = this.database
+      .prepare<[string, string], Pick<TagSummaryRow, 'id'>>(
+        'SELECT id FROM tags WHERE name = ? AND id <> ?',
+      )
+      .get(input.name, input.id);
+
+    if (duplicate !== undefined) {
       throw createInvalidMutationError(
-        'A tag rename must propagate through associated note metadata.',
+        'A tag with the requested name already exists.',
       );
     }
 
     this.database
-      .prepare<[string, string, string]>(
+      .prepare<[string, string, string, string]>(
         `UPDATE tags
-         SET color = ?, updated_at = ?
+         SET name = ?, color = ?, updated_at = ?
          WHERE id = ?`,
       )
-      .run(input.color, input.occurredAt, input.id);
+      .run(input.name, input.color, input.occurredAt, input.id);
+
+    for (const note of this.listTagAssociatedNoteRows(input.id)) {
+      this.propagateTagNameToDocument({
+        note,
+        tagId: existing.id,
+        currentName: existing.name,
+        nextName: input.name,
+        operation: 'update',
+        occurredAt: input.occurredAt,
+      });
+    }
 
     return this.readRequiredTagSummary(input.id);
+  }
+
+  private deleteTagRecord(input: DeleteTagInput): DeleteTagResult {
+    const tag = this.database
+      .prepare<[string], Pick<TagSummaryRow, 'id' | 'name'>>(
+        'SELECT id, name FROM tags WHERE id = ?',
+      )
+      .get(input.id);
+
+    if (tag === undefined) {
+      throw createInvalidMutationError(`Tag "${input.id}" does not exist.`);
+    }
+
+    const notes = this.listTagAssociatedNoteRows(input.id);
+
+    for (const note of notes) {
+      this.propagateTagNameToDocument({
+        note,
+        tagId: tag.id,
+        currentName: tag.name,
+        nextName: null,
+        operation: 'delete',
+        occurredAt: input.occurredAt,
+      });
+    }
+
+    this.database
+      .prepare<[string]>('DELETE FROM tags WHERE id = ?')
+      .run(input.id);
+
+    return validateDeleteTagResult({
+      deletedTagId: tag.id,
+      affectedNoteIds: notes.map((note) => createNoteId(note.id)),
+    });
+  }
+
+  private listTagAssociatedNoteRows(tagId: string): readonly NoteRow[] {
+    return this.database
+      .prepare<[string], NoteRow>(
+        `SELECT notes.*
+         FROM notes
+         INNER JOIN note_tags ON note_tags.note_id = notes.id
+         WHERE note_tags.tag_id = ?
+         ORDER BY notes.id ASC`,
+      )
+      .all(tagId);
+  }
+
+  private propagateTagNameToDocument(input: {
+    note: NoteRow;
+    tagId: string;
+    currentName: string;
+    nextName: string | null;
+    operation: 'update' | 'delete';
+    occurredAt: string;
+  }): void {
+    const documentId = createNoteId(input.note.id);
+    const operationId = createMutationId(
+      `tag:${input.operation}:${input.tagId}:${input.note.id}:${input.occurredAt}`,
+    );
+    const yDocument = this.loadYDocument(documentId);
+
+    try {
+      const update = captureYUpdate(yDocument, () =>
+        replaceTagNameInYDocument({
+          document: yDocument,
+          currentName: input.currentName,
+          nextName: input.nextName,
+          occurredAt: input.occurredAt,
+          operationId,
+        }),
+      );
+      const document = projectYDocument(
+        yDocument,
+        documentId,
+        input.note.projection_generation + 1,
+      );
+
+      this.updateProjection(document);
+      this.insertUpdate({
+        operationId,
+        documentId,
+        origin: 'local',
+        update,
+        occurredAt: input.occurredAt,
+      });
+    } finally {
+      yDocument.destroy();
+    }
   }
 
   private readRequiredTagSummary(id: string): TagSummary {
@@ -1695,6 +1828,53 @@ const applyMutationToYDocument = (
 
     metadata.set('updatedAt', mutation.occurredAt);
     metadata.set('lastOperationId', mutation.id);
+  });
+};
+
+const replaceTagNameInYDocument = (input: {
+  document: Y.Doc;
+  currentName: string;
+  nextName: string | null;
+  occurredAt: string;
+  operationId: string;
+}): void => {
+  const tags = input.document.getArray<string>('tags');
+  const metadata = input.document.getMap<unknown>('metadata');
+  const currentName = input.currentName.trim().toLocaleLowerCase();
+  const nextTags: string[] = [];
+  const seenTagNames = new Set<string>();
+  let foundCurrentName = false;
+
+  for (const tag of tags.toArray()) {
+    const isCurrentName = tag.trim().toLocaleLowerCase() === currentName;
+    const nextTag = isCurrentName ? input.nextName : tag;
+
+    foundCurrentName ||= isCurrentName;
+
+    if (nextTag === null) {
+      continue;
+    }
+
+    const normalizedNextTag = nextTag.trim().toLocaleLowerCase();
+
+    if (seenTagNames.has(normalizedNextTag)) {
+      continue;
+    }
+
+    seenTagNames.add(normalizedNextTag);
+    nextTags.push(nextTag);
+  }
+
+  if (!foundCurrentName) {
+    throw createInvalidMutationError(
+      `The Yjs document does not contain tag "${input.currentName}".`,
+    );
+  }
+
+  input.document.transact(() => {
+    replaceYArray(tags, nextTags);
+    metadata.set('updatedAt', input.occurredAt);
+    metadata.set('lastOperationId', input.operationId);
   });
 };
 
