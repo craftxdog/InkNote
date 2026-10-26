@@ -7,7 +7,9 @@ import type { NavigationSelection } from '../features/navigation/model/navigatio
 import { selectionForTags } from '../features/navigation/model/navigation.selections';
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { useOrganizationCommands } from '../features/organization/hooks/useOrganizationCommands';
+import { useDefaultNotebookPreference } from '../features/organization/hooks/useDefaultNotebookPreference';
 import { organizationCommandIds } from '../features/organization/model/organizationCommands';
+import { resolveNoteDestinationNotebookId } from '../features/notes/model/noteDestinationPolicy';
 import { PreviewPanel } from '../features/preview/components/PreviewPanel';
 import { useWorkspaceViewCommands } from '../features/workspace/hooks/useWorkspaceViewCommands';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
@@ -27,6 +29,7 @@ type ScrollSyncTarget = Readonly<{
 export function WorkspacePage() {
   const documentWorkspace = useDocumentWorkspace(window.inknote.documents);
   const workspaceThemes = useWorkspaceThemes();
+  const defaultNotebookPreference = useDefaultNotebookPreference();
   const [isNavigationVisible, setIsNavigationVisible] = useState(true);
   const [isWorkspaceExpanded, setIsWorkspaceExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<WorkspaceViewMode>('split');
@@ -120,8 +123,16 @@ export function WorkspacePage() {
   }, [shouldShowTrafficLights]);
 
   const createNote = useCallback(async (): Promise<void> => {
-    await documentWorkspace.create();
-  }, [documentWorkspace]);
+    const notebookId = resolveNoteDestinationNotebookId({
+      selection: navigationSelection,
+      defaultNotebookId: defaultNotebookPreference.defaultNotebookId,
+    });
+    await documentWorkspace.create('Untitled', '', { notebookId });
+  }, [
+    defaultNotebookPreference.defaultNotebookId,
+    documentWorkspace,
+    navigationSelection,
+  ]);
   const { dispatchOrganizationCommand } = useOrganizationCommands({
     onCommand: async (command) => {
       if (command === organizationCommandIds.createNote) {
@@ -199,6 +210,10 @@ export function WorkspacePage() {
       acrylic={workspaceThemes.acrylic}
       isThemeCatalogLoading={workspaceThemes.isCatalogLoading}
       themeError={workspaceThemes.error}
+      notebooks={documentWorkspace.notebooks}
+      defaultNotebookId={defaultNotebookPreference.defaultNotebookId}
+      isDefaultNotebookLoading={defaultNotebookPreference.isLoading}
+      defaultNotebookError={defaultNotebookPreference.error}
       isPreferencesOpen={isPreferencesOpen}
       onViewCommand={(command) => {
         void dispatchViewCommand(command, 'menu');
@@ -207,6 +222,7 @@ export function WorkspacePage() {
       onInstallTheme={workspaceThemes.installTheme}
       onRemoveTheme={workspaceThemes.removeTheme}
       onAcrylicChange={workspaceThemes.setAcrylicEnabled}
+      onDefaultNotebookChange={defaultNotebookPreference.setDefaultNotebook}
       onOpenPreferences={() => setIsPreferencesOpen(true)}
       onClosePreferences={() => setIsPreferencesOpen(false)}
       onCreateNote={dispatchCreateNote}

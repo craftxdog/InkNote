@@ -9,6 +9,7 @@ import type {
   ThemeAppearanceSettings,
   ThemeDescriptor,
 } from '../../shared/themes/theme.types';
+import type { Notebook } from '../../shared/documents/document.types';
 import type {
   AvailableWorkspaceTheme,
   WorkspaceTheme,
@@ -36,6 +37,14 @@ type WorkspaceLayoutProps = {
 
   themeError: string | null;
 
+  notebooks: readonly Notebook[];
+
+  defaultNotebookId: string;
+
+  isDefaultNotebookLoading: boolean;
+
+  defaultNotebookError: string | null;
+
   isPreferencesOpen: boolean;
 
   onViewCommand: (command: WorkspaceViewCommand) => void;
@@ -47,6 +56,8 @@ type WorkspaceLayoutProps = {
   onRemoveTheme: (theme: ThemeDescriptor) => Promise<void>;
 
   onAcrylicChange: (enabled: boolean) => Promise<void>;
+
+  onDefaultNotebookChange: (notebookId: string) => Promise<void>;
 
   onOpenPreferences: () => void;
 
@@ -81,12 +92,17 @@ export function WorkspaceLayout({
   acrylic,
   isThemeCatalogLoading,
   themeError,
+  notebooks,
+  defaultNotebookId,
+  isDefaultNotebookLoading,
+  defaultNotebookError,
   isPreferencesOpen,
   onViewCommand,
   onThemeChange,
   onInstallTheme,
   onRemoveTheme,
   onAcrylicChange,
+  onDefaultNotebookChange,
   onOpenPreferences,
   onClosePreferences,
   onCreateNote,
@@ -167,10 +183,15 @@ export function WorkspaceLayout({
         acrylic={acrylic}
         isThemeCatalogLoading={isThemeCatalogLoading}
         themeError={themeError}
+        notebooks={notebooks}
+        defaultNotebookId={defaultNotebookId}
+        isDefaultNotebookLoading={isDefaultNotebookLoading}
+        defaultNotebookError={defaultNotebookError}
         onThemeChange={onThemeChange}
         onInstallTheme={onInstallTheme}
         onRemoveTheme={onRemoveTheme}
         onAcrylicChange={onAcrylicChange}
+        onDefaultNotebookChange={onDefaultNotebookChange}
         onClose={onClosePreferences}
       />
     </div>

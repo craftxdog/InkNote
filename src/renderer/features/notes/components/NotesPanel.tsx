@@ -521,6 +521,7 @@ export const toNoteSummary = (document: NoteDocument): NoteSummary => {
     title: document.title || 'Untitled',
     excerpt: excerptFromMarkdown(document.body) || 'Empty note',
     updatedLabel: formatUpdatedAt(document.updatedAt),
+    pinned: document.pinned,
     status: document.status,
     ...(taskProgress.total === 0
       ? {}
