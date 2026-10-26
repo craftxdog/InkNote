@@ -25,6 +25,7 @@ import {
   type NoteDocument,
   type NoteId,
   type NoteStatusValue,
+  type UpdateNotebookInput,
 } from '../../../shared/documents/document.types';
 import {
   DocumentSession,
@@ -45,6 +46,10 @@ export type DocumentWorkspaceState = Readonly<{
   lastError: unknown;
 }>;
 
+export type NotebookUpdateRequest = Readonly<
+  Pick<UpdateNotebookInput, 'id' | 'name' | 'parentId' | 'icon'>
+>;
+
 export type DocumentWorkspaceActions = Readonly<{
   refresh(): Promise<void>;
   open(id: NoteId): Promise<NoteDocument>;
@@ -63,6 +68,7 @@ export type DocumentWorkspaceActions = Readonly<{
     parentId?: string | null,
     icon?: NotebookIconName,
   ): Promise<Notebook>;
+  updateNotebook(input: NotebookUpdateRequest): Promise<Notebook>;
   deleteNotebook(notebookId: string): Promise<void>;
   move(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
   moveMany(
@@ -276,6 +282,32 @@ export const useDocumentWorkspace = (
       setLastError(null);
 
       return notebook;
+    },
+    [repository],
+  );
+
+  const updateNotebook = useCallback(
+    async (input: NotebookUpdateRequest): Promise<Notebook> => {
+      try {
+        const notebook = await repository.updateNotebook({
+          ...input,
+          occurredAt: new Date().toISOString(),
+        });
+
+        setNotebooks((current) =>
+          Object.freeze(
+            current.map((candidate) =>
+              candidate.id === notebook.id ? notebook : candidate,
+            ),
+          ),
+        );
+        setLastError(null);
+
+        return notebook;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
     },
     [repository],
   );
@@ -505,6 +537,7 @@ export const useDocumentWorkspace = (
     apply,
     create,
     createNotebook,
+    updateNotebook,
     deleteNotebook,
     move,
     moveMany,
