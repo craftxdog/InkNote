@@ -62,14 +62,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] A representative schema-version-7 fixture upgrades with every tag and note association preserved, including archived notes and zero-count tags.
-- [ ] A forced copy failure rolls back tables and does not record the new schema version.
-- [ ] Tag links use tag_id; the old tag_name association schema no longer remains after a successful migration.
+- [x] A representative schema-version-7 fixture upgrades with every tag and note association preserved, including archived notes and zero-count tags.
+- [x] A forced copy failure rolls back tables and does not record the new schema version.
+- [x] Tag links use tag_id; the old tag_name association schema no longer remains after a successful migration.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts
-- [ ] npm run verify:native-sqlite
+- [x] Red → green: npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts
+- [x] npm run verify:native-sqlite
 
 **Dependencies:** Task 1.
 

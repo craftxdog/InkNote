@@ -47,6 +47,99 @@ const countRows = (database: Database.Database, table: string): number => {
   return row.count;
 };
 
+const createVersion7TagFixture = (databasePath: string): void => {
+  const legacyDatabase = new Database(databasePath);
+
+  legacyDatabase.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    );
+    INSERT INTO schema_migrations(version, applied_at)
+    VALUES
+      (1, '2026-10-21T12:00:00.000Z'),
+      (2, '2026-10-21T12:00:00.000Z'),
+      (3, '2026-10-21T12:00:00.000Z'),
+      (4, '2026-10-21T12:00:00.000Z'),
+      (7, '2026-10-21T12:00:00.000Z');
+
+    CREATE TABLE notes (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      notebook_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      status_is_none INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      projection_generation INTEGER NOT NULL,
+      revision TEXT NOT NULL
+    );
+    CREATE TABLE notebooks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      parent_id TEXT,
+      icon TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE tags (
+      name TEXT PRIMARY KEY COLLATE NOCASE,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE note_tags (
+      note_id TEXT NOT NULL,
+      tag_name TEXT NOT NULL,
+      PRIMARY KEY (note_id, tag_name)
+    );
+  `);
+  legacyDatabase
+    .prepare(
+      `INSERT INTO notes(
+        id, title, body, notebook_id, status, status_is_none, created_at,
+        updated_at, deleted_at, projection_generation, revision
+      ) VALUES (?, ?, '', 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
+    )
+    .run(
+      'active-note',
+      'Active note',
+      '2026-10-21T12:00:00.000Z',
+      '2026-10-21T12:00:00.000Z',
+      null,
+    );
+  legacyDatabase
+    .prepare(
+      `INSERT INTO notes(
+        id, title, body, notebook_id, status, status_is_none, created_at,
+        updated_at, deleted_at, projection_generation, revision
+      ) VALUES (?, ?, '', 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
+    )
+    .run(
+      'archived-note',
+      'Archived note',
+      '2026-10-21T12:00:00.000Z',
+      '2026-10-21T12:00:00.000Z',
+      '2026-10-21T12:01:00.000Z',
+    );
+  legacyDatabase
+    .prepare('INSERT INTO tags(name, created_at) VALUES (?, ?)')
+    .run('active', '2026-10-21T12:00:00.000Z');
+  legacyDatabase
+    .prepare('INSERT INTO tags(name, created_at) VALUES (?, ?)')
+    .run('archived', '2026-10-21T12:00:00.000Z');
+  legacyDatabase
+    .prepare('INSERT INTO tags(name, created_at) VALUES (?, ?)')
+    .run('unused', '2026-10-21T12:00:00.000Z');
+  legacyDatabase
+    .prepare('INSERT INTO note_tags(note_id, tag_name) VALUES (?, ?)')
+    .run('active-note', 'active');
+  legacyDatabase
+    .prepare('INSERT INTO note_tags(note_id, tag_name) VALUES (?, ?)')
+    .run('archived-note', 'archived');
+  legacyDatabase.close();
+};
+
 describe('LocalDocumentStore', () => {
   let databaseDirectory: string;
   let databasePath: string;
@@ -255,9 +348,14 @@ describe('LocalDocumentStore', () => {
     expect(tagged.tags).toEqual(['research', 'work']);
     expect(
       database
-        .prepare('SELECT tag_name FROM note_tags ORDER BY tag_name')
+        .prepare(
+          `SELECT tags.name
+           FROM note_tags
+           INNER JOIN tags ON tags.id = note_tags.tag_id
+           ORDER BY tags.name`,
+        )
         .all(),
-    ).toEqual([{ tag_name: 'research' }, { tag_name: 'work' }]);
+    ).toEqual([{ name: 'research' }, { name: 'work' }]);
 
     store.close();
     store = createStore(databasePath);
@@ -383,6 +481,105 @@ describe('LocalDocumentStore', () => {
         .prepare('SELECT version FROM schema_migrations WHERE version = 7')
         .get(),
     ).toEqual({ version: 7 });
+  });
+
+  it('migrates version-7 tags to durable IDs without losing archived or unused tags', async () => {
+    store.close();
+    rmSync(databasePath, { force: true });
+    createVersion7TagFixture(databasePath);
+
+    store = createStore(databasePath);
+
+    await expect(store.listActive()).resolves.toEqual([
+      expect.objectContaining({ id: 'active-note', tags: ['active'] }),
+    ]);
+    await expect(store.listArchived()).resolves.toEqual([
+      expect.objectContaining({ id: 'archived-note', tags: ['archived'] }),
+    ]);
+    expect(
+      database
+        .prepare<[], { name: string }>('PRAGMA table_info(note_tags)')
+        .all()
+        .map((column: { name: string }) => column.name),
+    ).toEqual(['note_id', 'tag_id']);
+    expect(
+      database
+        .prepare('SELECT id, name, color FROM tags ORDER BY name COLLATE NOCASE')
+        .all(),
+    ).toEqual([
+      { id: expect.stringMatching(/^tag:/), name: 'active', color: 'default' },
+      {
+        id: expect.stringMatching(/^tag:/),
+        name: 'archived',
+        color: 'default',
+      },
+      { id: expect.stringMatching(/^tag:/), name: 'unused', color: 'default' },
+    ]);
+    expect(
+      database
+        .prepare(
+          `SELECT note_tags.note_id, tags.name
+           FROM note_tags
+           INNER JOIN tags ON tags.id = note_tags.tag_id
+           ORDER BY note_tags.note_id`,
+        )
+        .all(),
+    ).toEqual([
+      { note_id: 'active-note', name: 'active' },
+      { note_id: 'archived-note', name: 'archived' },
+    ]);
+    expect(
+      database
+        .prepare('SELECT version FROM schema_migrations WHERE version = 8')
+        .get(),
+    ).toEqual({ version: 8 });
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.listArchived()).resolves.toEqual([
+      expect.objectContaining({ id: 'archived-note', tags: ['archived'] }),
+    ]);
+  });
+
+  it('rolls back the tag-ID migration when its final migration record cannot be written', () => {
+    store.close();
+    rmSync(databasePath, { force: true });
+    createVersion7TagFixture(databasePath);
+
+    const legacyDatabase = new Database(databasePath);
+    legacyDatabase.exec(`
+      CREATE TRIGGER reject_tag_id_migration
+      BEFORE INSERT ON schema_migrations
+      WHEN NEW.version = 8
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated tag migration failure');
+      END;
+    `);
+    legacyDatabase.close();
+
+    expect(() => createStore(databasePath)).toThrow(
+      'simulated tag migration failure',
+    );
+    database.close();
+
+    const verificationDatabase = new Database(databasePath, { readonly: true });
+
+    try {
+      expect(
+        verificationDatabase
+          .prepare<[], { name: string }>('PRAGMA table_info(note_tags)')
+          .all()
+          .map((column: { name: string }) => column.name),
+      ).toEqual(['note_id', 'tag_name']);
+      expect(
+        verificationDatabase
+          .prepare('SELECT version FROM schema_migrations WHERE version = 8')
+          .get(),
+      ).toBeUndefined();
+    } finally {
+      verificationDatabase.close();
+    }
   });
 
   it('persists empty notebooks independently from notes', async () => {

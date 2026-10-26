@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 
 import {
@@ -19,6 +20,7 @@ import {
   INBOX_NOTEBOOK_ID,
   NOTE_STATUS_NONE,
   createArchiveMutation,
+  createGeneratedTagId,
   createMutationId,
   createNotebook as validateAndCreateNotebook,
   createNoteId,
@@ -48,6 +50,7 @@ const NOTEBOOK_ICON_SCHEMA_VERSION = 4;
  * a new, monotonic migration instead of reusing that historical version.
  */
 const NONE_STATUS_SCHEMA_VERSION = 7;
+export const ORGANIZATION_TAG_ID_SCHEMA_VERSION = 8;
 
 const PENDING_OUTBOX_STATUS = 'pending';
 
@@ -68,6 +71,16 @@ type NoteRow = Readonly<{
 type TagRow = Readonly<{
   note_id: string;
   name: string;
+}>;
+
+type LegacyTagRow = Readonly<{
+  name: string;
+  created_at: string;
+}>;
+
+type LegacyNoteTagRow = Readonly<{
+  note_id: string;
+  tag_name: string;
 }>;
 
 type NotebookRow = Readonly<{
@@ -93,6 +106,10 @@ type UpdateRow = Readonly<{
 
 type InsertResult = Readonly<{
   lastInsertRowid: number | bigint;
+}>;
+
+type CountRow = Readonly<{
+  count: number;
 }>;
 
 export type PendingLocalDocumentUpdate = Readonly<{
@@ -510,6 +527,126 @@ export class LocalDocumentStore
           .run(NONE_STATUS_SCHEMA_VERSION, new Date().toISOString());
       })();
     }
+
+    const hasTagIdSchema = this.database
+      .prepare<[number], { version: number }>(
+        'SELECT version FROM schema_migrations WHERE version = ?',
+      )
+      .get(ORGANIZATION_TAG_ID_SCHEMA_VERSION);
+
+    if (hasTagIdSchema === undefined) {
+      this.database.transaction(() => this.migrateTagsToIdentifiers())();
+    }
+  }
+
+  private migrateTagsToIdentifiers(): void {
+    const legacyTags = this.database
+      .prepare<[], LegacyTagRow>(
+        `SELECT name, created_at
+         FROM tags
+         ORDER BY name COLLATE NOCASE ASC`,
+      )
+      .all();
+    const legacyLinks = this.database
+      .prepare<[], LegacyNoteTagRow>(
+        `SELECT note_id, tag_name
+         FROM note_tags
+         ORDER BY note_id ASC, tag_name COLLATE NOCASE ASC`,
+      )
+      .all();
+
+    this.database.exec(`
+      ALTER TABLE note_tags RENAME TO note_tags_v7;
+      ALTER TABLE tags RENAME TO tags_v7;
+
+      CREATE TABLE tags (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        color TEXT NOT NULL DEFAULT 'default'
+          CHECK (color IN (
+            'default', 'red', 'orange', 'yellow', 'olive', 'green', 'teal',
+            'blue', 'violet', 'purple', 'pink', 'brown', 'grey', 'black'
+          )),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE note_tags (
+        note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE RESTRICT,
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE RESTRICT,
+        PRIMARY KEY (note_id, tag_id)
+      );
+
+      CREATE INDEX note_tags_tag_id_note_id_idx
+        ON note_tags(tag_id, note_id);
+    `);
+
+    const insertTag = this.database.prepare<
+      [string, string, string, string, string]
+    >(
+      `INSERT INTO tags(id, name, color, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+    const tagIdsByName = new Map<string, string>();
+
+    for (const tag of legacyTags) {
+      const id = createGeneratedTagId(randomUUID());
+
+      insertTag.run(id, tag.name, 'default', tag.created_at, tag.created_at);
+      tagIdsByName.set(tag.name.toLocaleLowerCase(), id);
+    }
+
+    const attachTag = this.database.prepare<[string, string]>(
+      `INSERT INTO note_tags(note_id, tag_id) VALUES (?, ?)`,
+    );
+
+    for (const link of legacyLinks) {
+      const tagId = tagIdsByName.get(link.tag_name.toLocaleLowerCase());
+
+      if (tagId === undefined) {
+        throw createInvalidMutationError(
+          `Legacy tag association references missing tag "${link.tag_name}".`,
+        );
+      }
+
+      attachTag.run(link.note_id, tagId);
+    }
+
+    const copiedTagCount = this.database
+      .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM tags')
+      .get()?.count ?? -1;
+    const copiedLinkCount = this.database
+      .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM note_tags')
+      .get()?.count ?? -1;
+
+    if (
+      copiedTagCount !== legacyTags.length ||
+      copiedLinkCount !== legacyLinks.length
+    ) {
+      throw createInvalidMutationError(
+        'The tag migration did not preserve every tag association.',
+      );
+    }
+
+    const foreignKeyViolations = this.database
+      .prepare<[], Record<string, unknown>>('PRAGMA foreign_key_check')
+      .all();
+
+    if (foreignKeyViolations.length > 0) {
+      throw createInvalidMutationError(
+        'The tag migration produced invalid foreign-key relationships.',
+      );
+    }
+
+    this.database.exec(`
+      DROP TABLE note_tags_v7;
+      DROP TABLE tags_v7;
+    `);
+    this.database
+      .prepare<[number, string]>(
+        'INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)',
+      )
+      .run(ORGANIZATION_TAG_ID_SCHEMA_VERSION, new Date().toISOString());
   }
 
   private notesTableHasColumn(columnName: string): boolean {
@@ -988,18 +1125,35 @@ export class LocalDocumentStore
       .prepare<[string]>('DELETE FROM note_tags WHERE note_id = ?')
       .run(documentId);
 
-    const insertTag = this.database.prepare<[string, string]>(
-      `INSERT INTO tags(name, created_at)
-       VALUES (?, ?)
+    const insertTag = this.database.prepare<
+      [string, string, string, string, string]
+    >(
+      `INSERT INTO tags(id, name, color, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(name) DO NOTHING`,
     );
+    const readTagId = this.database.prepare<[string], Readonly<{ id: string }>>(
+      'SELECT id FROM tags WHERE name = ?',
+    );
     const attachTag = this.database.prepare<[string, string]>(
-      `INSERT INTO note_tags(note_id, tag_name) VALUES (?, ?)`,
+      `INSERT INTO note_tags(note_id, tag_id) VALUES (?, ?)`,
     );
 
     for (const tag of tags) {
-      insertTag.run(tag, occurredAt);
-      attachTag.run(documentId, tag);
+      insertTag.run(
+        createGeneratedTagId(randomUUID()),
+        tag,
+        'default',
+        occurredAt,
+        occurredAt,
+      );
+      const tagRow = readTagId.get(tag);
+
+      if (tagRow === undefined) {
+        throw createInvalidMutationError(`Tag "${tag}" could not be resolved.`);
+      }
+
+      attachTag.run(documentId, tagRow.id);
     }
   }
 
@@ -1012,7 +1166,7 @@ export class LocalDocumentStore
       .prepare(
         `SELECT note_tags.note_id, tags.name
          FROM note_tags
-         INNER JOIN tags ON tags.name = note_tags.tag_name
+         INNER JOIN tags ON tags.id = note_tags.tag_id
          WHERE note_tags.note_id IN (${rows.map(() => '?').join(', ')})
          ORDER BY tags.name COLLATE NOCASE ASC`,
       )
@@ -1036,7 +1190,7 @@ export class LocalDocumentStore
       .prepare<[string], Pick<TagRow, 'name'>>(
         `SELECT tags.name
          FROM note_tags
-         INNER JOIN tags ON tags.name = note_tags.tag_name
+         INNER JOIN tags ON tags.id = note_tags.tag_id
          WHERE note_tags.note_id = ?
          ORDER BY tags.name COLLATE NOCASE ASC`,
       )
