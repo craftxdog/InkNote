@@ -63,6 +63,15 @@ const inknoteApi: InknoteApi = {
     setAcrylicEnabled: (enabled: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.themes.setAcrylicEnabled, enabled),
   },
+  noteOrganization: {
+    getDefaultNotebook: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.noteOrganization.getDefaultNotebook),
+    setDefaultNotebook: (notebookId: string) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.noteOrganization.setDefaultNotebook,
+        notebookId,
+      ),
+  },
 };
 
 // API propia de Inknote

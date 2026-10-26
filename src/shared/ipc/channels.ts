@@ -26,6 +26,10 @@ export const IPC_CHANNELS = {
     getAppearance: 'themes:get-appearance',
     setAcrylicEnabled: 'themes:set-acrylic-enabled',
   },
+  noteOrganization: {
+    getDefaultNotebook: 'note-organization:get-default-notebook',
+    setDefaultNotebook: 'note-organization:set-default-notebook',
+  },
   window: {
     setTrafficLightsVisibility: 'window:set-traffic-lights-visibility',
   },

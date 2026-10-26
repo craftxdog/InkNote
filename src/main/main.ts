@@ -46,6 +46,8 @@ import { RestoreDatabaseService } from './data/RestoreDatabaseService';
 import { DocumentIpcService } from './documents/DocumentIpcService';
 import { LocalDocumentStore } from './documents/LocalDocumentStore';
 import { ThemePackageService } from './themes/ThemePackageService';
+import { NoteOrganizationPreferencesService } from './note-organization/NoteOrganizationPreferencesService';
+import { runNoteOrganizationIpcOperation } from '../shared/note-organization/noteOrganizationPreferences.ipc';
 import MenuBuilder from './menu';
 import { isAllowedExternalUrl, secureRendererPreferences } from './security';
 import startAutoUpdates from './updates';
@@ -66,6 +68,9 @@ let organizationMigrationSafetyService: OrganizationMigrationSafetyService | nul
   null;
 
 let themePackageService: ThemePackageService | null = null;
+
+let noteOrganizationPreferencesService: NoteOrganizationPreferencesService | null =
+  null;
 
 /* =========================================================
    Legacy IPC example
@@ -454,6 +459,35 @@ function registerThemeIpcHandlers() {
   );
 }
 
+function registerNoteOrganizationIpcHandlers() {
+  ipcMain.handle(IPC_CHANNELS.noteOrganization.getDefaultNotebook, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runNoteOrganizationIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runNoteOrganizationIpcOperation(() =>
+      getNoteOrganizationPreferencesService().getDefaultNotebook(),
+    );
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.noteOrganization.setDefaultNotebook,
+    (event, notebookId: unknown) => {
+      if (!isMainWindowSender(event.sender)) {
+        return runNoteOrganizationIpcOperation(() => {
+          throw new Error('Untrusted IPC sender.');
+        });
+      }
+
+      return runNoteOrganizationIpcOperation(() =>
+        getNoteOrganizationPreferencesService().setDefaultNotebook(notebookId),
+      );
+    },
+  );
+}
+
 function getLocalDocumentStore(): LocalDocumentStore {
   return getDocumentStoreStartup().getInitialized();
 }
@@ -509,6 +543,22 @@ function getThemePackageService(): ThemePackageService {
   }
 
   return themePackageService;
+}
+
+function getNoteOrganizationPreferencesService(): NoteOrganizationPreferencesService {
+  if (noteOrganizationPreferencesService === null) {
+    noteOrganizationPreferencesService = new NoteOrganizationPreferencesService(
+      {
+        dataDirectory: app.getPath('userData'),
+        listNotebookIds: async () =>
+          (await getLocalDocumentStore().listNotebooks()).map(
+            (notebook) => notebook.id,
+          ),
+      },
+    );
+  }
+
+  return noteOrganizationPreferencesService;
 }
 
 const getDatabasePath = (): string =>
@@ -722,6 +772,7 @@ app.on('before-quit', () => {
   dataManagementService = null;
   organizationMigrationSafetyService = null;
   themePackageService = null;
+  noteOrganizationPreferencesService = null;
 });
 
 app
@@ -741,6 +792,7 @@ app
     );
     registerDataIpcHandlers();
     registerThemeIpcHandlers();
+    registerNoteOrganizationIpcHandlers();
 
     await createWindow();
 

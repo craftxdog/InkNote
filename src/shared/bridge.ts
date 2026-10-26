@@ -1,6 +1,7 @@
 import type { DocumentIpcResult } from './documents/document.ipc';
 import type { DataIpcResult } from './data/data.ipc';
 import type { ThemeIpcResult } from './themes/theme.ipc';
+import type { NoteOrganizationIpcResult } from './note-organization/noteOrganizationPreferences.ipc';
 import type {
   BackupResult,
   DataManagementInfo,
@@ -24,6 +25,7 @@ import type {
   ThemeDescriptor,
   ThemeStyles,
 } from './themes/theme.types';
+import type { DefaultNotebookPreference } from './note-organization/noteOrganizationPreferences.types';
 
 export type WindowControlsApi = {
   setTrafficLightsVisible: (visible: boolean) => Promise<boolean>;
@@ -77,9 +79,21 @@ export type ThemeApi = {
   ) => Promise<ThemeIpcResult<ThemeAppearanceSettings>>;
 };
 
+/** Renderer-safe note organization settings. The preference stays in the
+ * main process and is validated against the durable notebook catalogue. */
+export type NoteOrganizationApi = {
+  getDefaultNotebook: () => Promise<
+    NoteOrganizationIpcResult<DefaultNotebookPreference>
+  >;
+  setDefaultNotebook: (
+    notebookId: string,
+  ) => Promise<NoteOrganizationIpcResult<DefaultNotebookPreference>>;
+};
+
 export type InknoteApi = {
   windowControls: WindowControlsApi;
   documents: DocumentApi;
   data: DataManagementApi;
   themes?: ThemeApi;
+  noteOrganization: NoteOrganizationApi;
 };
