@@ -101,6 +101,21 @@ export const descendantNotebookIds = (
   return ids;
 };
 
+/**
+ * Returns notebooks that can safely be selected as a parent while editing.
+ * The current notebook and its descendants would create a hierarchy cycle.
+ */
+export const eligibleNotebookParents = (
+  notebooks: readonly Notebook[],
+  notebookId: string,
+): readonly Notebook[] => {
+  const excludedIds = descendantNotebookIds(notebooks, notebookId);
+
+  return Object.freeze(
+    notebooks.filter((notebook) => !excludedIds.has(notebook.id)),
+  );
+};
+
 /** Returns a safe root-to-leaf trail for the focused notebook. */
 export const notebookBreadcrumbs = (
   notebooks: readonly Notebook[],

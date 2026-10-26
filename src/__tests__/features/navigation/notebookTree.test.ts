@@ -1,5 +1,6 @@
 import type { Notebook } from '../../../shared/documents/document.types';
 import {
+  eligibleNotebookParents,
   buildNotebookTreeRows,
   descendantNotebookIds,
   notebookBreadcrumbs,
@@ -64,5 +65,11 @@ describe('notebook tree', () => {
     expect(
       notebookBreadcrumbs(notebooks, 'projects').map((notebook) => notebook.id),
     ).toEqual(['work', 'projects']);
+  });
+
+  it('excludes a notebook and all of its descendants from eligible parents', () => {
+    expect(
+      eligibleNotebookParents(notebooks, 'work').map((notebook) => notebook.id),
+    ).toEqual(['inbox']);
   });
 });
