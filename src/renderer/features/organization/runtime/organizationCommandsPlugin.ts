@@ -4,7 +4,11 @@ import {
   type InkNotePlugin,
 } from '../../../platform/plugins/plugin.types';
 
-import { organizationCommandIds } from '../model/organizationCommands';
+import {
+  organizationCommandContexts,
+  organizationCommandIds,
+  type OrganizationCommand,
+} from '../model/organizationCommands';
 
 export {
   isOrganizationCommand,
@@ -13,7 +17,10 @@ export {
 } from '../model/organizationCommands';
 
 type OrganizationCommandsPluginOptions = Readonly<{
-  onCreateNote(invocation: CommandInvocation): void | Promise<void>;
+  onCommand(
+    command: OrganizationCommand,
+    invocation: CommandInvocation,
+  ): void | Promise<void>;
 }>;
 
 const organizationCommandsPluginId = createPluginId('organization-commands');
@@ -23,15 +30,56 @@ export const createOrganizationCommandsPlugin = (
 ): InkNotePlugin => ({
   id: organizationCommandsPluginId,
   activate: (environment) => {
-    environment.commands.add(
-      organizationCommandIds.createNote,
-      options.onCreateNote,
-    );
+    for (const command of Object.values(organizationCommandIds)) {
+      environment.commands.add(command, (invocation) =>
+        options.onCommand(command, invocation),
+      );
+    }
     environment.keymaps.add([
       {
-        context: 'workspace.global',
+        context: organizationCommandContexts.global,
         keystrokes: ['mod-n'],
         command: organizationCommandIds.createNote,
+      },
+      {
+        context: organizationCommandContexts.selectedNotes,
+        keystrokes: ['mod-d'],
+        command: organizationCommandIds.duplicateNote,
+      },
+      {
+        context: organizationCommandContexts.selectedNotes,
+        keystrokes: ['delete'],
+        command: organizationCommandIds.archiveNotes,
+      },
+      {
+        context: organizationCommandContexts.selectedNotes,
+        keystrokes: ['mod-backspace'],
+        command: organizationCommandIds.archiveNotes,
+      },
+      {
+        context: organizationCommandContexts.selectedNotes,
+        keystrokes: ['m'],
+        command: organizationCommandIds.moveNotes,
+      },
+      {
+        context: organizationCommandContexts.history,
+        keystrokes: ['mod-left'],
+        command: organizationCommandIds.goBack,
+      },
+      {
+        context: organizationCommandContexts.history,
+        keystrokes: ['alt-left'],
+        command: organizationCommandIds.goBack,
+      },
+      {
+        context: organizationCommandContexts.history,
+        keystrokes: ['mod-right'],
+        command: organizationCommandIds.goForward,
+      },
+      {
+        context: organizationCommandContexts.history,
+        keystrokes: ['alt-right'],
+        command: organizationCommandIds.goForward,
       },
     ]);
   },

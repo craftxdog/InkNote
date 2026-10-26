@@ -123,7 +123,11 @@ export function WorkspacePage() {
     await documentWorkspace.create();
   }, [documentWorkspace]);
   const { dispatchOrganizationCommand } = useOrganizationCommands({
-    onCreateNote: createNote,
+    onCommand: async (command) => {
+      if (command === organizationCommandIds.createNote) {
+        await createNote();
+      }
+    },
   });
   const dispatchCreateNote = useCallback((): void => {
     void dispatchOrganizationCommand(

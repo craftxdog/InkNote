@@ -12,18 +12,24 @@ import {
   useOrganizationCommands,
   type OrganizationCommands,
 } from '../../../renderer/features/organization/hooks/useOrganizationCommands';
-import { organizationCommandIds } from '../../../renderer/features/organization/model/organizationCommands';
+import {
+  organizationCommandIds,
+  type OrganizationCommand,
+} from '../../../renderer/features/organization/model/organizationCommands';
 
 type OrganizationCommandHarnessProps = Readonly<{
-  onCreateNote: () => void | Promise<void>;
+  onCommand: (
+    command: OrganizationCommand,
+    invocation: { source: string; detail?: unknown },
+  ) => void | Promise<void>;
   onReady?: (commands: OrganizationCommands) => void;
 }>;
 
 function OrganizationCommandHarness({
-  onCreateNote,
+  onCommand,
   onReady,
 }: OrganizationCommandHarnessProps) {
-  const commands = useOrganizationCommands({ onCreateNote });
+  const commands = useOrganizationCommands({ onCommand });
 
   useEffect(() => {
     onReady?.(commands);
@@ -45,14 +51,17 @@ function OrganizationCommandHarness({
 }
 
 describe('useOrganizationCommands', () => {
-  it('routes menu and matching native shortcuts through note:new only', async () => {
-    const onCreateNote = jest.fn();
+  it('routes menu and matching native shortcuts through typed note commands', async () => {
+    const onCommand = jest.fn();
 
-    render(<OrganizationCommandHarness onCreateNote={onCreateNote} />);
+    render(<OrganizationCommandHarness onCommand={onCommand} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
     await waitFor(() =>
-      expect(onCreateNote).toHaveBeenLastCalledWith({ source: 'menu' }),
+      expect(onCommand).toHaveBeenLastCalledWith(
+        organizationCommandIds.createNote,
+        { source: 'menu' },
+      ),
     );
 
     const createShortcut = new KeyboardEvent('keydown', {
@@ -67,7 +76,10 @@ describe('useOrganizationCommands', () => {
     });
     expect(createShortcut.defaultPrevented).toBe(true);
     await waitFor(() =>
-      expect(onCreateNote).toHaveBeenLastCalledWith({ source: 'keymap' }),
+      expect(onCommand).toHaveBeenLastCalledWith(
+        organizationCommandIds.createNote,
+        { source: 'keymap' },
+      ),
     );
 
     const previewShortcut = new KeyboardEvent('keydown', {
@@ -79,12 +91,12 @@ describe('useOrganizationCommands', () => {
     window.dispatchEvent(previewShortcut);
 
     expect(previewShortcut.defaultPrevented).toBe(false);
-    expect(onCreateNote).toHaveBeenCalledTimes(2);
+    expect(onCommand).toHaveBeenCalledTimes(2);
   });
 
   it('uses the latest callback without a duplicate plugin during Strict Mode reconnection', async () => {
-    const firstCreateNote = jest.fn();
-    const secondCreateNote = jest.fn();
+    const firstOnCommand = jest.fn();
+    const secondOnCommand = jest.fn();
     const consoleError = jest
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -92,7 +104,7 @@ describe('useOrganizationCommands', () => {
     try {
       const view = render(
         <StrictMode>
-          <OrganizationCommandHarness onCreateNote={firstCreateNote} />
+          <OrganizationCommandHarness onCommand={firstOnCommand} />
         </StrictMode>,
       );
 
@@ -104,20 +116,26 @@ describe('useOrganizationCommands', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
       await waitFor(() =>
-        expect(firstCreateNote).toHaveBeenCalledWith({ source: 'menu' }),
+        expect(firstOnCommand).toHaveBeenCalledWith(
+          organizationCommandIds.createNote,
+          { source: 'menu' },
+        ),
       );
 
       view.rerender(
         <StrictMode>
-          <OrganizationCommandHarness onCreateNote={secondCreateNote} />
+          <OrganizationCommandHarness onCommand={secondOnCommand} />
         </StrictMode>,
       );
       fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
 
       await waitFor(() =>
-        expect(secondCreateNote).toHaveBeenCalledWith({ source: 'menu' }),
+        expect(secondOnCommand).toHaveBeenCalledWith(
+          organizationCommandIds.createNote,
+          { source: 'menu' },
+        ),
       );
-      expect(firstCreateNote).toHaveBeenCalledTimes(1);
+      expect(firstOnCommand).toHaveBeenCalledTimes(1);
       expect(consoleError).not.toHaveBeenCalled();
     } finally {
       consoleError.mockRestore();
@@ -125,11 +143,11 @@ describe('useOrganizationCommands', () => {
   });
 
   it('does not dispatch a stale callback after cleanup completes', async () => {
-    const onCreateNote = jest.fn();
+    const onCommand = jest.fn();
     const onReady = jest.fn();
     const view = render(
       <OrganizationCommandHarness
-        onCreateNote={onCreateNote}
+        onCommand={onCommand}
         onReady={onReady}
       />,
     );
@@ -144,6 +162,6 @@ describe('useOrganizationCommands', () => {
         'api',
       ),
     ).resolves.toBe(false);
-    expect(onCreateNote).not.toHaveBeenCalled();
+    expect(onCommand).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,19 @@
 export const organizationCommandIds = Object.freeze({
   createNote: 'note:new',
+  duplicateNote: 'note:duplicate',
+  moveNotes: 'note:move',
+  archiveNotes: 'note:archive',
+  restoreNotes: 'note:restore',
+  deleteNotesPermanently: 'note:delete-permanently',
+  toggleNotePinned: 'note:toggle-pin',
+  goBack: 'note:history-back',
+  goForward: 'note:history-forward',
+});
+
+export const organizationCommandContexts = Object.freeze({
+  global: 'workspace.global',
+  selectedNotes: 'notes.selection',
+  history: 'notes.history',
 });
 
 export type OrganizationCommand =

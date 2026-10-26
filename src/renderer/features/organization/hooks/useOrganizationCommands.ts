@@ -8,26 +8,34 @@ import {
   createPluginRuntime,
   type PluginRuntime,
 } from '../../../platform/environment/runtime';
+import type { KeymapTarget } from '../../../platform/keymaps/keymap.types';
 
 import {
+  organizationCommandContexts,
   isOrganizationCommand,
   type OrganizationCommand,
 } from '../model/organizationCommands';
 import { createOrganizationCommandsPlugin } from '../runtime/organizationCommandsPlugin';
 
 type UseOrganizationCommandsOptions = Readonly<{
-  onCreateNote(invocation: CommandInvocation): void | Promise<void>;
+  onCommand(
+    command: OrganizationCommand,
+    invocation: CommandInvocation,
+  ): void | Promise<void>;
+  getKeymapTargets?(event: KeyboardEvent): readonly KeymapTarget[];
 }>;
 
 export type OrganizationCommands = Readonly<{
   dispatchOrganizationCommand(
     command: OrganizationCommand,
     source?: CommandInvocationSource,
+    detail?: unknown,
   ): Promise<boolean>;
 }>;
 
 const organizationKeymapTarget = Object.freeze({
-  matches: (context: string) => (context === 'workspace.global' ? 1 : null),
+  matches: (context: string) =>
+    context === organizationCommandContexts.global ? 1 : null,
 });
 
 const createOrganizationRuntime = (): PluginRuntime =>
@@ -42,13 +50,13 @@ class OrganizationCommandController {
   private isAvailable = false;
 
   constructor(
-    private onCreateNote: UseOrganizationCommandsOptions['onCreateNote'],
+    private onCommand: UseOrganizationCommandsOptions['onCommand'],
   ) {}
 
-  setOnCreateNote(
-    onCreateNote: UseOrganizationCommandsOptions['onCreateNote'],
+  setOnCommand(
+    onCommand: UseOrganizationCommandsOptions['onCommand'],
   ): void {
-    this.onCreateNote = onCreateNote;
+    this.onCommand = onCommand;
   }
 
   activate(activation: Promise<void>): void {
@@ -64,6 +72,7 @@ class OrganizationCommandController {
     runtime: PluginRuntime,
     command: OrganizationCommand,
     source: CommandInvocationSource,
+    detail?: unknown,
   ): Promise<boolean> {
     if (!this.isAvailable || this.activation === null) {
       return false;
@@ -75,19 +84,25 @@ class OrganizationCommandController {
       return false;
     }
 
-    return runtime.commands.dispatch(command, { source });
+    return runtime.commands.dispatch(
+      command,
+      detail === undefined ? { source } : { source, detail },
+    );
   }
 
-  readonly createNote = (invocation: CommandInvocation): void | Promise<void> =>
-    this.onCreateNote(invocation);
+  readonly handleCommand = (
+    command: OrganizationCommand,
+    invocation: CommandInvocation,
+  ): void | Promise<void> => this.onCommand(command, invocation);
 }
 
 export const useOrganizationCommands = ({
-  onCreateNote,
+  onCommand,
+  getKeymapTargets,
 }: UseOrganizationCommandsOptions): OrganizationCommands => {
   const [runtime] = useState(createOrganizationRuntime);
   const [controller] = useState(
-    () => new OrganizationCommandController(onCreateNote),
+    () => new OrganizationCommandController(onCommand),
   );
   const lifecycleQueue = useRef<Promise<void>>(Promise.resolve());
 
@@ -106,17 +121,19 @@ export const useOrganizationCommands = ({
     (
       command: OrganizationCommand,
       source: CommandInvocationSource = 'api',
-    ): Promise<boolean> => controller.dispatch(runtime, command, source),
+      detail?: unknown,
+    ): Promise<boolean> =>
+      controller.dispatch(runtime, command, source, detail),
     [controller, runtime],
   );
 
   useEffect(() => {
-    controller.setOnCreateNote(onCreateNote);
-  }, [controller, onCreateNote]);
+    controller.setOnCommand(onCommand);
+  }, [controller, onCommand]);
 
   useEffect(() => {
     const plugin = createOrganizationCommandsPlugin({
-      onCreateNote: controller.createNote,
+      onCommand: controller.handleCommand,
     });
     const activation = enqueueLifecycleOperation(() =>
       runtime.plugins.activate(plugin),
@@ -146,13 +163,15 @@ export const useOrganizationCommands = ({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) {
+      const keyStroke = keyStrokeForEvent(event);
+
+      if (keyStroke === null) {
         return;
       }
 
       const resolution = runtime.keymaps.resolve(
-        [`${event.shiftKey ? 'mod-shift' : 'mod'}-${event.key.toLowerCase()}`],
-        [organizationKeymapTarget],
+        [keyStroke],
+        getKeymapTargets?.(event) ?? [organizationKeymapTarget],
       );
 
       if (
@@ -174,7 +193,53 @@ export const useOrganizationCommands = ({
     window.addEventListener('keydown', handleKeyDown, true);
 
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [dispatchOrganizationCommand, runtime]);
+  }, [dispatchOrganizationCommand, getKeymapTargets, runtime]);
 
   return Object.freeze({ dispatchOrganizationCommand });
+};
+
+const keyStrokeForEvent = (event: KeyboardEvent): string | null => {
+  if (event.isComposing || (event.altKey && (event.metaKey || event.ctrlKey))) {
+    return null;
+  }
+
+  const key = normalizedKey(event.key);
+
+  if (key === null) {
+    return null;
+  }
+
+  const modifiers: string[] = [];
+
+  if (event.metaKey || event.ctrlKey) {
+    modifiers.push('mod');
+  } else if (event.altKey) {
+    modifiers.push('alt');
+  }
+
+  if (event.shiftKey) {
+    modifiers.push('shift');
+  }
+
+  return [...modifiers, key].join('-');
+};
+
+const normalizedKey = (key: string): string | null => {
+  switch (key) {
+    case 'ArrowLeft':
+      return 'left';
+    case 'ArrowRight':
+      return 'right';
+    case 'Backspace':
+      return 'backspace';
+    case 'Delete':
+      return 'delete';
+    case 'Shift':
+    case 'Control':
+    case 'Meta':
+    case 'Alt':
+      return null;
+    default:
+      return key.length === 1 ? key.toLowerCase() : null;
+  }
 };
