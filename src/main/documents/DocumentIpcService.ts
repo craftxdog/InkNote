@@ -55,7 +55,9 @@ export class DocumentIpcService {
   async listTags(): Promise<DocumentIpcResult<readonly TagSummary[]>> {
     return runDocumentIpcOperation(async () =>
       Object.freeze(
-        (await this.repository.listTags()).map((tag) => validateTagSummary(tag)),
+        (await this.repository.listTags()).map((tag) =>
+          validateTagSummary(tag),
+        ),
       ),
     );
   }

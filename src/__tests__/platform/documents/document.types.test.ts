@@ -75,9 +75,7 @@ describe('document primitives', () => {
     });
     expect(Object.isFrozen(tag)).toBe(true);
 
-    expectInvalidMutation(() =>
-      validateTagSummary({ ...tag, color: 'cyan' }),
-    );
+    expectInvalidMutation(() => validateTagSummary({ ...tag, color: 'cyan' }));
     expectInvalidMutation(() => validateTagSummary({ ...tag, count: -1 }));
   });
 

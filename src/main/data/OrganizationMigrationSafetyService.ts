@@ -249,11 +249,13 @@ export class OrganizationMigrationSafetyService {
     return this.snapshotResult(locations, sourceSchemaVersion);
   }
 
-  private async readInspectableRetainedSnapshot(locations: Readonly<{
-    directory: string;
-    snapshotFile: string;
-    manifestFile: string;
-  }>): Promise<Readonly<{ snapshotFile: string; createdAt: string }> | null> {
+  private async readInspectableRetainedSnapshot(
+    locations: Readonly<{
+      directory: string;
+      snapshotFile: string;
+      manifestFile: string;
+    }>,
+  ): Promise<Readonly<{ snapshotFile: string; createdAt: string }> | null> {
     const manifest = await readManifest(locations.manifestFile);
 
     if (
@@ -305,6 +307,7 @@ export class OrganizationMigrationSafetyService {
       } catch (error) {
         throw new Error(
           `Could not create the organization migration safety snapshot: ${errorMessage(error)}`,
+          { cause: error },
         );
       }
 
@@ -428,7 +431,11 @@ const writeManifest = async (
   const stagingFile = `${manifestFile}.${process.pid}.tmp`;
 
   try {
-    await writeFile(stagingFile, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+    await writeFile(
+      stagingFile,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      'utf8',
+    );
     await rename(stagingFile, manifestFile);
   } finally {
     await rm(stagingFile, { force: true });

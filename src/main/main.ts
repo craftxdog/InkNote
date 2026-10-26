@@ -463,7 +463,8 @@ function getDocumentStoreStartup(): DocumentStoreStartup<LocalDocumentStore> {
     documentStoreStartup = new DocumentStoreStartup({
       ensureMigrationSafety: () =>
         getOrganizationMigrationSafetyService().ensureSnapshotBeforeMigration(),
-      createStore: () => new LocalDocumentStore(new Database(getDatabasePath())),
+      createStore: () =>
+        new LocalDocumentStore(new Database(getDatabasePath())),
     });
   }
 
@@ -475,10 +476,12 @@ const initializeLocalDocumentStore = async (): Promise<LocalDocumentStore> =>
 
 function getOrganizationMigrationSafetyService(): OrganizationMigrationSafetyService {
   if (organizationMigrationSafetyService === null) {
-    organizationMigrationSafetyService = new OrganizationMigrationSafetyService({
-      dataDirectory: app.getPath('userData'),
-      databasePath: getDatabasePath(),
-    });
+    organizationMigrationSafetyService = new OrganizationMigrationSafetyService(
+      {
+        dataDirectory: app.getPath('userData'),
+        databasePath: getDatabasePath(),
+      },
+    );
   }
 
   return organizationMigrationSafetyService;

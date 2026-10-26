@@ -19,9 +19,7 @@ export class DocumentStoreStartup<TStore extends ClosableDocumentStore> {
 
   private initialization: Promise<TStore> | null = null;
 
-  constructor(
-    private readonly options: DocumentStoreStartupOptions<TStore>,
-  ) {}
+  constructor(private readonly options: DocumentStoreStartupOptions<TStore>) {}
 
   async initialize(): Promise<TStore> {
     if (this.store !== null) {

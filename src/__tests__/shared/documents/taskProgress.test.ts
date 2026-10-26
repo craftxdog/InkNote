@@ -4,16 +4,18 @@ import { summarizeMarkdownTaskProgress } from '../../../shared/documents/taskPro
 
 describe('summarizeMarkdownTaskProgress', () => {
   it('counts checked Markdown tasks and ignores fenced examples', () => {
-    const progress = summarizeMarkdownTaskProgress([
-      '- [x] Ship the migration',
-      '- [ ] Verify the backup',
-      '```md',
-      '- [x] This is a code example',
-      '```',
-      '~~~markdown',
-      '- [ ] This is another code example',
-      '~~~',
-    ].join('\n'));
+    const progress = summarizeMarkdownTaskProgress(
+      [
+        '- [x] Ship the migration',
+        '- [ ] Verify the backup',
+        '```md',
+        '- [x] This is a code example',
+        '```',
+        '~~~markdown',
+        '- [ ] This is another code example',
+        '~~~',
+      ].join('\n'),
+    );
 
     expect(progress).toEqual({ total: 2, checked: 1 });
     expect(Object.isFrozen(progress)).toBe(true);

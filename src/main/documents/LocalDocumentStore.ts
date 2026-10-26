@@ -640,7 +640,9 @@ export class LocalDocumentStore
         const existingRows = this.database
           .prepare<[], TaskProjectionRow>('SELECT id, body FROM notes')
           .all();
-        const updateTaskCounts = this.database.prepare<[number, number, string]>(
+        const updateTaskCounts = this.database.prepare<
+          [number, number, string]
+        >(
           `UPDATE notes
            SET num_of_tasks = ?, num_of_checked_tasks = ?
            WHERE id = ?`,
@@ -741,12 +743,14 @@ export class LocalDocumentStore
       attachTag.run(link.note_id, tagId);
     }
 
-    const copiedTagCount = this.database
-      .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM tags')
-      .get()?.count ?? -1;
-    const copiedLinkCount = this.database
-      .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM note_tags')
-      .get()?.count ?? -1;
+    const copiedTagCount =
+      this.database
+        .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM tags')
+        .get()?.count ?? -1;
+    const copiedLinkCount =
+      this.database
+        .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM note_tags')
+        .get()?.count ?? -1;
 
     if (
       copiedTagCount !== legacyTags.length ||

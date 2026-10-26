@@ -444,9 +444,7 @@ describe('LocalDocumentStore', () => {
   });
 
   it('resolves create and update tag names to IDs atomically', async () => {
-    const created = await store.apply(
-      createNoteMutation({ tags: ['draft'] }),
-    );
+    const created = await store.apply(createNoteMutation({ tags: ['draft'] }));
 
     expect(
       database
@@ -697,7 +695,9 @@ describe('LocalDocumentStore', () => {
     ).toEqual(['note_id', 'tag_id']);
     expect(
       database
-        .prepare('SELECT id, name, color FROM tags ORDER BY name COLLATE NOCASE')
+        .prepare(
+          'SELECT id, name, color FROM tags ORDER BY name COLLATE NOCASE',
+        )
         .all(),
     ).toEqual([
       { id: expect.stringMatching(/^tag:/), name: 'active', color: 'default' },

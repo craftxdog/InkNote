@@ -275,19 +275,19 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] Full automated verification passes with no skipped/disabled migration tests.
-- [ ] A disposable v7 database creates a safety snapshot, upgrades, opens in Electron, and preserves notes, trash, notebooks, tags, and exports.
-- [ ] Final review confirms no unapproved template, search, tag UI, command palette, sync, or dependency change was introduced.
+- [x] Full automated verification passes with no skipped/disabled migration tests.
+- [x] A disposable v7 database creates a safety snapshot, upgrades, opens in Electron, and preserves notes, trash, notebooks, tags, and exports.
+- [x] Final review confirms no unapproved template, search, tag UI, command palette, sync, or dependency change was introduced.
 
 **Verification:**
 
-- [ ] npm run lint
-- [ ] npm run typecheck
-- [ ] npm run test:ci
-- [ ] npm run verify:native-sqlite
-- [ ] npm run build
-- [ ] npm run verify
-- [ ] npm start manual disposable-profile check
+- [x] npm run lint
+- [x] npm run typecheck
+- [x] npm run test:ci
+- [x] npm run verify:native-sqlite
+- [x] npm run build
+- [x] npm run verify
+- [x] npm start manual disposable-profile check
 
 **Dependencies:** Tasks 1–10.
 
@@ -299,8 +299,8 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 ## Checkpoint: complete organization-data-model
 
-- [ ] All task acceptance criteria and verification commands have evidence.
-- [ ] The retained safety snapshot is visible in Preferences and a configured backup/restore remains valid after migration.
+- [x] All task acceptance criteria and verification commands have evidence.
+- [x] The retained safety snapshot is visible in Preferences and a configured backup/restore remains valid after migration.
 - [ ] A human has reviewed the result before a later organization module is specified or implemented.
 
 ## Approval gate

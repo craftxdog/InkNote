@@ -753,12 +753,10 @@ const normalizeTaskCount = (value: unknown, label: string): number => {
     return 0;
   }
 
-  if (
-    typeof value !== 'number' ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
-    throw createInvalidMutationError(`${label} must be a non-negative integer.`);
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw createInvalidMutationError(
+      `${label} must be a non-negative integer.`,
+    );
   }
 
   return value;
@@ -773,12 +771,10 @@ const normalizeTagColor = (value: unknown): TagColor => {
 };
 
 const normalizeTagCount = (value: unknown): number => {
-  if (
-    typeof value !== 'number' ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
-    throw createInvalidMutationError('Tag count must be a non-negative integer.');
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw createInvalidMutationError(
+      'Tag count must be a non-negative integer.',
+    );
   }
 
   return value;

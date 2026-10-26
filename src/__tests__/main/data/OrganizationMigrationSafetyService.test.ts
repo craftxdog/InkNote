@@ -65,15 +65,17 @@ describe('OrganizationMigrationSafetyService', () => {
     const safetyCopy = await service.ensureSnapshotBeforeMigration();
 
     expect(safetyCopy).toEqual({
-      snapshotFile: expect.stringMatching(/before-organization-migration\.sqlite$/),
+      snapshotFile: expect.stringMatching(
+        /before-organization-migration\.sqlite$/,
+      ),
       manifestFile: expect.stringMatching(/manifest\.json$/),
       sourceSchemaVersion: 7,
       targetSchemaVersion: 9,
     });
     expect(existsSync(safetyCopy?.snapshotFile ?? '')).toBe(true);
-    await expect(readFile(safetyCopy?.manifestFile ?? '', 'utf8')).resolves.toContain(
-      'inknote-organization-migration-safety',
-    );
+    await expect(
+      readFile(safetyCopy?.manifestFile ?? '', 'utf8'),
+    ).resolves.toContain('inknote-organization-migration-safety');
 
     const snapshotDatabase = new Database(safetyCopy?.snapshotFile ?? '', {
       readonly: true,
@@ -99,9 +101,9 @@ describe('OrganizationMigrationSafetyService', () => {
 
     await expect(service.ensureSnapshotBeforeMigration()).resolves.toBeNull();
     await expect(service.getRetainedSnapshotFile()).resolves.toBeNull();
-    expect(existsSync(path.join(dataDirectory, 'organization-migration-safety'))).toBe(
-      false,
-    );
+    expect(
+      existsSync(path.join(dataDirectory, 'organization-migration-safety')),
+    ).toBe(false);
   });
 
   it('reuses only a valid snapshot for the same pending source version', async () => {
