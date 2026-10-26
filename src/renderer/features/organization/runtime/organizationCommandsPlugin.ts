@@ -1,10 +1,10 @@
 import type { CommandInvocation } from '../../../platform/commands/command.types';
-import { createPluginId, type InkNotePlugin } from '../../../platform/plugins/plugin.types';
-
 import {
-  organizationCommandIds,
-  type OrganizationCommand,
-} from '../model/organizationCommands';
+  createPluginId,
+  type InkNotePlugin,
+} from '../../../platform/plugins/plugin.types';
+
+import { organizationCommandIds } from '../model/organizationCommands';
 
 export {
   isOrganizationCommand,

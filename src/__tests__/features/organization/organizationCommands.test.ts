@@ -7,9 +7,7 @@ import {
 
 describe('organization commands', () => {
   it('accepts only its stable note command ID at the keymap boundary', () => {
-    expect(isOrganizationCommand(organizationCommandIds.createNote)).toBe(
-      true,
-    );
+    expect(isOrganizationCommand(organizationCommandIds.createNote)).toBe(true);
     expect(isOrganizationCommand('view:show-preview')).toBe(false);
   });
 
