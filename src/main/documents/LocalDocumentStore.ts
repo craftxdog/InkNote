@@ -10,6 +10,7 @@ import {
 import type {
   DocumentQueryRepository,
   NotebookRepository,
+  TagQueryRepository,
 } from '../../shared/documents/document.query';
 import type {
   DocumentDeletionRepository,
@@ -26,6 +27,7 @@ import {
   createNoteId,
   createRevision,
   validateDocumentMutation,
+  validateTagSummary,
   type CreateDocumentMutation,
   type DocumentMutation,
   type CreateNotebookInput,
@@ -37,6 +39,7 @@ import {
   type NotebookIconName,
   type NoteDocument,
   type NoteId,
+  type TagSummary,
 } from '../../shared/documents/document.types';
 import { summarizeMarkdownTaskProgress } from '../../shared/documents/taskProgress';
 
@@ -79,6 +82,15 @@ type NoteRow = Readonly<{
 type TagRow = Readonly<{
   note_id: string;
   name: string;
+}>;
+
+type TagSummaryRow = Readonly<{
+  id: string;
+  name: string;
+  color: string;
+  count: number;
+  created_at: string;
+  updated_at: string;
 }>;
 
 type LegacyTagRow = Readonly<{
@@ -152,7 +164,8 @@ export class LocalDocumentStore
     DocumentRepository,
     DocumentDeletionRepository,
     DocumentQueryRepository,
-    NotebookRepository
+    NotebookRepository,
+    TagQueryRepository
 {
   private readonly applyLocalTransaction: (
     mutation: DocumentMutation,
@@ -227,6 +240,35 @@ export class LocalDocumentStore
       .all(INBOX_NOTEBOOK_ID);
 
     return Object.freeze(rows.map(notebookFromRow));
+  }
+
+  async listTags(): Promise<readonly TagSummary[]> {
+    const rows = this.database
+      .prepare<[], TagSummaryRow>(
+        `SELECT tags.id, tags.name, tags.color, tags.created_at, tags.updated_at,
+                COUNT(active_notes.id) AS count
+         FROM tags
+         LEFT JOIN note_tags ON note_tags.tag_id = tags.id
+         LEFT JOIN notes AS active_notes
+           ON active_notes.id = note_tags.note_id
+          AND active_notes.deleted_at IS NULL
+         GROUP BY tags.id, tags.name, tags.color, tags.created_at, tags.updated_at
+         ORDER BY tags.name COLLATE NOCASE ASC, tags.id ASC`,
+      )
+      .all();
+
+    return Object.freeze(
+      rows.map((row) =>
+        validateTagSummary({
+          id: row.id,
+          name: row.name,
+          color: row.color,
+          count: row.count,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }),
+      ),
+    );
   }
 
   async createNotebook(input: CreateNotebookInput): Promise<Notebook> {

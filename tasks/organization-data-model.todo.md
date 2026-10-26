@@ -172,14 +172,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] Counts include active non-trashed associations and retain tags whose current count is zero.
-- [ ] Results validate the tag color, timestamps, identity, and non-negative count before leaving the store.
-- [ ] The query performs no tag mutation and exposes no SQLite implementation detail.
+- [x] Counts include active non-trashed associations and retain tags whose current count is zero.
+- [x] Results validate the tag color, timestamps, identity, and non-negative count before leaving the store.
+- [x] The query performs no tag mutation and exposes no SQLite implementation detail.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/main/documents/LocalDocumentStore.test.ts
+- [x] npm run typecheck
 
 **Dependencies:** Tasks 1 and 4.
 

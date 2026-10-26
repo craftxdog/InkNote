@@ -490,6 +490,62 @@ describe('LocalDocumentStore', () => {
     ).toEqual([{ name: 'draft' }]);
   });
 
+  it('lists immutable tag summaries with counts derived from active notes only', async () => {
+    const active = await store.apply(
+      createNoteMutation({ tags: ['active', 'shared'] }),
+    );
+    const archivedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-archived-tag'),
+        documentId: createNoteId('archived-tag-note'),
+        tags: ['archived', 'shared'],
+      }),
+    );
+    await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive-tagged-note'),
+        documentId: archivedSource.id,
+        baseRevision: archivedSource.revision,
+        source: 'command',
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+    const unusedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-unused-tag'),
+        documentId: createNoteId('unused-tag-note'),
+        tags: ['unused'],
+      }),
+    );
+    await store.apply(
+      createUpdateTagsMutation({
+        id: createMutationId('mutation-remove-unused-tag'),
+        documentId: unusedSource.id,
+        baseRevision: unusedSource.revision,
+        source: 'editor',
+        tags: ['active'],
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+
+    const tags = await store.listTags();
+
+    expect(tags).toEqual([
+      expect.objectContaining({
+        id: expect.stringMatching(/^tag:/),
+        name: 'active',
+        color: 'default',
+        count: 2,
+      }),
+      expect.objectContaining({ name: 'archived', count: 0 }),
+      expect.objectContaining({ name: 'shared', count: 1 }),
+      expect.objectContaining({ name: 'unused', count: 0 }),
+    ]);
+    expect(Object.isFrozen(tags)).toBe(true);
+    expect(Object.isFrozen(tags[0])).toBe(true);
+    expect(active.tags).toEqual(['active', 'shared']);
+  });
+
   it('persists None without polluting the task-status sidebar values', async () => {
     const created = await store.apply(createNoteMutation({ status: 'active' }));
     const unset = await store.apply(

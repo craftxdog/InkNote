@@ -4,6 +4,7 @@ import type {
   DeleteNotebookResult,
   Notebook,
   NoteDocument,
+  TagSummary,
 } from './document.types';
 
 /**
@@ -15,6 +16,14 @@ export interface DocumentQueryRepository {
   listActive(): Promise<readonly NoteDocument[]>;
   listArchived(): Promise<readonly NoteDocument[]>;
   listNotebooks(): Promise<readonly Notebook[]>;
+}
+
+/**
+ * Independent read port for the durable tag catalogue. It remains separate
+ * from note queries so tag UI can grow without expanding unrelated callers.
+ */
+export interface TagQueryRepository {
+  listTags(): Promise<readonly TagSummary[]>;
 }
 
 /**
