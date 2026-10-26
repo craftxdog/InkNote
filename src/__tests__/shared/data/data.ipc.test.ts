@@ -20,12 +20,16 @@ describe('data-management IPC contract', () => {
     const result = createDataIpcSuccess({
       dataDirectory: '/private/inknote',
       backupDirectory: '/private/backup',
+      migrationSafetySnapshotFile:
+        '/private/inknote/organization-migration-safety/v9-from-v7/before-organization-migration.sqlite',
     });
 
     expect(Object.isFrozen(result)).toBe(true);
     expect(unwrapDataIpcResult(result, validateDataManagementInfo)).toEqual({
       dataDirectory: '/private/inknote',
       backupDirectory: '/private/backup',
+      migrationSafetySnapshotFile:
+        '/private/inknote/organization-migration-safety/v9-from-v7/before-organization-migration.sqlite',
     });
   });
 

@@ -108,7 +108,7 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 - [x] Tasks 1–4 pass their focused tests and npm run typecheck.
 - [x] A v7 fixture can be migrated, reopened, and queried without lost notes, notebooks, Yjs history, trash state, tags, or associations.
-- [ ] No startup integration has been enabled yet; no user database can reach the migration without the safety-preflight tasks below.
+- [x] Startup is safety-gated: no user database reaches the organization migration before its recoverable preflight completes.
 
 ## Task 5: Add a recoverable migration-safety snapshot service
 
@@ -162,9 +162,9 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 ## Checkpoint: protected application startup
 
-- [ ] Tasks 5–6 prove that migration cannot start without a recoverable safety copy.
-- [ ] The store still opens and closes once per application lifecycle.
-- [ ] Existing restore, export, and configured-backup tests remain green.
+- [x] Tasks 5–6 prove that migration cannot start without a recoverable safety copy.
+- [x] The store still opens and closes once per application lifecycle.
+- [x] Existing restore, export, and configured-backup tests remain green.
 
 ## Task 7: Implement deterministic tag-summary reads
 
@@ -248,14 +248,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] Preferences shows the safety snapshot location only when one exists.
-- [ ] A configured backup after the upgraded store opens contains the current schema and is accepted by the existing restore validation.
-- [ ] Existing backup, restore, and export behavior remains unchanged when no organization migration has occurred.
+- [x] Preferences shows the safety snapshot location only when one exists.
+- [x] A configured backup after the upgraded store opens contains the current schema and is accepted by the existing restore validation.
+- [x] Existing backup, restore, and export behavior remains unchanged when no organization migration has occurred.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/main/data/DataManagementService.test.ts src/__tests__/main/data/RestoreDatabaseService.test.ts src/__tests__/App.test.tsx
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/main/data/DataManagementService.test.ts src/__tests__/main/data/RestoreDatabaseService.test.ts src/__tests__/App.test.tsx
+- [x] npm run typecheck
 
 **Dependencies:** Tasks 5, 6, and 9.
 

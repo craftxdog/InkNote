@@ -1,4 +1,13 @@
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import path from 'node:path';
 
 import Database from 'better-sqlite3';
@@ -104,6 +113,66 @@ export class OrganizationMigrationSafetyService {
     return this.snapshotResult(locations, sourceSchemaVersion);
   }
 
+  /**
+   * Finds the most recent, self-consistent retained snapshot for Preferences.
+   * This does not create, repair, or expose an invalid copy: the migration
+   * preflight remains the only code allowed to create one.
+   */
+  async getRetainedSnapshotFile(): Promise<string | null> {
+    const safetyDirectory = path.join(
+      this.dataDirectory,
+      SAFETY_DIRECTORY_NAME,
+    );
+    let entries: Dirent<string>[];
+
+    try {
+      entries = await readdir(safetyDirectory, { withFileTypes: true });
+    } catch (error) {
+      if (isFileNotFoundError(error)) {
+        return null;
+      }
+
+      throw error;
+    }
+
+    const retained = (
+      await Promise.all(
+        entries
+          .filter((entry) => entry.isDirectory())
+          .map((entry) =>
+            this.readInspectableRetainedSnapshot({
+              directory: path.join(safetyDirectory, entry.name),
+              snapshotFile: path.join(
+                safetyDirectory,
+                entry.name,
+                SNAPSHOT_FILE_NAME,
+              ),
+              manifestFile: path.join(
+                safetyDirectory,
+                entry.name,
+                MANIFEST_FILE_NAME,
+              ),
+            }),
+          ),
+      )
+    ).filter(
+      (
+        candidate,
+      ): candidate is Readonly<{ snapshotFile: string; createdAt: string }> =>
+        candidate !== null,
+    );
+
+    const latest = retained.sort((left, right) => {
+      const byCreatedAt = right.createdAt.localeCompare(left.createdAt);
+
+      return byCreatedAt === 0
+        ? left.snapshotFile.localeCompare(right.snapshotFile)
+        : byCreatedAt;
+    })[0];
+
+    return latest?.snapshotFile ?? null;
+  }
+
   private async readSourceSchemaVersion(): Promise<number | null> {
     if (!(await pathExists(this.databasePath))) {
       return null;
@@ -178,6 +247,42 @@ export class OrganizationMigrationSafetyService {
     }
 
     return this.snapshotResult(locations, sourceSchemaVersion);
+  }
+
+  private async readInspectableRetainedSnapshot(locations: Readonly<{
+    directory: string;
+    snapshotFile: string;
+    manifestFile: string;
+  }>): Promise<Readonly<{ snapshotFile: string; createdAt: string }> | null> {
+    const manifest = await readManifest(locations.manifestFile);
+
+    if (
+      manifest === null ||
+      !isValidSourceSchemaVersion(manifest.sourceSchemaVersion) ||
+      !isValidManifest(manifest, manifest.sourceSchemaVersion) ||
+      !(await isRegularFile(locations.snapshotFile))
+    ) {
+      return null;
+    }
+
+    try {
+      const snapshot = new Database(locations.snapshotFile, { readonly: true });
+
+      try {
+        if (readSchemaVersion(snapshot) !== manifest.sourceSchemaVersion) {
+          return null;
+        }
+      } finally {
+        snapshot.close();
+      }
+    } catch {
+      return null;
+    }
+
+    return Object.freeze({
+      snapshotFile: locations.snapshotFile,
+      createdAt: manifest.createdAt,
+    });
   }
 
   private async createSnapshot(
@@ -307,10 +412,14 @@ const isValidManifest = (
 ): boolean =>
   manifest.format === SAFETY_FORMAT &&
   manifest.version === SAFETY_FORMAT_VERSION &&
+  isValidSourceSchemaVersion(manifest.sourceSchemaVersion) &&
   manifest.sourceSchemaVersion === sourceSchemaVersion &&
   manifest.targetSchemaVersion === ORGANIZATION_DATA_MODEL_SCHEMA_VERSION &&
   typeof manifest.createdAt === 'string' &&
   !Number.isNaN(Date.parse(manifest.createdAt));
+
+const isValidSourceSchemaVersion = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
 
 const writeManifest = async (
   manifestFile: string,

@@ -88,12 +88,17 @@ describe('OrganizationMigrationSafetyService', () => {
     } finally {
       snapshotDatabase.close();
     }
+
+    await expect(service.getRetainedSnapshotFile()).resolves.toBe(
+      safetyCopy?.snapshotFile,
+    );
   });
 
   it('does not create a needless safety copy for a fresh profile', async () => {
     const service = createService();
 
     await expect(service.ensureSnapshotBeforeMigration()).resolves.toBeNull();
+    await expect(service.getRetainedSnapshotFile()).resolves.toBeNull();
     expect(existsSync(path.join(dataDirectory, 'organization-migration-safety'))).toBe(
       false,
     );
@@ -131,6 +136,7 @@ describe('OrganizationMigrationSafetyService', () => {
     await expect(service.ensureSnapshotBeforeMigration()).rejects.toThrow(
       'retained migration safety snapshot is invalid',
     );
+    await expect(service.getRetainedSnapshotFile()).resolves.toBeNull();
   });
 
   it('fails closed when the online snapshot cannot be written', async () => {

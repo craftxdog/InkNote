@@ -321,6 +321,8 @@ describe('App', () => {
       value: {
         dataDirectory: '/private/inknote',
         backupDirectory: null,
+        migrationSafetySnapshotFile:
+          '/private/inknote/organization-migration-safety/v9-from-v7/before-organization-migration.sqlite',
       },
     });
     const chooseDirectory = jest.fn(async (purpose: string) => ({
@@ -368,6 +370,14 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByText('/private/inknote')).toBeInTheDocument(),
     );
+    expect(
+      screen.getByText('Organization migration safety snapshot'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        '/private/inknote/organization-migration-safety/v9-from-v7/before-organization-migration.sqlite',
+      ),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Configure backup…' }));
     await waitFor(() =>
@@ -385,6 +395,48 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(chooseDirectory).toHaveBeenCalledWith('backup');
     expect(chooseDirectory).toHaveBeenCalledWith('export');
+  });
+
+  it('hides the organization-migration safety location when no snapshot exists', async () => {
+    const getInfo = jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        dataDirectory: '/private/inknote',
+        backupDirectory: null,
+        migrationSafetySnapshotFile: null,
+      },
+    });
+
+    Object.defineProperty(window, 'inknote', {
+      configurable: true,
+      value: {
+        windowControls: { setTrafficLightsVisible },
+        documents: {
+          get: jest.fn().mockResolvedValue({ ok: true, value: null }),
+          apply: jest.fn(),
+          listActive: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          createNotebook: jest.fn(),
+        },
+        data: {
+          getInfo,
+          chooseDirectory: jest.fn(),
+          configureBackup: jest.fn(),
+          restoreBackup: jest.fn(),
+          exportMarkdown: jest.fn(),
+        },
+      },
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    await waitFor(() => expect(getInfo).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText('Organization migration safety snapshot'),
+    ).not.toBeInTheDocument();
   });
 
   it('updates the preview from the editor draft before its debounced save', async () => {

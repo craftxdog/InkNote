@@ -439,6 +439,13 @@ export function WorkspacePreferences({
                 <dt>Backup directory</dt>
                 <dd>{dataInfo?.backupDirectory ?? 'Not configured'}</dd>
               </div>
+              {dataInfo === null ||
+              dataInfo.migrationSafetySnapshotFile === null ? null : (
+                <div>
+                  <dt>Organization migration safety snapshot</dt>
+                  <dd>{dataInfo.migrationSafetySnapshotFile}</dd>
+                </div>
+              )}
             </dl>
 
             <div className="workspace-preferences__data-actions">

@@ -62,6 +62,9 @@ let documentStoreStartup: DocumentStoreStartup<LocalDocumentStore> | null =
 
 let dataManagementService: DataManagementService | null = null;
 
+let organizationMigrationSafetyService: OrganizationMigrationSafetyService | null =
+  null;
+
 let themePackageService: ThemePackageService | null = null;
 
 /* =========================================================
@@ -457,14 +460,9 @@ function getLocalDocumentStore(): LocalDocumentStore {
 
 function getDocumentStoreStartup(): DocumentStoreStartup<LocalDocumentStore> {
   if (documentStoreStartup === null) {
-    const migrationSafety = new OrganizationMigrationSafetyService({
-      dataDirectory: app.getPath('userData'),
-      databasePath: getDatabasePath(),
-    });
-
     documentStoreStartup = new DocumentStoreStartup({
       ensureMigrationSafety: () =>
-        migrationSafety.ensureSnapshotBeforeMigration(),
+        getOrganizationMigrationSafetyService().ensureSnapshotBeforeMigration(),
       createStore: () => new LocalDocumentStore(new Database(getDatabasePath())),
     });
   }
@@ -475,12 +473,25 @@ function getDocumentStoreStartup(): DocumentStoreStartup<LocalDocumentStore> {
 const initializeLocalDocumentStore = async (): Promise<LocalDocumentStore> =>
   getDocumentStoreStartup().initialize();
 
+function getOrganizationMigrationSafetyService(): OrganizationMigrationSafetyService {
+  if (organizationMigrationSafetyService === null) {
+    organizationMigrationSafetyService = new OrganizationMigrationSafetyService({
+      dataDirectory: app.getPath('userData'),
+      databasePath: getDatabasePath(),
+    });
+  }
+
+  return organizationMigrationSafetyService;
+}
+
 function getDataManagementService(): DataManagementService {
   if (dataManagementService === null) {
     dataManagementService = new DataManagementService({
       dataDirectory: app.getPath('userData'),
       snapshotDatabase: (destination) =>
         getLocalDocumentStore().backupTo(destination),
+      migrationSafetySnapshotFile: () =>
+        getOrganizationMigrationSafetyService().getRetainedSnapshotFile(),
     });
   }
 
@@ -706,6 +717,7 @@ app.on('before-quit', () => {
   documentStoreStartup?.close();
   documentStoreStartup = null;
   dataManagementService = null;
+  organizationMigrationSafetyService = null;
   themePackageService = null;
 });
 
