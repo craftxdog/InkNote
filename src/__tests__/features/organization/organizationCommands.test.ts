@@ -10,6 +10,9 @@ describe('organization commands', () => {
     expect(isOrganizationCommand(organizationCommandIds.createNote)).toBe(true);
     expect(isOrganizationCommand(organizationCommandIds.moveNotes)).toBe(true);
     expect(isOrganizationCommand(organizationCommandIds.goBack)).toBe(true);
+    expect(isOrganizationCommand(organizationCommandIds.updateNotebook)).toBe(
+      true,
+    );
     expect(isOrganizationCommand('view:show-preview')).toBe(false);
   });
 
@@ -75,6 +78,9 @@ describe('organization commands', () => {
     expect(runtime.keymaps.resolve(['mod-p'], [workspaceTarget])).toEqual({
       kind: 'none',
     });
+    expect(runtime.keymaps.resolve(['mod-shift-n'], [workspaceTarget])).toEqual(
+      { kind: 'none' },
+    );
 
     await expect(runtime.plugins.deactivate(plugin.id)).resolves.toBe(true);
     await expect(

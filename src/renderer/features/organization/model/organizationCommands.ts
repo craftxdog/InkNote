@@ -8,6 +8,10 @@ export const organizationCommandIds = Object.freeze({
   toggleNotePinned: 'note:toggle-pin',
   goBack: 'note:history-back',
   goForward: 'note:history-forward',
+  createNotebook: 'notebook:new',
+  updateNotebook: 'notebook:update',
+  deleteNotebook: 'notebook:delete',
+  openNotebook: 'notebook:open',
 });
 
 export const organizationCommandContexts = Object.freeze({
