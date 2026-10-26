@@ -107,11 +107,21 @@ export function NavigationPanel({
       throw new Error('The notebook command did not update a notebook.');
     }
 
-    onSelectionChange(
-      detailNotebookId === result.id
-        ? selectionForNotebookDetail(result)
-        : selectionForNotebook(result),
-    );
+    if (detailNotebookId === result.id) {
+      onSelectionChange(selectionForNotebookDetail(result));
+      return;
+    }
+
+    if (
+      selection.view.type === 'notebook' &&
+      selection.view.notebookId === result.id
+    ) {
+      onSelectionChange(
+        selectionForNotebook(result, {
+          includeDescendants: selection.view.includeDescendants,
+        }),
+      );
+    }
   };
 
   return (

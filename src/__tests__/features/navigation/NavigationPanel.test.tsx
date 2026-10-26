@@ -119,13 +119,14 @@ describe('NavigationPanel', () => {
       ...notebooks[1],
       name: 'Focused work',
     } satisfies Notebook);
+    const onSelectionChange = jest.fn();
 
     render(
       <NavigationPanel
         documents={documents}
         notebooks={notebooks}
         selection={navigationDestinations.allNotes}
-        onSelectionChange={jest.fn()}
+        onSelectionChange={onSelectionChange}
         onExecuteNotebookCommand={onExecuteNotebookCommand}
       />,
     );
@@ -153,6 +154,7 @@ describe('NavigationPanel', () => {
       },
       'context-menu',
     );
+    expect(onSelectionChange).not.toHaveBeenCalled();
   });
 
   it('keeps menu provenance when editing from a notebook detail view', async () => {
