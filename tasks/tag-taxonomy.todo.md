@@ -106,17 +106,17 @@ authorized Electron handlers, including backup refresh after success.
 
 **Acceptance criteria:**
 
-- [ ] Unknown payloads return the established safe error envelope before
+- [x] Unknown payloads return the established safe error envelope before
       reaching storage.
-- [ ] Each write handler authorizes its sender and refreshes configured backup
+- [x] Each write handler authorizes its sender and refreshes configured backup
       exactly once after success, never after rejection.
-- [ ] Tag channels are additive; existing query and notebook handlers remain
+- [x] Tag channels are additive; existing query and notebook handlers remain
       unchanged.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/main/documents/DocumentIpcService.test.ts src/__tests__/main/data/DataManagementService.test.ts`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/main/documents/DocumentIpcService.test.ts src/__tests__/main/data/DataManagementService.test.ts`
+- [x] `npm run typecheck`
 
 **Dependencies:** Task 3.
 

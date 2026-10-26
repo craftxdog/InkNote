@@ -5,6 +5,7 @@ import {
   INITIAL_DOCUMENT_REVISION,
   createArchiveMutation,
   createCreateDocumentMutation,
+  createGeneratedTagId,
   createMutationId,
   createNoteId,
 } from '../../../shared/documents/document.types';
@@ -157,6 +158,65 @@ describe('DocumentIpcService', () => {
         parentId: null,
         icon: null,
         occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_MUTATION' },
+    });
+  });
+
+  it('validates and forwards complete tag lifecycle requests', async () => {
+    const service = new DocumentIpcService(new InMemoryDocumentRepository());
+
+    const created = await service.createTag({
+      id: createGeneratedTagId('catalogue'),
+      name: '  Catalogue  ',
+      color: 'teal',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+
+    expect(created).toEqual({
+      ok: true,
+      value: {
+        id: 'tag:catalogue',
+        name: 'catalogue',
+        color: 'teal',
+        count: 0,
+        createdAt: '2026-10-26T12:00:00.000Z',
+        updatedAt: '2026-10-26T12:00:00.000Z',
+      },
+    });
+
+    await expect(
+      service.updateTag({
+        id: 'tag:catalogue',
+        name: 'Team Catalogue',
+        color: 'purple',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        id: 'tag:catalogue',
+        name: 'team catalogue',
+        color: 'purple',
+      },
+    });
+    await expect(
+      service.deleteTag({
+        id: 'tag:catalogue',
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: { deletedTagId: 'tag:catalogue', affectedNoteIds: [] },
+    });
+    await expect(
+      service.createTag({
+        id: 'legacy-tag',
+        name: 'Legacy',
+        color: 'red',
+        occurredAt: '2026-10-26T12:03:00.000Z',
       }),
     ).resolves.toMatchObject({
       ok: false,

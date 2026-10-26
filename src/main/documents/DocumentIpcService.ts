@@ -10,20 +10,25 @@ import type {
 import type {
   DocumentQueryRepository,
   NotebookRepository,
-  TagQueryRepository,
+  TagRepository,
 } from '../../shared/documents/document.query';
 import {
   createNoteId,
+  validateCreateTagInput,
+  validateDeleteTagInput,
   validateDeleteNotebookInput,
   validateDocumentMutation,
   validatePermanentlyDeleteNotesInput,
+  validateDeleteTagResult,
+  validateTagSummary,
+  validateUpdateTagInput,
   validateUpdateNotebookInput,
+  type DeleteTagResult,
   type DocumentMutation,
   type NoteDocument,
   type Notebook,
   type PermanentlyDeleteNotesResult,
   type TagSummary,
-  validateTagSummary,
 } from '../../shared/documents/document.types';
 
 /**
@@ -38,7 +43,7 @@ export class DocumentIpcService {
       DocumentDeletionRepository &
       DocumentQueryRepository &
       NotebookRepository &
-      TagQueryRepository,
+      TagRepository,
   ) {}
 
   async listActive(): Promise<DocumentIpcResult<readonly NoteDocument[]>> {
@@ -66,6 +71,30 @@ export class DocumentIpcService {
   async createNotebook(input: unknown): Promise<DocumentIpcResult<Notebook>> {
     return runDocumentIpcOperation(() =>
       this.repository.createNotebook(parseCreateNotebookInput(input)),
+    );
+  }
+
+  async createTag(input: unknown): Promise<DocumentIpcResult<TagSummary>> {
+    return runDocumentIpcOperation(async () =>
+      validateTagSummary(
+        await this.repository.createTag(validateCreateTagInput(input)),
+      ),
+    );
+  }
+
+  async updateTag(input: unknown): Promise<DocumentIpcResult<TagSummary>> {
+    return runDocumentIpcOperation(async () =>
+      validateTagSummary(
+        await this.repository.updateTag(validateUpdateTagInput(input)),
+      ),
+    );
+  }
+
+  async deleteTag(input: unknown): Promise<DocumentIpcResult<DeleteTagResult>> {
+    return runDocumentIpcOperation(async () =>
+      validateDeleteTagResult(
+        await this.repository.deleteTag(validateDeleteTagInput(input)),
+      ),
     );
   }
 

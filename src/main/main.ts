@@ -200,6 +200,39 @@ function registerDocumentIpcHandlers(getService: () => DocumentIpcService) {
     return getService().listTags();
   });
 
+  ipcMain.handle(IPC_CHANNELS.documents.createTag, async (event, input) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    const result = await getService().createTag(input);
+    await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+    return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.documents.updateTag, async (event, input) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    const result = await getService().updateTag(input);
+    await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+    return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.documents.deleteTag, async (event, input) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    const result = await getService().deleteTag(input);
+    await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+    return result;
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.documents.createNotebook,
     async (event, input) => {
