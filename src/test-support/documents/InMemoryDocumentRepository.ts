@@ -11,12 +11,14 @@ import type {
 import type {
   DocumentQueryRepository,
   NotebookRepository,
+  TagQueryRepository,
 } from '../../shared/documents/document.query';
 
 import {
   INITIAL_DOCUMENT_REVISION,
   INBOX_NOTEBOOK_ID,
   createNotebook,
+  createGeneratedTagId,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
   type PermanentlyDeleteNotesInput,
@@ -29,6 +31,7 @@ import {
   type Notebook,
   type NoteDocument,
   type NoteId,
+  type TagSummary,
 } from '../../shared/documents/document.types';
 
 /**
@@ -42,7 +45,8 @@ export class InMemoryDocumentRepository
     DocumentRepository,
     DocumentDeletionRepository,
     DocumentQueryRepository,
-    NotebookRepository
+    NotebookRepository,
+    TagQueryRepository
 {
   private readonly documents = new Map<NoteId, NoteDocument>();
 
@@ -99,6 +103,35 @@ export class InMemoryDocumentRepository
       [...this.notebooks.values()]
         .sort((left, right) => left.name.localeCompare(right.name))
         .map((notebook) => Object.freeze({ ...notebook })),
+    );
+  }
+
+  async listTags(): Promise<readonly TagSummary[]> {
+    const activeTags = new Map<string, number>();
+
+    for (const document of this.documents.values()) {
+      if (document.deletedAt !== null) {
+        continue;
+      }
+
+      for (const tag of document.tags) {
+        activeTags.set(tag, (activeTags.get(tag) ?? 0) + 1);
+      }
+    }
+
+    return Object.freeze(
+      [...activeTags]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([name, count]) =>
+          Object.freeze({
+            id: createGeneratedTagId(name),
+            name,
+            color: 'default' as const,
+            count,
+            createdAt: '1970-01-01T00:00:00.000Z',
+            updatedAt: '1970-01-01T00:00:00.000Z',
+          }),
+        ),
     );
   }
 

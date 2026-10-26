@@ -197,14 +197,14 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 
 **Acceptance criteria:**
 
-- [ ] An authorized request receives immutable tag summaries; an untrusted sender receives the existing safe failure shape.
-- [ ] The service rejects malformed repository output rather than forwarding it as trusted data.
-- [ ] The handler remains read-only and refreshes no backup.
+- [x] An authorized request receives immutable tag summaries; an untrusted sender receives the existing safe failure shape.
+- [x] The service rejects malformed repository output rather than forwarding it as trusted data.
+- [x] The handler remains read-only and refreshes no backup.
 
 **Verification:**
 
-- [ ] Red → green: npm test -- --runInBand src/__tests__/main/documents/DocumentIpcService.test.ts src/__tests__/shared/documents/document.ipc.test.ts
-- [ ] npm run typecheck
+- [x] Red → green: npm test -- --runInBand src/__tests__/main/documents/DocumentIpcService.test.ts src/__tests__/shared/documents/document.ipc.test.ts
+- [x] npm run typecheck
 
 **Dependencies:** Task 7.
 
@@ -213,7 +213,6 @@ This checklist implements only [SPEC-organization-data-model.md](../SPEC-organiz
 - src/main/documents/DocumentIpcService.ts
 - src/__tests__/main/documents/DocumentIpcService.test.ts
 - src/shared/ipc/channels.ts
-- src/shared/bridge.ts
 - src/main/main.ts
 
 **Estimated scope:** Medium (5 files).

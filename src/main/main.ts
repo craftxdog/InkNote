@@ -184,6 +184,14 @@ function registerDocumentIpcHandlers(getService: () => DocumentIpcService) {
     return getService().listNotebooks();
   });
 
+  ipcMain.handle(IPC_CHANNELS.documents.listTags, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return getService().listTags();
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.documents.createNotebook,
     async (event, input) => {

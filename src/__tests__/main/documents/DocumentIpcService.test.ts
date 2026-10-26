@@ -67,10 +67,61 @@ describe('DocumentIpcService', () => {
         notebookId: 'inbox',
         status: 'none',
         tags: [],
+        doctype: 'markdown',
+        pinned: false,
+        numOfTasks: 0,
+        numOfCheckedTasks: 0,
         createdAt: '2026-10-21T12:00:00.000Z',
         updatedAt: '2026-10-21T12:00:00.000Z',
         revision: 'local-1',
         deletedAt: null,
+      },
+    });
+  });
+
+  it('returns validated immutable tag summaries', async () => {
+    const repository = new InMemoryDocumentRepository();
+    const service = new DocumentIpcService(repository);
+
+    await repository.apply(
+      createCreateDocumentMutation({
+        ...createMutation(),
+        tags: ['Work'],
+      }),
+    );
+
+    await expect(service.listTags()).resolves.toEqual({
+      ok: true,
+      value: [
+        expect.objectContaining({
+          id: expect.stringMatching(/^tag:/),
+          name: 'work',
+          color: 'default',
+          count: 1,
+        }),
+      ],
+    });
+  });
+
+  it('does not forward malformed tag repository values across IPC', async () => {
+    const service = new DocumentIpcService({
+      listTags: async () => [
+        {
+          id: 'tag-malformed',
+          name: 'Malformed',
+          color: 'not-a-color',
+          count: 0,
+          createdAt: '2026-10-21T12:00:00.000Z',
+          updatedAt: '2026-10-21T12:00:00.000Z',
+        },
+      ],
+    } as unknown as ConstructorParameters<typeof DocumentIpcService>[0]);
+
+    await expect(service.listTags()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'INVALID_MUTATION',
+        message: 'Tag color is not supported.',
       },
     });
   });

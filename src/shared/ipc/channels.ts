@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
     listActive: 'documents:list-active',
     listArchived: 'documents:list-archived',
     listNotebooks: 'documents:list-notebooks',
+    listTags: 'documents:list-tags',
     createNotebook: 'documents:create-notebook',
     deleteNotebook: 'documents:delete-notebook',
     deletePermanently: 'documents:delete-permanently',

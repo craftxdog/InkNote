@@ -10,6 +10,7 @@ import type {
 import type {
   DocumentQueryRepository,
   NotebookRepository,
+  TagQueryRepository,
 } from '../../shared/documents/document.query';
 import {
   createNoteId,
@@ -20,6 +21,8 @@ import {
   type NoteDocument,
   type Notebook,
   type PermanentlyDeleteNotesResult,
+  type TagSummary,
+  validateTagSummary,
 } from '../../shared/documents/document.types';
 
 /**
@@ -33,7 +36,8 @@ export class DocumentIpcService {
     private readonly repository: DocumentRepository &
       DocumentDeletionRepository &
       DocumentQueryRepository &
-      NotebookRepository,
+      NotebookRepository &
+      TagQueryRepository,
   ) {}
 
   async listActive(): Promise<DocumentIpcResult<readonly NoteDocument[]>> {
@@ -46,6 +50,14 @@ export class DocumentIpcService {
 
   async listNotebooks(): Promise<DocumentIpcResult<readonly Notebook[]>> {
     return runDocumentIpcOperation(() => this.repository.listNotebooks());
+  }
+
+  async listTags(): Promise<DocumentIpcResult<readonly TagSummary[]>> {
+    return runDocumentIpcOperation(async () =>
+      Object.freeze(
+        (await this.repository.listTags()).map((tag) => validateTagSummary(tag)),
+      ),
+    );
   }
 
   async createNotebook(input: unknown): Promise<DocumentIpcResult<Notebook>> {
