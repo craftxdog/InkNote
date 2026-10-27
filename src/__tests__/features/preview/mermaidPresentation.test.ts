@@ -194,6 +194,19 @@ describe('sanitizeMermaidSvg', () => {
     preview.remove();
   });
 
+  it('does not let unavailable SVG metadata interrupt contrast reconciliation', () => {
+    const malformedSvg = {
+      querySelectorAll: () => [
+        {
+          children: [{}],
+          querySelectorAll: () => [],
+        },
+      ],
+    } as unknown as SVGSVGElement;
+
+    expect(() => rebalanceMermaidNodeLabelContrast(malformedSvg)).not.toThrow();
+  });
+
   it('adds keyboard-accessible pan and zoom controls to each diagram', async () => {
     render.mockResolvedValue({
       svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>CI</text></svg>',

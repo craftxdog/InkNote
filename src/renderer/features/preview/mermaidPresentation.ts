@@ -113,39 +113,44 @@ export const rebalanceMermaidNodeLabelContrast = (svg: SVGSVGElement): void => {
   const darkText: RgbColor = [17, 24, 39];
   const lightText: RgbColor = [248, 250, 252];
 
-  for (const node of svg.querySelectorAll<SVGGElement>('.node')) {
-    const shape = [...node.children].find((child): child is SVGElement =>
-      ['rect', 'polygon', 'ellipse', 'circle', 'path'].includes(
-        child.localName.toLocaleLowerCase(),
-      ),
-    );
-    const background =
-      shape === undefined ? null : resolvedSvgColor(shape, 'fill');
+  try {
+    for (const node of svg.querySelectorAll<SVGGElement>('.node')) {
+      const shape = [...node.children].find((child): child is SVGElement =>
+        ['rect', 'polygon', 'ellipse', 'circle', 'path'].includes(
+          child.localName.toLocaleLowerCase(),
+        ),
+      );
+      const background =
+        shape === undefined ? null : resolvedSvgColor(shape, 'fill');
 
-    if (background === null) {
-      continue;
-    }
-
-    const preferredText =
-      contrastRatio(background, darkText) >=
-      contrastRatio(background, lightText)
-        ? { color: darkText, value: '#111827' }
-        : { color: lightText, value: '#f8fafc' };
-
-    for (const label of node.querySelectorAll<SVGElement>('text, tspan')) {
-      const currentText = resolvedSvgColor(label, 'fill');
-
-      if (
-        currentText !== null &&
-        contrastRatio(background, currentText) >= 4.5
-      ) {
+      if (background === null) {
         continue;
       }
 
-      if (contrastRatio(background, preferredText.color) >= 4.5) {
-        label.style.setProperty('fill', preferredText.value, 'important');
+      const preferredText =
+        contrastRatio(background, darkText) >=
+        contrastRatio(background, lightText)
+          ? { color: darkText, value: '#111827' }
+          : { color: lightText, value: '#f8fafc' };
+
+      for (const label of node.querySelectorAll<SVGElement>('text, tspan')) {
+        const currentText = resolvedSvgColor(label, 'fill');
+
+        if (
+          currentText !== null &&
+          contrastRatio(background, currentText) >= 4.5
+        ) {
+          continue;
+        }
+
+        if (contrastRatio(background, preferredText.color) >= 4.5) {
+          label.style.setProperty('fill', preferredText.value, 'important');
+        }
       }
     }
+  } catch {
+    // Contrast repair is progressive enhancement; a valid sanitized diagram
+    // must remain visible even if a renderer exposes incomplete SVG metadata.
   }
 };
 
