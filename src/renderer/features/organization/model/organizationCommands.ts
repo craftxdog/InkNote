@@ -12,6 +12,10 @@ export const organizationCommandIds = Object.freeze({
   updateNotebook: 'notebook:update',
   deleteNotebook: 'notebook:delete',
   openNotebook: 'notebook:open',
+  createTag: 'tag:new',
+  updateTag: 'tag:update',
+  deleteTag: 'tag:delete',
+  openTag: 'tag:open',
 });
 
 export const organizationCommandContexts = Object.freeze({

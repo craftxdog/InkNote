@@ -201,16 +201,16 @@ lifecycle-safe organization plugin without a keymap change.
 
 **Acceptance criteria:**
 
-- [ ] `tag:new`, `tag:update`, `tag:delete`, and `tag:open` register/dispose
+- [x] `tag:new`, `tag:update`, `tag:delete`, and `tag:open` register/dispose
       exactly once under Strict Mode.
-- [ ] Only matching complete requests reach a page-level action; malformed
+- [x] Only matching complete requests reach a page-level action; malformed
       detail is rejected first.
-- [ ] Existing commands and all keymap descriptors retain behavior/provenance.
+- [x] Existing commands and all keymap descriptors retain behavior/provenance.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/features/organization/organizationCommands.test.ts src/__tests__/features/organization/tagCommandRequest.test.ts`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/features/organization/organizationCommands.test.ts src/__tests__/features/organization/tagCommandRequest.test.ts`
+- [x] `npm run typecheck`
 
 **Dependencies:** Task 6.
 

@@ -13,6 +13,7 @@ describe('organization commands', () => {
     expect(isOrganizationCommand(organizationCommandIds.updateNotebook)).toBe(
       true,
     );
+    expect(isOrganizationCommand(organizationCommandIds.updateTag)).toBe(true);
     expect(isOrganizationCommand('view:show-preview')).toBe(false);
   });
 
@@ -85,6 +86,11 @@ describe('organization commands', () => {
     await expect(runtime.plugins.deactivate(plugin.id)).resolves.toBe(true);
     await expect(
       runtime.commands.dispatch(organizationCommandIds.moveNotes, {
+        source: 'api',
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      runtime.commands.dispatch(organizationCommandIds.updateTag, {
         source: 'api',
       }),
     ).resolves.toBe(false);
