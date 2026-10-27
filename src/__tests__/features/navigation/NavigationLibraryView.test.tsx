@@ -144,15 +144,8 @@ describe('NavigationLibraryView', () => {
     );
   });
 
-  it('opens search inputs and creates a persisted notebook through its callback', async () => {
-    const created: Notebook = {
-      id: 'research',
-      name: 'Research',
-      createdAt: '2026-10-21T12:00:00.000Z',
-      updatedAt: '2026-10-21T12:00:00.000Z',
-    };
-    const onExecuteNotebookCommand = jest.fn().mockResolvedValue(created);
-    const onSelectionChange = jest.fn();
+  it('keeps the modal tag action as the only plus control in the notebooks header', () => {
+    const onCreateTag = jest.fn();
 
     render(
       <NavigationLibraryView
@@ -160,11 +153,12 @@ describe('NavigationLibraryView', () => {
         documents={documents}
         notebooks={notebooks}
         expandedSections={{ work: true, status: true, tags: true }}
-        onSelectionChange={onSelectionChange}
+        onSelectionChange={jest.fn()}
         onToggleSection={jest.fn()}
-        onExecuteNotebookCommand={onExecuteNotebookCommand}
+        onExecuteNotebookCommand={jest.fn()}
         onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
         onEditNotebook={jest.fn()}
+        onCreateTag={onCreateTag}
       />,
     );
 
@@ -176,87 +170,18 @@ describe('NavigationLibraryView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search tags' }));
     expect(screen.getByRole('textbox', { name: 'Filter tags' })).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create notebook' }));
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'New notebook name' }),
-      {
-        target: { value: 'Research' },
-      },
-    );
-    await act(async () => {
-      fireEvent.submit(
-        screen.getByRole('textbox', { name: 'New notebook name' }),
-      );
-    });
+    expect(
+      screen.queryByRole('button', { name: 'Create notebook' }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('textbox', { name: 'New notebook name' }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('combobox', { name: 'Notebook icon' }),
+    ).toBeNull();
 
-    expect(onExecuteNotebookCommand).toHaveBeenCalledWith(
-      organizationCommandIds.createNotebook,
-      {
-        kind: 'create',
-        name: 'Research',
-        parentId: null,
-        icon: null,
-      },
-      'menu',
-    );
-    await screen.findByRole('button', { name: /^All Notes/ });
-    expect(onSelectionChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        label: 'Research',
-        view: { type: 'notebook', notebookId: 'research' },
-      }),
-    );
-  });
-
-  it('offers a durable visual icon when creating a notebook', async () => {
-    const onExecuteNotebookCommand = jest.fn().mockResolvedValue({
-      id: 'ideas',
-      name: 'Ideas',
-      icon: 'lightbulb',
-      createdAt: '2026-10-21T12:00:00.000Z',
-      updatedAt: '2026-10-21T12:00:00.000Z',
-    } satisfies Notebook);
-
-    render(
-      <NavigationLibraryView
-        selection={navigationDestinations.allNotes}
-        documents={documents}
-        notebooks={notebooks}
-        expandedSections={{ work: true, status: true, tags: true }}
-        onSelectionChange={jest.fn()}
-        onToggleSection={jest.fn()}
-        onExecuteNotebookCommand={onExecuteNotebookCommand}
-        onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
-        onEditNotebook={jest.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create notebook' }));
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'New notebook name' }),
-      {
-        target: { value: 'Ideas' },
-      },
-    );
-    fireEvent.change(screen.getByRole('combobox', { name: 'Notebook icon' }), {
-      target: { value: 'lightbulb' },
-    });
-    await act(async () => {
-      fireEvent.submit(
-        screen.getByRole('textbox', { name: 'New notebook name' }),
-      );
-    });
-
-    expect(onExecuteNotebookCommand).toHaveBeenCalledWith(
-      organizationCommandIds.createNotebook,
-      {
-        kind: 'create',
-        name: 'Ideas',
-        parentId: null,
-        icon: 'lightbulb',
-      },
-      'menu',
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Create tag' }));
+    expect(onCreateTag).toHaveBeenCalledWith('menu');
   });
 
   it('collapses and expands arbitrary persisted notebook branches', () => {

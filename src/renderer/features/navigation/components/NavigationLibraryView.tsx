@@ -107,11 +107,6 @@ export function NavigationLibraryView({
   const [tagQuery, setTagQuery] = useState('');
   const [isNotebookSearchVisible, setIsNotebookSearchVisible] = useState(false);
   const [isTagSearchVisible, setIsTagSearchVisible] = useState(false);
-  const [isCreatingNotebook, setIsCreatingNotebook] = useState(false);
-  const [newNotebookName, setNewNotebookName] = useState('');
-  const [newNotebookIcon, setNewNotebookIcon] = useState<
-    NotebookIconName | undefined
-  >(undefined);
   const [createError, setCreateError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<Readonly<{
     notebook: Notebook;
@@ -202,31 +197,6 @@ export function NavigationLibraryView({
     void onOpenNotebookDetail(notebook, source).catch(() => {
       setCreateError('The notebook detail could not be opened.');
     });
-  };
-
-  const submitNotebook = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (newNotebookName.trim().length === 0) {
-      return;
-    }
-
-    try {
-      const notebook = await createNotebook(
-        newNotebookName,
-        null,
-        newNotebookIcon ?? null,
-        'menu',
-      );
-
-      setNewNotebookName('');
-      setNewNotebookIcon(undefined);
-      setIsCreatingNotebook(false);
-      setCreateError(null);
-      onSelectionChange(selectionForNotebook(notebook));
-    } catch {
-      setCreateError('The notebook could not be created.');
-    }
   };
 
   const closeSubnotebookDialog = (): void => {
@@ -397,19 +367,6 @@ export function NavigationLibraryView({
             >
               <PlusIcon />
             </button>
-            <button
-              type="button"
-              className="navigation-icon-button"
-              aria-label="Create notebook"
-              title="Create notebook"
-              aria-pressed={isCreatingNotebook}
-              onClick={() => {
-                setCreateError(null);
-                setIsCreatingNotebook((current) => !current);
-              }}
-            >
-              <PlusIcon />
-            </button>
           </>
         }
       />
@@ -423,35 +380,6 @@ export function NavigationLibraryView({
             placeholder="Filter notebooks"
           />
         </div>
-      )}
-
-      {isCreatingNotebook && (
-        <form className="navigation-inline-control" onSubmit={submitNotebook}>
-          <input
-            aria-label="New notebook name"
-            value={newNotebookName}
-            onChange={(event) => setNewNotebookName(event.target.value)}
-            placeholder="Notebook name"
-          />
-          <select
-            aria-label="Notebook icon"
-            value={newNotebookIcon ?? 'auto'}
-            onChange={(event) =>
-              setNewNotebookIcon(
-                event.target.value === 'auto'
-                  ? undefined
-                  : (event.target.value as NotebookIconName),
-              )
-            }
-          >
-            <option value="auto">Auto icon</option>
-            {NOTEBOOK_ICON_OPTIONS.map(({ value, label }) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </form>
       )}
 
       {createError !== null && (
