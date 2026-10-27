@@ -293,15 +293,15 @@ controls, focus handling, cancellation, and visible error feedback.
 
 **Acceptance criteria:**
 
-- [ ] The dialog supplies initial focus, labeled colors, Escape/Cancel, and
+- [x] The dialog supplies initial focus, labeled colors, Escape/Cancel, and
       focus containment consistent with the notebook editor.
-- [ ] Error retains the draft and does not claim durable success.
-- [ ] The component owns transient state only and emits typed callbacks.
+- [x] Error retains the draft and does not claim durable success.
+- [x] The component owns transient state only and emits typed callbacks.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/features/navigation/TagEditorDialog.test.tsx`
-- [ ] `npm run lint`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/features/navigation/TagEditorDialog.test.tsx`
+- [x] `npm run lint`
 
 **Dependencies:** Task 9.
 
