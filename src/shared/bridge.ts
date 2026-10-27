@@ -11,6 +11,9 @@ import type {
 } from './data/data.types';
 import type {
   DocumentMutation,
+  CreateTagInput,
+  DeleteTagInput,
+  DeleteTagResult,
   CreateNotebookInput,
   DeleteNotebookInput,
   DeleteNotebookResult,
@@ -20,6 +23,7 @@ import type {
   Notebook,
   NoteDocument,
   TagSummary,
+  UpdateTagInput,
 } from './documents/document.types';
 import type {
   ThemeAppearanceSettings,
@@ -41,6 +45,11 @@ export type DocumentApi = {
   listArchived: () => Promise<DocumentIpcResult<readonly NoteDocument[]>>;
   listNotebooks: () => Promise<DocumentIpcResult<readonly Notebook[]>>;
   listTags: () => Promise<DocumentIpcResult<readonly TagSummary[]>>;
+  createTag: (input: CreateTagInput) => Promise<DocumentIpcResult<TagSummary>>;
+  updateTag: (input: UpdateTagInput) => Promise<DocumentIpcResult<TagSummary>>;
+  deleteTag: (
+    input: DeleteTagInput,
+  ) => Promise<DocumentIpcResult<DeleteTagResult>>;
   createNotebook: (
     input: CreateNotebookInput,
   ) => Promise<DocumentIpcResult<Notebook>>;

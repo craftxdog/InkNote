@@ -6,10 +6,13 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { InknoteApi } from '../shared/bridge';
 import type {
   CreateNotebookInput,
+  CreateTagInput,
+  DeleteTagInput,
   DeleteNotebookInput,
   DocumentMutation,
   PermanentlyDeleteNotesInput,
   UpdateNotebookInput,
+  UpdateTagInput,
 } from '../shared/documents/document.types';
 import type { DirectorySelectionPurpose } from '../shared/data/data.types';
 import { IPC_CHANNELS } from '../shared/ipc/channels';
@@ -34,6 +37,12 @@ const inknoteApi: InknoteApi = {
     listNotebooks: () =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.listNotebooks),
     listTags: () => ipcRenderer.invoke(IPC_CHANNELS.documents.listTags),
+    createTag: (input: CreateTagInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.createTag, input),
+    updateTag: (input: UpdateTagInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.updateTag, input),
+    deleteTag: (input: DeleteTagInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.deleteTag, input),
     createNotebook: (input: CreateNotebookInput) =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.createNotebook, input),
     updateNotebook: (input: UpdateNotebookInput) =>

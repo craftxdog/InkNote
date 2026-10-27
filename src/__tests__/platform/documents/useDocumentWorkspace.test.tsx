@@ -57,6 +57,15 @@ const createDocumentApi = (
   listArchived: async () => ({ ok: true, value: [] }),
   listNotebooks: async () => ({ ok: true, value: notebooks }),
   listTags: async () => ({ ok: true, value: [] }),
+  createTag: async () => {
+    throw new Error('not used');
+  },
+  updateTag: async () => {
+    throw new Error('not used');
+  },
+  deleteTag: async () => {
+    throw new Error('not used');
+  },
   createNotebook: async () => {
     throw new Error('not used');
   },

@@ -136,17 +136,17 @@ reconstruct canonical immutable values in the renderer adapter.
 
 **Acceptance criteria:**
 
-- [ ] Preload exposes only the explicit tag functions, never a path, SQL,
+- [x] Preload exposes only the explicit tag functions, never a path, SQL,
       database, or Electron object.
-- [ ] The renderer adapter revalidates structured-cloned results before
+- [x] The renderer adapter revalidates structured-cloned results before
       application state can consume them.
-- [ ] Existing `listTags` and unrelated document adapter operations remain
+- [x] Existing `listTags` and unrelated document adapter operations remain
       compatible.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/platform/documents/IpcDocumentRepository.test.ts`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/platform/documents/IpcDocumentRepository.test.ts`
+- [x] `npm run typecheck`
 
 **Dependencies:** Task 4.
 
