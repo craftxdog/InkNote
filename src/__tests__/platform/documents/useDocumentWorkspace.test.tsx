@@ -9,9 +9,11 @@ import type {
 } from '../../../renderer/platform/documents/useDocumentWorkspace';
 import type { DocumentApi } from '../../../shared/bridge';
 import {
+  createMutationId,
   createNoteId,
   createRevision,
   createTagId,
+  createUpdateTagsMutation,
   type Notebook,
   type NoteDocument,
 } from '../../../shared/documents/document.types';
@@ -203,6 +205,83 @@ describe('useDocumentWorkspace notebook updates', () => {
 });
 
 describe('useDocumentWorkspace tag lifecycle', () => {
+  it('refreshes the catalogue immediately after an editor creates a tag', async () => {
+    const note: NoteDocument = {
+      id: createNoteId('note-1'),
+      title: 'Architecture',
+      body: 'Body',
+      notebookId: 'inbox',
+      status: 'none',
+      tags: [],
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+      revision: createRevision('local-1'),
+      deletedAt: null,
+    };
+    const tagged = {
+      ...note,
+      tags: ['project'],
+      updatedAt: '2026-10-26T12:01:00.000Z',
+      revision: createRevision('local-2'),
+    };
+    const newTag = {
+      id: createTagId('tag:project'),
+      name: 'project',
+      color: 'default' as const,
+      count: 1,
+      createdAt: tagged.updatedAt,
+      updatedAt: tagged.updatedAt,
+    };
+    const listTags = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [] })
+      .mockResolvedValueOnce({ ok: true, value: [newTag] });
+    const apply = jest.fn().mockResolvedValue({ ok: true, value: tagged });
+    let workspace: Workspace | null = null;
+
+    render(
+      <WorkspaceProbe
+        api={createDocumentApi(
+          [inbox],
+          async () => {
+            throw new Error('not used');
+          },
+          {
+            get: async () => ({ ok: true, value: note }),
+            apply,
+            listActive: async () => ({ ok: true, value: [note] }),
+            listArchived: async () => ({ ok: true, value: [] }),
+            listTags,
+          },
+        )}
+        onWorkspace={(nextWorkspace) => {
+          workspace = nextWorkspace;
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(requireWorkspace(workspace).session.document).toMatchObject(note),
+    );
+
+    await act(async () => {
+      await requireWorkspace(workspace).apply(
+        createUpdateTagsMutation({
+          id: createMutationId('mutation-tags'),
+          documentId: note.id,
+          baseRevision: note.revision,
+          source: 'editor',
+          tags: ['project'],
+          occurredAt: tagged.updatedAt,
+        }),
+      );
+    });
+
+    await waitFor(() =>
+      expect(requireWorkspace(workspace).tags).toEqual([newTag]),
+    );
+  });
+
   it('refreshes the catalogue, note lists, and selected note after a tag rename', async () => {
     const note: NoteDocument = {
       id: createNoteId('note-1'),

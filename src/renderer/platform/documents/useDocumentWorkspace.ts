@@ -244,6 +244,13 @@ export const useDocumentWorkspace = (
             Object.freeze(current.filter((item) => item.id !== document.id)),
           );
         }
+
+        if (mutation.kind === 'update-tags') {
+          const nextTags = await repository.listTags();
+
+          setTags(nextTags);
+        }
+
         setLastError(null);
 
         return document;
@@ -252,7 +259,7 @@ export const useDocumentWorkspace = (
         throw error;
       }
     },
-    [session, upsertDocument],
+    [repository, session, upsertDocument],
   );
 
   const create = useCallback(
