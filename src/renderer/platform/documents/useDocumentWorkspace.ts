@@ -15,16 +15,21 @@ import {
   createCreateDocumentMutation,
   createGeneratedNotebookId,
   createGeneratedNoteId,
+  createGeneratedTagId,
   createMutationId,
   createRestoreMutation,
   createUpdateOrganizationMutation,
   createUpdatePinnedMutation,
   type DocumentMutation,
+  type DeleteTagResult,
   type Notebook,
   type NotebookIconName,
   type NoteDocument,
   type NoteId,
   type NoteStatusValue,
+  type TagColor,
+  type TagId,
+  type TagSummary,
   type UpdateNotebookInput,
 } from '../../../shared/documents/document.types';
 import {
@@ -41,6 +46,7 @@ export type DocumentWorkspaceState = Readonly<{
   documents: readonly NoteDocument[];
   archivedDocuments: readonly NoteDocument[];
   notebooks: readonly Notebook[];
+  tags: readonly TagSummary[];
   session: DocumentSessionSnapshot;
   isListLoading: boolean;
   lastError: unknown;
@@ -49,6 +55,17 @@ export type DocumentWorkspaceState = Readonly<{
 export type NotebookUpdateRequest = Readonly<
   Pick<UpdateNotebookInput, 'id' | 'name' | 'parentId' | 'icon'>
 >;
+
+export type TagCreateRequest = Readonly<{
+  name: string;
+  color: TagColor;
+}>;
+
+export type TagUpdateRequest = Readonly<{
+  id: TagId;
+  name: string;
+  color: TagColor;
+}>;
 
 export type DocumentWorkspaceActions = Readonly<{
   refresh(): Promise<void>;
@@ -70,6 +87,9 @@ export type DocumentWorkspaceActions = Readonly<{
   ): Promise<Notebook>;
   updateNotebook(input: NotebookUpdateRequest): Promise<Notebook>;
   deleteNotebook(notebookId: string): Promise<void>;
+  createTag(input: TagCreateRequest): Promise<TagSummary>;
+  updateTag(input: TagUpdateRequest): Promise<TagSummary>;
+  deleteTag(tagId: TagId): Promise<DeleteTagResult>;
   move(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
   moveMany(
     documents: readonly NoteDocument[],
@@ -114,6 +134,7 @@ export const useDocumentWorkspace = (
     readonly NoteDocument[]
   >([]);
   const [notebooks, setNotebooks] = useState<readonly Notebook[]>([]);
+  const [tags, setTags] = useState<readonly TagSummary[]>([]);
   const [isListLoading, setIsListLoading] = useState(true);
   const [lastError, setLastError] = useState<unknown>(null);
 
@@ -138,16 +159,18 @@ export const useDocumentWorkspace = (
     setIsListLoading(true);
 
     try {
-      const [nextDocuments, nextArchivedDocuments, nextNotebooks] =
+      const [nextDocuments, nextArchivedDocuments, nextNotebooks, nextTags] =
         await Promise.all([
           repository.listActive(),
           repository.listArchived(),
           repository.listNotebooks(),
+          repository.listTags(),
         ]);
 
       setDocuments(nextDocuments);
       setArchivedDocuments(nextArchivedDocuments);
       setNotebooks(nextNotebooks);
+      setTags(nextTags);
       setLastError(null);
 
       if (
@@ -163,6 +186,17 @@ export const useDocumentWorkspace = (
       setIsListLoading(false);
     }
   }, [repository, session]);
+
+  const refreshAfterTagLifecycleChange =
+    useCallback(async (): Promise<void> => {
+      const selectedDocumentId = session.getSnapshot().selectedDocumentId;
+
+      await refresh();
+
+      if (selectedDocumentId !== null) {
+        await session.open(selectedDocumentId);
+      }
+    }, [refresh, session]);
 
   useEffect(() => {
     const loadTimer = globalThis.setTimeout(() => {
@@ -331,6 +365,68 @@ export const useDocumentWorkspace = (
       setLastError(null);
     },
     [refresh, repository, session],
+  );
+
+  const createTag = useCallback(
+    async (input: TagCreateRequest): Promise<TagSummary> => {
+      try {
+        const tag = await repository.createTag({
+          id: createGeneratedTagId(createRuntimeId()),
+          name: input.name,
+          color: input.color,
+          occurredAt: new Date().toISOString(),
+        });
+
+        await refreshAfterTagLifecycleChange();
+        setLastError(null);
+
+        return tag;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
+    },
+    [refreshAfterTagLifecycleChange, repository],
+  );
+
+  const updateTag = useCallback(
+    async (input: TagUpdateRequest): Promise<TagSummary> => {
+      try {
+        const tag = await repository.updateTag({
+          ...input,
+          occurredAt: new Date().toISOString(),
+        });
+
+        await refreshAfterTagLifecycleChange();
+        setLastError(null);
+
+        return tag;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
+    },
+    [refreshAfterTagLifecycleChange, repository],
+  );
+
+  const deleteTag = useCallback(
+    async (tagId: TagId): Promise<DeleteTagResult> => {
+      try {
+        const result = await repository.deleteTag({
+          id: tagId,
+          occurredAt: new Date().toISOString(),
+        });
+
+        await refreshAfterTagLifecycleChange();
+        setLastError(null);
+
+        return result;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
+    },
+    [refreshAfterTagLifecycleChange, repository],
   );
 
   const move = useCallback(
@@ -529,6 +625,7 @@ export const useDocumentWorkspace = (
     documents,
     archivedDocuments,
     notebooks,
+    tags,
     session: sessionSnapshot,
     isListLoading,
     lastError,
@@ -539,6 +636,9 @@ export const useDocumentWorkspace = (
     createNotebook,
     updateNotebook,
     deleteNotebook,
+    createTag,
+    updateTag,
+    deleteTag,
     move,
     moveMany,
     setPinned,

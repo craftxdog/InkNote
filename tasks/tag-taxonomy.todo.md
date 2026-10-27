@@ -166,16 +166,16 @@ catalogue/list/selected-note state only after an accepted operation.
 
 **Acceptance criteria:**
 
-- [ ] Refresh includes zero-count tags alongside active and archived notes.
-- [ ] Accepted tag operations refresh the catalogue and focused note so the
+- [x] Refresh includes zero-count tags alongside active and archived notes.
+- [x] Accepted tag operations refresh the catalogue and focused note so the
       editor never retains a stale name.
-- [ ] Failure preserves visible documents, tags, and selection while exposing
+- [x] Failure preserves visible documents, tags, and selection while exposing
       the existing error state.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/platform/documents/useDocumentWorkspace.test.tsx`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/platform/documents/useDocumentWorkspace.test.tsx`
+- [x] `npm run typecheck`
 
 **Dependencies:** Task 5.
 
@@ -189,10 +189,10 @@ catalogue/list/selected-note state only after an accepted operation.
 
 ## Checkpoint: authorized renderer boundary
 
-- [ ] Store, service, preload, repository, and workspace tests pass.
-- [ ] The renderer remains unprivileged and rejected requests did not refresh
+- [x] Store, service, preload, repository, and workspace tests pass.
+- [x] The renderer remains unprivileged and rejected requests did not refresh
       backup or visible state.
-- [ ] A focused document refreshes after accepted rename/delete.
+- [x] A focused document refreshes after accepted rename/delete.
 
 ## Task 7: Register pure typed tag commands
 
