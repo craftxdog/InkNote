@@ -7,8 +7,10 @@ import { organizationCommandIds } from '../../../renderer/features/organization/
 import {
   createNoteId,
   createRevision,
+  createTagId,
   type Notebook,
   type NoteDocument,
+  type TagSummary,
 } from '../../../shared/documents/document.types';
 
 const documents: readonly NoteDocument[] = [
@@ -62,15 +64,45 @@ const projects: Notebook = {
   updatedAt: '2026-10-21T12:00:00.000Z',
 };
 
+const catalogueTags: readonly TagSummary[] = [
+  {
+    id: createTagId('tag:project'),
+    name: 'project',
+    color: 'purple',
+    count: 2,
+    createdAt: '2026-10-21T12:00:00.000Z',
+    updatedAt: '2026-10-21T12:00:00.000Z',
+  },
+  {
+    id: createTagId('tag:work'),
+    name: 'work',
+    color: 'teal',
+    count: 1,
+    createdAt: '2026-10-21T12:00:00.000Z',
+    updatedAt: '2026-10-21T12:00:00.000Z',
+  },
+  {
+    id: createTagId('tag:zero-count'),
+    name: 'zero count',
+    color: 'brown',
+    count: 0,
+    createdAt: '2026-10-21T12:00:00.000Z',
+    updatedAt: '2026-10-21T12:00:00.000Z',
+  },
+];
+
 describe('NavigationLibraryView', () => {
-  it('derives counts and tag destinations from persisted documents', () => {
+  it('renders durable tag summaries, including zero-count rows', () => {
+    const onSelectionChange = jest.fn();
+
     render(
       <NavigationLibraryView
         selection={navigationDestinations.allNotes}
         documents={documents}
         notebooks={notebooks}
+        tags={catalogueTags}
         expandedSections={{ work: true, status: true, tags: true }}
-        onSelectionChange={jest.fn()}
+        onSelectionChange={onSelectionChange}
         onToggleSection={jest.fn()}
         onExecuteNotebookCommand={jest.fn()}
         onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
@@ -89,6 +121,26 @@ describe('NavigationLibraryView', () => {
     );
     expect(screen.getByRole('button', { name: /^work/ })).toHaveTextContent(
       '1',
+    );
+    const zeroCountTag = screen.getByRole('button', {
+      name: /^zero count/,
+    });
+    expect(zeroCountTag).toHaveTextContent('0');
+    expect(zeroCountTag.querySelector('.navigation-tag-dot')).toHaveStyle(
+      '--tag-color: #9a6b4f',
+    );
+
+    fireEvent.click(zeroCountTag);
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'tag:zero-count',
+        label: 'zero count',
+        view: expect.objectContaining({
+          type: 'tag',
+          catalogueTagId: 'tag:zero-count',
+          tagIds: ['zero count'],
+        }),
+      }),
     );
   });
 

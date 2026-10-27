@@ -1,6 +1,7 @@
 import type {
   Notebook,
   NoteStatus,
+  TagSummary,
 } from '../../../../shared/documents/document.types';
 import { colorForTag, tagColorHex } from '../../notes/model/notePresentation';
 
@@ -78,6 +79,23 @@ export const selectionForStatus = (
 
 export const selectionForTag = (tag: string): NavigationSelection =>
   selectionForTags([tag]);
+
+/**
+ * Keeps the durable tag identity in navigation while note filtering continues
+ * to use the normalized name stored in note Yjs documents.
+ */
+export const selectionForCatalogueTag = (
+  tag: TagSummary,
+): NavigationSelection => ({
+  id: tag.id,
+  label: tag.name,
+  view: {
+    type: 'tag',
+    catalogueTagId: tag.id,
+    tagIds: [tag.name],
+  },
+  icon: { type: 'tag', color: tagColorHex[tag.color] },
+});
 
 export const selectionForTags = (
   tags: readonly string[],

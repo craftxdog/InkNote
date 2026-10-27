@@ -5,6 +5,7 @@ import { useNavigationState } from '../hooks/useNavigationState';
 import type {
   Notebook,
   NoteDocument,
+  TagSummary,
 } from '../../../../shared/documents/document.types';
 import {
   createOpenNotebookCommandRequest,
@@ -43,6 +44,8 @@ export type NavigationPanelProps = {
 
   notebooks: readonly Notebook[];
 
+  tags?: readonly TagSummary[];
+
   selection: NavigationSelection;
 
   onSelectionChange: (selection: NavigationSelection) => void;
@@ -57,6 +60,7 @@ export type NavigationPanelProps = {
 export function NavigationPanel({
   documents,
   notebooks,
+  tags = [],
   selection,
   onSelectionChange,
   onExecuteNotebookCommand,
@@ -132,6 +136,7 @@ export function NavigationPanel({
             selection={selection}
             documents={documents}
             notebooks={notebooks}
+            tags={tags}
             expandedSections={expandedSections}
             onSelectionChange={onSelectionChange}
             onToggleSection={toggleSection}

@@ -1,3 +1,4 @@
+import type { TagColor } from '../../../../shared/documents/document.types';
 import type { NoteTag } from './note.types';
 
 export const noteTagColors = [
@@ -8,12 +9,21 @@ export const noteTagColors = [
   'orange',
 ] as const satisfies readonly NoteTag['color'][];
 
-export const tagColorHex: Record<NoteTag['color'], string> = {
+export const tagColorHex: Record<TagColor, string> = {
+  default: '#8e96a3',
   blue: '#4e81f3',
   green: '#22c160',
   red: '#ed5668',
   purple: '#8b6df4',
   orange: '#f8b126',
+  yellow: '#d9a800',
+  olive: '#81911b',
+  teal: '#17a6a6',
+  violet: '#7b61d1',
+  pink: '#d95f9d',
+  brown: '#9a6b4f',
+  grey: '#6f7782',
+  black: '#343a40',
 };
 
 /**

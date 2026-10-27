@@ -510,6 +510,7 @@ export function WorkspacePage() {
         <NavigationPanel
           documents={documentWorkspace.documents}
           notebooks={documentWorkspace.notebooks}
+          tags={documentWorkspace.tags}
           selection={navigationSelection}
           onSelectionChange={setNavigationSelection}
           onExecuteNotebookCommand={executeOrganizationCommand}

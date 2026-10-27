@@ -1,4 +1,7 @@
-import type { NotebookIconName } from '../../../../shared/documents/document.types';
+import type {
+  NotebookIconName,
+  TagId,
+} from '../../../../shared/documents/document.types';
 
 export type NoteStatus = 'active' | 'on-hold' | 'completed' | 'dropped';
 
@@ -32,6 +35,8 @@ export type NavigationView =
       type: 'tag';
       /** Multiple tag IDs narrow the note list by intersection. */
       tagIds?: readonly string[];
+      /** Stable catalogue identity for a tag-sidebar selection. */
+      catalogueTagId?: TagId;
       /** @deprecated kept while local navigation selections upgrade to tagIds. */
       tagId?: string;
       /** When present, tag results stay within a focused notebook. */

@@ -12,8 +12,9 @@ import {
   type Notebook,
   type NotebookIconName,
   type NoteDocument,
+  type TagSummary,
 } from '../../../../shared/documents/document.types';
-import { colorForTag, tagColorHex } from '../../notes/model/notePresentation';
+import { tagColorHex } from '../../notes/model/notePresentation';
 import {
   createCreateNotebookCommandRequest,
   createDeleteNotebookCommandRequest,
@@ -33,8 +34,8 @@ import type {
 } from '../model/navigation.types';
 import {
   selectionForNotebook,
+  selectionForCatalogueTag,
   selectionForStatus,
-  selectionForTag,
   STATUS_LABELS,
 } from '../model/navigation.selections';
 import { NOTEBOOK_ICON_OPTIONS } from '../model/notebookIconOptions';
@@ -59,6 +60,7 @@ type NavigationLibraryViewProps = {
   selection: NavigationSelection;
   documents: readonly NoteDocument[];
   notebooks: readonly Notebook[];
+  tags?: readonly TagSummary[];
   expandedSections: NavigationSectionsState;
   onSelectionChange: (selection: NavigationSelection) => void;
   onToggleSection: (section: NavigationSectionId) => void;
@@ -83,6 +85,7 @@ export function NavigationLibraryView({
   selection,
   documents,
   notebooks,
+  tags = [],
   expandedSections,
   onSelectionChange,
   onToggleSection,
@@ -126,19 +129,6 @@ export function NavigationLibraryView({
     () => countBy(documents, (document) => document.status),
     [documents],
   );
-  const tagCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-
-    for (const document of documents) {
-      for (const tag of document.tags) {
-        counts.set(tag, (counts.get(tag) ?? 0) + 1);
-      }
-    }
-
-    return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }, [documents]);
   const notebookRows = useMemo(
     () => buildNotebookTreeRows(notebooks, noteCountByNotebook, notebookQuery),
     [notebooks, noteCountByNotebook, notebookQuery],
@@ -169,7 +159,7 @@ export function NavigationLibraryView({
 
     return Object.freeze(visible);
   }, [collapsedNotebookIds, notebookQuery, notebookRows]);
-  const visibleTags = tagCounts.filter((tag) =>
+  const visibleTags = tags.filter((tag) =>
     includesNormalized(tag.name, tagQuery),
   );
 
@@ -569,19 +559,18 @@ export function NavigationLibraryView({
 
       {expandedSections.tags &&
         visibleTags.map((tag) => {
-          const tagColor = colorForTag(tag.name);
-          const tagSelection = selectionForTag(tag.name);
+          const tagSelection = selectionForCatalogueTag(tag);
 
           return (
             <NavigationRow
-              key={tag.name}
+              key={tag.id}
               label={tag.name}
               icon={
                 <span
                   className="navigation-tag-dot"
                   style={
                     {
-                      '--tag-color': tagColorHex[tagColor],
+                      '--tag-color': tagColorHex[tag.color],
                     } as CSSProperties
                   }
                 />

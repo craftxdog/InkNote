@@ -264,16 +264,16 @@ catalogue while retaining current search/filter semantics.
 
 **Acceptance criteria:**
 
-- [ ] Rows use persisted color/count, follow catalogue order, and include
+- [x] Rows use persisted color/count, follow catalogue order, and include
       zero-count tags.
-- [ ] Stable tag ID drives row/selection identity while note filtering retains
+- [x] Stable tag ID drives row/selection identity while note filtering retains
       normalized names.
-- [ ] Catalogue refresh does not change unrelated notebook/status selection.
+- [x] Catalogue refresh does not change unrelated notebook/status selection.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/features/navigation/NavigationLibraryView.test.tsx src/__tests__/features/navigation/navigation.selections.test.ts`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/features/navigation/NavigationLibraryView.test.tsx src/__tests__/features/navigation/navigation.selections.test.ts`
+- [x] `npm run typecheck`
 
 **Dependencies:** Task 8.
 
