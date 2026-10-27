@@ -31,6 +31,10 @@ import {
 import { tags } from '@lezer/highlight';
 
 import { findEmojiCompletions } from '../../markdown/model/emojiCompletions';
+import {
+  sourceScrollPositionFor,
+  type SourceScrollPosition,
+} from '../../markdown/model/scrollSynchronization';
 import { formatNoteReference } from '../../references/model/noteReferences';
 import {
   applyMarkdownLink,
@@ -49,8 +53,8 @@ type MarkdownEditorProps = {
   value: string;
   referenceDocuments?: readonly NoteDocument[];
   onChange: (value: string) => void;
-  onSourceLineChange?: (sourceLine: number) => void;
-  sourceLineToReveal?: number;
+  onSourceLineChange?: (position: SourceScrollPosition) => void;
+  sourceScrollPositionToReveal?: SourceScrollPosition;
 };
 
 const inkNoteEditorTheme = EditorView.theme(
@@ -434,7 +438,7 @@ export function MarkdownEditor({
   referenceDocuments = [],
   onChange,
   onSourceLineChange,
-  sourceLineToReveal,
+  sourceScrollPositionToReveal,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -521,7 +525,14 @@ export function MarkdownEditor({
 
       const lineBlock = view.lineBlockAtHeight(scrollTop);
       const sourceLine = view.state.doc.lineAt(lineBlock.from).number;
-      onSourceLineChangeRef.current?.(sourceLine);
+      onSourceLineChangeRef.current?.(
+        sourceScrollPositionFor({
+          sourceLine,
+          scrollTop,
+          scrollHeight: view.scrollDOM.scrollHeight,
+          clientHeight: view.scrollDOM.clientHeight,
+        }),
+      );
     };
 
     viewRef.current = view;
@@ -566,19 +577,30 @@ export function MarkdownEditor({
   useEffect(() => {
     const view = viewRef.current;
 
-    if (view === null || sourceLineToReveal === undefined) {
+    if (view === null || sourceScrollPositionToReveal === undefined) {
       return;
     }
 
-    const lineNumber = Math.min(
-      Math.max(1, sourceLineToReveal),
-      view.state.doc.lines,
-    );
-    const lineBlock = view.lineBlockAt(view.state.doc.line(lineNumber).from);
     const maximumScrollTop = Math.max(
       0,
       view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight,
     );
+
+    if (sourceScrollPositionToReveal.kind === 'end') {
+      if (Math.abs(view.scrollDOM.scrollTop - maximumScrollTop) < 1) {
+        return;
+      }
+
+      pendingSynchronizedScrollTop.current = maximumScrollTop;
+      view.scrollDOM.scrollTop = maximumScrollTop;
+      return;
+    }
+
+    const lineNumber = Math.min(
+      Math.max(1, sourceScrollPositionToReveal.sourceLine),
+      view.state.doc.lines,
+    );
+    const lineBlock = view.lineBlockAt(view.state.doc.line(lineNumber).from);
     const scrollTop = Math.min(Math.max(0, lineBlock.top), maximumScrollTop);
 
     if (Math.abs(view.scrollDOM.scrollTop - scrollTop) < 1) {
@@ -587,7 +609,7 @@ export function MarkdownEditor({
 
     pendingSynchronizedScrollTop.current = scrollTop;
     view.scrollDOM.scrollTop = scrollTop;
-  }, [sourceLineToReveal]);
+  }, [sourceScrollPositionToReveal]);
 
   return <div ref={hostRef} className="markdown-editor" />;
 }

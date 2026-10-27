@@ -10,8 +10,10 @@ import {
 
 import {
   previewScrollTopForSourceLine,
+  sourceScrollPositionFor,
   sourceLineForPreviewScroll,
   type SourceScrollAnchor,
+  type SourceScrollPosition,
 } from '../../markdown/model/scrollSynchronization';
 import { createPreviewScrollRenderGuard } from '../../markdown/model/previewScrollRenderGuard';
 import { replaceEmojiShortcodes } from '../../markdown/model/emojiCompletions';
@@ -26,8 +28,8 @@ type MarkdownPreviewProps = {
   markdown: string;
   referenceDocuments?: readonly NoteDocument[];
   onOpenReference?: (documentId: NoteId) => void;
-  onSourceLineChange?: (sourceLine: number) => void;
-  sourceLineToReveal?: number;
+  onSourceLineChange?: (position: SourceScrollPosition) => void;
+  sourceScrollPositionToReveal?: SourceScrollPosition;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
 };
 
@@ -886,7 +888,7 @@ export function MarkdownPreview({
   referenceDocuments = [],
   onOpenReference,
   onSourceLineChange,
-  sourceLineToReveal,
+  sourceScrollPositionToReveal,
   scrollContainerRef,
 }: MarkdownPreviewProps) {
   const [html, setHtml] = useState('');
@@ -1024,7 +1026,14 @@ export function MarkdownPreview({
       );
 
       if (sourceLine !== null) {
-        onSourceLineChangeRef.current?.(sourceLine);
+        onSourceLineChangeRef.current?.(
+          sourceScrollPositionFor({
+            sourceLine,
+            scrollTop: container.scrollTop,
+            scrollHeight: container.scrollHeight,
+            clientHeight: container.clientHeight,
+          }),
+        );
       }
     };
 
@@ -1041,17 +1050,8 @@ export function MarkdownPreview({
     if (
       container === null ||
       container === undefined ||
-      sourceLineToReveal === undefined
+      sourceScrollPositionToReveal === undefined
     ) {
-      return;
-    }
-
-    const scrollTop = previewScrollTopForSourceLine(
-      sourceScrollAnchorsFor(container),
-      sourceLineToReveal,
-    );
-
-    if (scrollTop === null) {
       return;
     }
 
@@ -1059,7 +1059,22 @@ export function MarkdownPreview({
       0,
       container.scrollHeight - container.clientHeight,
     );
-    const nextScrollTop = Math.min(Math.max(0, scrollTop), maximumScrollTop);
+    let nextScrollTop: number;
+
+    if (sourceScrollPositionToReveal.kind === 'end') {
+      nextScrollTop = maximumScrollTop;
+    } else {
+      const scrollTop = previewScrollTopForSourceLine(
+        sourceScrollAnchorsFor(container),
+        sourceScrollPositionToReveal.sourceLine,
+      );
+
+      if (scrollTop === null) {
+        return;
+      }
+
+      nextScrollTop = Math.min(Math.max(0, scrollTop), maximumScrollTop);
+    }
 
     if (Math.abs(container.scrollTop - nextScrollTop) < 1) {
       return;
@@ -1067,7 +1082,7 @@ export function MarkdownPreview({
 
     pendingSynchronizedScrollTop.current = nextScrollTop;
     container.scrollTo({ top: nextScrollTop, behavior: 'auto' });
-  }, [html, scrollContainerRef, sourceLineToReveal]);
+  }, [html, scrollContainerRef, sourceScrollPositionToReveal]);
 
   useEffect(() => {
     const preview = containerRef.current;

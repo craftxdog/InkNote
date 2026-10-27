@@ -5,11 +5,41 @@ export type SourceScrollAnchor = Readonly<{
   height: number;
 }>;
 
+export type SourceScrollPosition =
+  Readonly<{ kind: 'line'; sourceLine: number }> | Readonly<{ kind: 'end' }>;
+
+export type SourceScrollMetrics = Readonly<{
+  sourceLine: number;
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+}>;
+
 const clamp = (value: number, minimum: number, maximum: number): number =>
   Math.min(Math.max(value, minimum), maximum);
 
 const lineSpan = (anchor: SourceScrollAnchor): number =>
   Math.max(1, anchor.endLine - anchor.startLine + 1);
+
+/**
+ * Maintains the explicit bottom boundary across panes with different rendered
+ * heights. A source line alone is insufficient at the end of a document:
+ * the first visible editor line can precede the reader's actual position.
+ */
+export const sourceScrollPositionFor = ({
+  sourceLine,
+  scrollTop,
+  scrollHeight,
+  clientHeight,
+}: SourceScrollMetrics): SourceScrollPosition => {
+  const maximumScrollTop = Math.max(0, scrollHeight - clientHeight);
+
+  if (maximumScrollTop > 0 && scrollTop >= maximumScrollTop - 1) {
+    return { kind: 'end' };
+  }
+
+  return { kind: 'line', sourceLine };
+};
 
 const anchorForSourceLine = (
   anchors: readonly SourceScrollAnchor[],

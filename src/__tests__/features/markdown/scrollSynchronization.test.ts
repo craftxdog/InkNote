@@ -1,4 +1,5 @@
 import {
+  sourceScrollPositionFor,
   sourceLineForPreviewScroll,
   previewScrollTopForSourceLine,
   type SourceScrollAnchor,
@@ -21,5 +22,25 @@ describe('Markdown scroll synchronization', () => {
 
   it('keeps the nearest source block when the requested line is between rendered anchors', () => {
     expect(previewScrollTopForSourceLine(anchors, 24)).toBe(668);
+  });
+
+  it('preserves the bottom boundary instead of synchronizing to the first visible source line', () => {
+    expect(
+      sourceScrollPositionFor({
+        sourceLine: 14,
+        scrollTop: 900,
+        scrollHeight: 1_000,
+        clientHeight: 100,
+      }),
+    ).toEqual({ kind: 'end' });
+
+    expect(
+      sourceScrollPositionFor({
+        sourceLine: 12,
+        scrollTop: 600,
+        scrollHeight: 700,
+        clientHeight: 100,
+      }),
+    ).toEqual({ kind: 'end' });
   });
 });

@@ -8,6 +8,8 @@ import type {
 } from '../../../../shared/documents/document.types';
 import { INBOX_NOTEBOOK_ID } from '../../../../shared/documents/document.types';
 
+import type { SourceScrollPosition } from '../../markdown/model/scrollSynchronization';
+
 import { MarkdownPreview } from './MarkdownPreview';
 
 import '../styles/preview.css';
@@ -21,8 +23,8 @@ type PreviewPanelProps = {
   isLoading: boolean;
   error: unknown;
   onOpenReference?: (documentId: NoteId) => void;
-  onSourceLineChange?: (sourceLine: number) => void;
-  sourceLineToReveal?: number;
+  onSourceLineChange?: (position: SourceScrollPosition) => void;
+  sourceScrollPositionToReveal?: SourceScrollPosition;
 };
 
 export const PreviewPanel = ({
@@ -35,7 +37,7 @@ export const PreviewPanel = ({
   error,
   onOpenReference,
   onSourceLineChange,
-  sourceLineToReveal,
+  sourceScrollPositionToReveal,
 }: PreviewPanelProps) => {
   const previewScrollRef = useRef<HTMLDivElement>(null);
 
@@ -82,7 +84,7 @@ export const PreviewPanel = ({
           referenceDocuments={referenceDocuments}
           onOpenReference={onOpenReference}
           onSourceLineChange={onSourceLineChange}
-          sourceLineToReveal={sourceLineToReveal}
+          sourceScrollPositionToReveal={sourceScrollPositionToReveal}
           scrollContainerRef={previewScrollRef}
         />
       </div>

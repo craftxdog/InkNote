@@ -5,6 +5,7 @@ import { NavigationPanel } from '../features/navigation/components/NavigationPan
 import { navigationDestinations } from '../features/navigation/data/navigation.data';
 import type { NavigationSelection } from '../features/navigation/model/navigation.types';
 import { selectionForTags } from '../features/navigation/model/navigation.selections';
+import type { SourceScrollPosition } from '../features/markdown/model/scrollSynchronization';
 import { NotesPanel } from '../features/notes/components/NotesPanel';
 import { useOrganizationCommands } from '../features/organization/hooks/useOrganizationCommands';
 import { useDefaultNotebookPreference } from '../features/organization/hooks/useDefaultNotebookPreference';
@@ -48,7 +49,7 @@ type PreviewDrafts = ReadonlyMap<NoteId, string>;
 type ScrollSyncTarget = Readonly<{
   documentId: NoteId;
   origin: 'editor' | 'preview';
-  sourceLine: number;
+  position: SourceScrollPosition;
 }>;
 
 export function WorkspacePage() {
@@ -156,8 +157,11 @@ export function WorkspacePage() {
     [],
   );
 
-  const synchronizeSourceLine = useCallback(
-    (origin: ScrollSyncTarget['origin'], sourceLine: number): void => {
+  const synchronizeScrollPosition = useCallback(
+    (
+      origin: ScrollSyncTarget['origin'],
+      position: SourceScrollPosition,
+    ): void => {
       if (selectedDocument === null) {
         return;
       }
@@ -165,9 +169,9 @@ export function WorkspacePage() {
       setScrollSyncTarget((current) =>
         current?.documentId === selectedDocument.id &&
         current.origin === origin &&
-        current.sourceLine === sourceLine
+        sourceScrollPositionsEqual(current.position, position)
           ? current
-          : { documentId: selectedDocument.id, origin, sourceLine },
+          : { documentId: selectedDocument.id, origin, position },
       );
     },
     [selectedDocument],
@@ -178,7 +182,7 @@ export function WorkspacePage() {
     scrollSyncTarget.documentId === selectedDocument?.id
       ? scrollSyncTarget
       : null;
-  const synchronizedSourceLine = activeScrollSyncTarget?.sourceLine;
+  const synchronizedScrollPosition = activeScrollSyncTarget?.position;
 
   useEffect(() => {
     void window.inknote.windowControls
@@ -552,12 +556,12 @@ export function WorkspacePage() {
           onRestoreDocument={documentWorkspace.restore}
           onBodyDraftChange={handleBodyDraftChange}
           onBodyDraftPersisted={handleBodyDraftPersisted}
-          onSourceLineChange={(sourceLine) =>
-            synchronizeSourceLine('editor', sourceLine)
+          onSourceLineChange={(position) =>
+            synchronizeScrollPosition('editor', position)
           }
-          sourceLineToReveal={
+          sourceScrollPositionToReveal={
             activeScrollSyncTarget?.origin === 'preview'
-              ? synchronizedSourceLine
+              ? synchronizedScrollPosition
               : undefined
           }
         />
@@ -573,12 +577,12 @@ export function WorkspacePage() {
           error={
             documentWorkspace.lastError ?? documentWorkspace.session.lastError
           }
-          onSourceLineChange={(sourceLine) =>
-            synchronizeSourceLine('preview', sourceLine)
+          onSourceLineChange={(position) =>
+            synchronizeScrollPosition('preview', position)
           }
-          sourceLineToReveal={
+          sourceScrollPositionToReveal={
             activeScrollSyncTarget?.origin === 'editor'
-              ? synchronizedSourceLine
+              ? synchronizedScrollPosition
               : undefined
           }
           onOpenReference={(documentId) => {
@@ -589,6 +593,14 @@ export function WorkspacePage() {
     />
   );
 }
+
+const sourceScrollPositionsEqual = (
+  left: SourceScrollPosition,
+  right: SourceScrollPosition,
+): boolean =>
+  left.kind === right.kind &&
+  (left.kind === 'end' ||
+    (right.kind === 'line' && left.sourceLine === right.sourceLine));
 
 const isEditableKeyTarget = (target: EventTarget | null): boolean =>
   target instanceof Element &&
