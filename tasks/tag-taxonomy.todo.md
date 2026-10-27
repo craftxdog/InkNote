@@ -230,15 +230,15 @@ callbacks while preserving menu/context/API provenance.
 
 **Acceptance criteria:**
 
-- [ ] Create/update/delete use only workspace actions; `tag:open` returns the
+- [x] Create/update/delete use only workspace actions; `tag:open` returns the
       current summary without a durable write.
-- [ ] Mismatched commands/requests and unavailable tags are safe no-ops.
-- [ ] Existing note/notebook routing remains unchanged.
+- [x] Mismatched commands/requests and unavailable tags are safe no-ops.
+- [x] Existing note/notebook routing remains unchanged.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/features/organization/executeTagCommand.test.ts src/__tests__/App.test.tsx`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/features/organization/executeTagCommand.test.ts src/__tests__/App.test.tsx`
+- [x] `npm run typecheck`
 
 **Dependencies:** Task 7.
 
@@ -252,10 +252,10 @@ callbacks while preserving menu/context/API provenance.
 
 ## Checkpoint: command lifecycle boundary
 
-- [ ] Command/adapter tests pass with no skipped tag path.
-- [ ] Strict Mode leaves one active contribution and no lifecycle operation in
+- [x] Command/adapter tests pass with no skipped tag path.
+- [x] Strict Mode leaves one active contribution and no lifecycle operation in
       progress.
-- [ ] `Cmd/Ctrl+P`, editor input, and existing keys remain unconsumed.
+- [x] `Cmd/Ctrl+P`, editor input, and existing keys remain unconsumed.
 
 ## Task 9: Render the durable sidebar catalogue
 

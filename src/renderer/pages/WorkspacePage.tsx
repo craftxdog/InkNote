@@ -21,6 +21,10 @@ import {
   executeNotebookCommand,
   isNotebookOrganizationCommand,
 } from '../features/organization/model/executeNotebookCommand';
+import {
+  executeTagCommand,
+  isTagOrganizationCommand,
+} from '../features/organization/model/executeTagCommand';
 import { readNoteCommandRequest } from '../features/organization/model/noteCommandRequest';
 import {
   organizationCommandIds,
@@ -253,6 +257,15 @@ export function WorkspacePage() {
             createNotebook: documentWorkspace.createNotebook,
             updateNotebook: documentWorkspace.updateNotebook,
             deleteNotebook,
+          });
+        }
+
+        if (isTagOrganizationCommand(command)) {
+          return executeTagCommand(command, invocation.detail, {
+            tags: documentWorkspace.tags,
+            createTag: documentWorkspace.createTag,
+            updateTag: documentWorkspace.updateTag,
+            deleteTag: documentWorkspace.deleteTag,
           });
         }
 
