@@ -573,6 +573,7 @@ export function WorkspacePage() {
           isPreviewOnly={viewMode === 'preview'}
           referenceDocuments={documentWorkspace.documents}
           body={previewBody}
+          themeRevision={`${workspaceThemes.themeId}:${workspaceThemes.acrylic.acrylicEnabled}:${workspaceThemes.externalCss === null ? 'pending' : 'loaded'}`}
           isLoading={documentWorkspace.session.isLoading}
           error={
             documentWorkspace.lastError ?? documentWorkspace.session.lastError

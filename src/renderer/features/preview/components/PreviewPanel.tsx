@@ -20,6 +20,7 @@ type PreviewPanelProps = {
   isPreviewOnly?: boolean;
   referenceDocuments?: readonly NoteDocument[];
   body?: string;
+  themeRevision?: string;
   isLoading: boolean;
   error: unknown;
   onOpenReference?: (documentId: NoteId) => void;
@@ -33,6 +34,7 @@ export const PreviewPanel = ({
   isPreviewOnly = false,
   referenceDocuments = [],
   body,
+  themeRevision,
   isLoading,
   error,
   onOpenReference,
@@ -81,6 +83,7 @@ export const PreviewPanel = ({
       >
         <MarkdownPreview
           markdown={body ?? document.body}
+          themeRevision={themeRevision}
           referenceDocuments={referenceDocuments}
           onOpenReference={onOpenReference}
           onSourceLineChange={onSourceLineChange}

@@ -10,8 +10,11 @@ jest.mock('mermaid', () => ({
 }));
 
 import {
+  rebalanceMermaidNodeLabelContrast,
   mermaidConfiguration,
+  mermaidConfigurationForPreview,
   renderMermaidDiagrams,
+  resolveMermaidThemeVariables,
   sanitizeMermaidSvg,
 } from '../../../renderer/features/preview/mermaidPresentation';
 
@@ -21,6 +24,92 @@ describe('sanitizeMermaidSvg', () => {
       securityLevel: 'strict',
       htmlLabels: false,
     });
+  });
+
+  it('maps the active preview palette into Mermaid theme variables', () => {
+    const tokens: Readonly<Record<string, string>> = {
+      '--inknote-mermaid-background': '#1d2630',
+      '--inknote-mermaid-surface': '#293544',
+      '--inknote-mermaid-text': '#e8edf4',
+      '--inknote-mermaid-border': '#7894b3',
+      '--inknote-mermaid-line': '#b2c4d8',
+      '--inknote-mermaid-edge-label-background': '#202c39',
+      '--inknote-mermaid-accent': '#8fbef8',
+    };
+
+    expect(
+      resolveMermaidThemeVariables((name) => tokens[name] ?? ''),
+    ).toMatchObject({
+      background: '#1d2630',
+      primaryColor: '#293544',
+      primaryTextColor: '#e8edf4',
+      primaryBorderColor: '#7894b3',
+      lineColor: '#b2c4d8',
+      edgeLabelBackground: '#202c39',
+      signalTextColor: '#e8edf4',
+    });
+  });
+
+  it('uses a dark label tone when a Mermaid node has an authored light fill', () => {
+    const svg = sanitizeMermaidSvg(`
+      <svg xmlns="http://www.w3.org/2000/svg">
+        <g class="node"><rect fill="#fff3e0" /><text fill="#e7eaed">Payment accepted?</text></g>
+      </svg>
+    `);
+
+    expect(svg).not.toBeNull();
+
+    rebalanceMermaidNodeLabelContrast(svg as SVGSVGElement);
+
+    expect(svg?.querySelector('text')?.style.fill).toBe('#111827');
+  });
+
+  it('reconfigures Mermaid with the current preview palette before rendering', async () => {
+    const configure = jest.fn();
+    const preview = document.createElement('div');
+
+    preview.style.setProperty('--inknote-mermaid-background', '#1d2630');
+    preview.style.setProperty('--inknote-mermaid-surface', '#293544');
+    preview.style.setProperty('--inknote-mermaid-text', '#e8edf4');
+    preview.style.setProperty('--inknote-mermaid-border', '#7894b3');
+    preview.style.setProperty('--inknote-mermaid-line', '#b2c4d8');
+    preview.style.setProperty(
+      '--inknote-mermaid-edge-label-background',
+      '#202c39',
+    );
+    preview.style.setProperty('--inknote-mermaid-accent', '#8fbef8');
+    preview.innerHTML = `
+      <pre class="inknote-code-block" data-language="MERMAID"><code>flowchart TD\nA --&gt; B</code></pre>
+    `;
+    document.body.append(preview);
+    render.mockResolvedValue({
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>CI</text></svg>',
+    });
+
+    await renderMermaidDiagrams(preview, async () => ({
+      render,
+      initialize: configure,
+    }));
+
+    expect(configure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        securityLevel: 'strict',
+        htmlLabels: false,
+        themeVariables: expect.objectContaining({
+          primaryTextColor: '#e8edf4',
+          lineColor: '#b2c4d8',
+        }),
+      }),
+    );
+    expect(mermaidConfigurationForPreview(preview)).toEqual(
+      expect.objectContaining({
+        themeVariables: expect.objectContaining({
+          edgeLabelBackground: '#202c39',
+        }),
+      }),
+    );
+
+    preview.remove();
   });
 
   it('retains an SVG diagram while removing executable and external content', () => {
@@ -77,6 +166,30 @@ describe('sanitizeMermaidSvg', () => {
     expect(figure?.getAttribute('aria-label')).toBe('CI flow');
     expect(figure?.textContent).toContain('CI flow');
     expect(figure?.querySelector('svg')?.getAttribute('role')).toBe('img');
+
+    preview.remove();
+  });
+
+  it('corrects a low-contrast Mermaid label after the diagram is mounted', async () => {
+    render.mockResolvedValue({
+      svg: `
+        <svg xmlns="http://www.w3.org/2000/svg">
+          <g class="node"><rect fill="#fff3e0" /><text fill="#e7eaed">Payment accepted?</text></g>
+        </svg>
+      `,
+    });
+    const preview = document.createElement('div');
+
+    preview.innerHTML = `
+      <pre class="inknote-code-block" data-language="MERMAID"><code>flowchart TD\nA --&gt; B</code></pre>
+    `;
+    document.body.append(preview);
+
+    await renderMermaidDiagrams(preview, async () => ({ render }));
+
+    expect(preview.querySelector<SVGTextElement>('svg text')?.style.fill).toBe(
+      '#111827',
+    );
 
     preview.remove();
   });

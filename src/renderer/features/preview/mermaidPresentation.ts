@@ -1,7 +1,13 @@
 let nextMermaidDiagramId = 0;
 let mermaidLoader: Promise<(typeof import('mermaid'))['default']> | null = null;
 
-type MermaidRenderer = Pick<(typeof import('mermaid'))['default'], 'render'>;
+type MermaidRenderer = Pick<(typeof import('mermaid'))['default'], 'render'> &
+  Partial<Pick<(typeof import('mermaid'))['default'], 'initialize'>>;
+type MermaidThemeVariables = NonNullable<
+  Parameters<
+    (typeof import('mermaid'))['default']['initialize']
+  >[0]['themeVariables']
+>;
 
 /**
  * Mermaid's HTML labels are emitted as SVG <foreignObject> nodes. We do not
@@ -16,6 +22,198 @@ export const mermaidConfiguration = {
   theme: 'base',
   fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
 } satisfies Parameters<(typeof import('mermaid'))['default']['initialize']>[0];
+
+const mermaidThemeTokenFallbacks = {
+  '--inknote-mermaid-background': '#282e34',
+  '--inknote-mermaid-surface': '#323941',
+  '--inknote-mermaid-text': '#e7eaed',
+  '--inknote-mermaid-border': '#86b6f8',
+  '--inknote-mermaid-line': '#bdc8d1',
+  '--inknote-mermaid-edge-label-background': '#282e34',
+  '--inknote-mermaid-accent': '#86b6f8',
+} as const;
+
+type RgbColor = readonly [red: number, green: number, blue: number];
+
+const parseSvgColor = (value: string | null): RgbColor | null => {
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = value.trim();
+  const hexadecimal = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(normalized);
+
+  if (hexadecimal !== null) {
+    const digits = hexadecimal[1];
+    const expanded =
+      digits.length === 3
+        ? digits
+            .split('')
+            .map((digit) => `${digit}${digit}`)
+            .join('')
+        : digits;
+
+    return [
+      Number.parseInt(expanded.slice(0, 2), 16),
+      Number.parseInt(expanded.slice(2, 4), 16),
+      Number.parseInt(expanded.slice(4, 6), 16),
+    ];
+  }
+
+  const rgb = /^rgba?\(\s*([\d.]+)[,\s]+\s*([\d.]+)[,\s]+\s*([\d.]+)/i.exec(
+    normalized,
+  );
+
+  if (rgb === null) {
+    return null;
+  }
+
+  return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
+};
+
+const relativeLuminance = ([red, green, blue]: RgbColor): number => {
+  const channel = (value: number): number => {
+    const normalized = value / 255;
+
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+
+  return (
+    channel(red) * 0.2126 + channel(green) * 0.7152 + channel(blue) * 0.0722
+  );
+};
+
+const contrastRatio = (first: RgbColor, second: RgbColor): number => {
+  const [lighter, darker] = [
+    relativeLuminance(first),
+    relativeLuminance(second),
+  ].sort((left, right) => right - left);
+
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
+const resolvedSvgColor = (
+  element: SVGElement,
+  property: 'fill' | 'color',
+): RgbColor | null =>
+  parseSvgColor(getComputedStyle(element).getPropertyValue(property)) ??
+  parseSvgColor(element.style.getPropertyValue(property)) ??
+  parseSvgColor(element.getAttribute(property));
+
+/**
+ * Mermaid permits authored `style ... fill:` directives. Such a directive can
+ * turn a node light while the active dark theme correctly supplies a light
+ * default label, leaving the note author's label unreadable. Resolve the
+ * rendered fill after Mermaid's SVG is mounted and only correct labels that
+ * fall below the WCAG body-text contrast target.
+ */
+export const rebalanceMermaidNodeLabelContrast = (svg: SVGSVGElement): void => {
+  const darkText: RgbColor = [17, 24, 39];
+  const lightText: RgbColor = [248, 250, 252];
+
+  for (const node of svg.querySelectorAll<SVGGElement>('.node')) {
+    const shape = [...node.children].find((child): child is SVGElement =>
+      ['rect', 'polygon', 'ellipse', 'circle', 'path'].includes(
+        child.localName.toLocaleLowerCase(),
+      ),
+    );
+    const background =
+      shape === undefined ? null : resolvedSvgColor(shape, 'fill');
+
+    if (background === null) {
+      continue;
+    }
+
+    const preferredText =
+      contrastRatio(background, darkText) >=
+      contrastRatio(background, lightText)
+        ? { color: darkText, value: '#111827' }
+        : { color: lightText, value: '#f8fafc' };
+
+    for (const label of node.querySelectorAll<SVGElement>('text, tspan')) {
+      const currentText = resolvedSvgColor(label, 'fill');
+
+      if (
+        currentText !== null &&
+        contrastRatio(background, currentText) >= 4.5
+      ) {
+        continue;
+      }
+
+      if (contrastRatio(background, preferredText.color) >= 4.5) {
+        label.style.setProperty('fill', preferredText.value, 'important');
+      }
+    }
+  }
+};
+
+/**
+ * Mermaid embeds its colours in generated SVG. Resolve the same semantic
+ * preview tokens used by the workspace before each render so a package-theme
+ * switch cannot leave dark labels or arrows behind from the previous palette.
+ */
+export const resolveMermaidThemeVariables = (
+  readToken: (name: keyof typeof mermaidThemeTokenFallbacks) => string,
+): MermaidThemeVariables => {
+  const token = (name: keyof typeof mermaidThemeTokenFallbacks): string =>
+    readToken(name).trim() || mermaidThemeTokenFallbacks[name];
+  const background = token('--inknote-mermaid-background');
+  const surface = token('--inknote-mermaid-surface');
+  const text = token('--inknote-mermaid-text');
+  const border = token('--inknote-mermaid-border');
+  const line = token('--inknote-mermaid-line');
+  const edgeLabelBackground = token('--inknote-mermaid-edge-label-background');
+  const accent = token('--inknote-mermaid-accent');
+
+  return {
+    background,
+    primaryColor: surface,
+    primaryTextColor: text,
+    primaryBorderColor: border,
+    secondaryColor: background,
+    secondaryTextColor: text,
+    secondaryBorderColor: border,
+    tertiaryColor: background,
+    tertiaryTextColor: text,
+    tertiaryBorderColor: border,
+    textColor: text,
+    lineColor: line,
+    mainBkg: surface,
+    nodeBorder: border,
+    clusterBkg: background,
+    clusterBorder: border,
+    edgeLabelBackground,
+    actorBkg: surface,
+    actorBorder: border,
+    actorTextColor: text,
+    actorLineColor: line,
+    signalColor: line,
+    signalTextColor: text,
+    labelBoxBkgColor: edgeLabelBackground,
+    labelTextColor: text,
+    noteBkgColor: surface,
+    noteTextColor: text,
+    noteBorderColor: border,
+    activationBkgColor: accent,
+    activationBorderColor: border,
+    sequenceNumberColor: text,
+  };
+};
+
+export const mermaidConfigurationForPreview = (
+  preview: HTMLElement,
+): Parameters<(typeof import('mermaid'))['default']['initialize']>[0] => {
+  const styles = getComputedStyle(preview);
+
+  return {
+    ...mermaidConfiguration,
+    themeVariables: resolveMermaidThemeVariables((name) =>
+      styles.getPropertyValue(name),
+    ),
+  };
+};
 
 const forbiddenSvgElements = new Set([
   'embed',
@@ -42,14 +240,7 @@ const configuredMermaid = async (): Promise<
   (typeof import('mermaid'))['default']
 > => {
   if (mermaidLoader === null) {
-    mermaidLoader = import('mermaid').then(({ default: mermaid }) => {
-      // Mermaid documents `initialize` before `render`; strict mode keeps
-      // diagram source from enabling click handlers or arbitrary HTML. With
-      // HTML labels off, Mermaid emits safe SVG text instead of foreignObject.
-      mermaid.initialize(mermaidConfiguration);
-
-      return mermaid;
-    });
+    mermaidLoader = import('mermaid').then(({ default: mermaid }) => mermaid);
   }
 
   return mermaidLoader;
@@ -312,11 +503,14 @@ const replaceWithMermaidFigure = (
     'Interactive Mermaid diagram. Use + and - to zoom, 0 to reset, and h j k l to pan.',
   );
   canvas.className = 'inknote-mermaid__canvas';
-  canvas.append(document.importNode(svg, true));
+  const renderedSvg = document.importNode(svg, true) as SVGSVGElement;
+
+  canvas.append(renderedSvg);
   viewport.append(canvas);
   figure.append(viewport);
-  configureMermaidInteraction(figure, viewport, canvas);
   codeBlock.replaceWith(figure);
+  rebalanceMermaidNodeLabelContrast(renderedSvg);
+  configureMermaidInteraction(figure, viewport, canvas);
 };
 
 export const renderMermaidDiagrams = async (
@@ -334,6 +528,11 @@ export const renderMermaidDiagrams = async (
   }
 
   const mermaid = await loadMermaid();
+
+  // Mermaid keeps global configuration and serializes colours into the SVG.
+  // Re-initialize for the active preview palette whenever its HTML is mounted
+  // so theme or Acrylic changes cannot retain stale, low-contrast diagrams.
+  mermaid.initialize?.(mermaidConfigurationForPreview(preview));
 
   // Mermaid coordinates some render state through the document. Rendering
   // fences one at a time avoids cross-diagram ID/container collisions.

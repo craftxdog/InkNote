@@ -26,6 +26,7 @@ import type {
 
 type MarkdownPreviewProps = {
   markdown: string;
+  themeRevision?: string;
   referenceDocuments?: readonly NoteDocument[];
   onOpenReference?: (documentId: NoteId) => void;
   onSourceLineChange?: (position: SourceScrollPosition) => void;
@@ -885,6 +886,7 @@ export const renderInkNoteMarkdown = async (
  */
 export function MarkdownPreview({
   markdown,
+  themeRevision,
   referenceDocuments = [],
   onOpenReference,
   onSourceLineChange,
@@ -898,6 +900,7 @@ export function MarkdownPreview({
   const onOpenReferenceRef = useRef(onOpenReference);
   const pendingSynchronizedScrollTop = useRef<number | null>(null);
   const renderedHtmlRef = useRef('');
+  const renderedMermaidThemeRef = useRef<string | undefined>(undefined);
   const previewScrollRenderGuardRef = useRef(createPreviewScrollRenderGuard());
   const referenceDocumentsById = useMemo(
     () =>
@@ -1091,10 +1094,18 @@ export function MarkdownPreview({
       return;
     }
 
+    // Mermaid serializes its palette into the SVG. Restoring the sanitized
+    // Markdown on a theme change recreates its fences without changing note
+    // content, then the current palette is rendered below.
+    if (renderedMermaidThemeRef.current !== themeRevision) {
+      preview.innerHTML = html;
+      renderedMermaidThemeRef.current = themeRevision;
+    }
+
     // Mermaid renders after the already-sanitized Markdown HTML is in the
     // document. Its own output is sanitized again before replacing the fence.
     void renderMermaidDiagrams(preview).catch(() => undefined);
-  }, [html]);
+  }, [html, themeRevision]);
 
   return (
     <div

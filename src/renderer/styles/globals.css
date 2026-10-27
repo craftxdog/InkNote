@@ -368,17 +368,17 @@
     --page-background: transparent;
     --editor-background: color-mix(
       in srgb,
-      var(--page-background) 20%,
-      var(--editor-drawer-background)
+      var(--editor-drawer-background) 94%,
+      transparent
     );
     --note-list-bar-background: color-mix(
       in srgb,
-      var(--note-list-bar-background) 76%,
+      var(--editor-drawer-background) 92%,
       transparent
     );
     --sidebar-background: color-mix(
       in srgb,
-      var(--sidebar-background) 76%,
+      var(--editor-drawer-background) 90%,
       transparent
     );
     --inline-dropdown-menu-background: var(--editor-drawer-background);
@@ -393,9 +393,9 @@
    keep ownership of their own body.acrylic-window rules. */
   body.acrylic-window .workspace-shell[data-theme-id='native-dark'] {
     --page-background: transparent;
-    --editor-background: rgb(40 46 52 / 82%);
-    --note-list-bar-background: rgb(32 38 44 / 76%);
-    --sidebar-background: rgb(23 29 34 / 76%);
+    --editor-background: rgb(40 46 52 / 96%);
+    --note-list-bar-background: rgb(32 38 44 / 93%);
+    --sidebar-background: rgb(23 29 34 / 92%);
   }
 
   body.acrylic-window.platform-win32
@@ -486,10 +486,14 @@ button {
    */
   --color-text: var(--text-color);
   --color-text-secondary: var(--muted-text-color);
-  --color-navigation: var(--sidebar-background);
-  --color-notes: var(--note-list-bar-background);
-  --color-workspace: var(--editor-background);
-  --color-surface-elevated: var(--inline-dropdown-menu-background);
+  --inknote-surface-navigation: var(--sidebar-background);
+  --inknote-surface-notes: var(--note-list-bar-background);
+  --inknote-surface-workspace: var(--editor-background);
+  --inknote-surface-elevated: var(--inline-dropdown-menu-background);
+  --color-navigation: var(--inknote-surface-navigation);
+  --color-notes: var(--inknote-surface-notes);
+  --color-workspace: var(--inknote-surface-workspace);
+  --color-surface-elevated: var(--inknote-surface-elevated);
   --color-code-background: var(--mde-preview-codeblock-background-color);
   --color-code-border: var(--mde-preview-codeblock-border-color);
   --color-inline-code: var(--mde-preview-inline-code-color);
@@ -519,12 +523,24 @@ button {
    * retain the native palette by default and can be mapped to the documented
    * Inkdrop package variables below.
    */
-  --inknote-navigation-hover-background: rgba(255, 255, 255, 0.3);
+  --inknote-navigation-hover-background: color-mix(
+    in srgb,
+    var(--inknote-surface-navigation) 88%,
+    var(--primary-color)
+  );
   --inknote-navigation-selected-background: var(--color-navigation-selected);
-  --inknote-notes-hover-background: rgba(255, 255, 255, 0.56);
+  --inknote-notes-hover-background: color-mix(
+    in srgb,
+    var(--inknote-surface-notes) 90%,
+    var(--primary-color)
+  );
   --inknote-notes-selected-background: var(--color-navigation-selected);
-  --inknote-input-focus-background: #ffffff;
-  --inknote-input-hover-background: rgba(255, 255, 255, 0.6);
+  --inknote-input-focus-background: var(--inknote-surface-elevated);
+  --inknote-input-hover-background: color-mix(
+    in srgb,
+    var(--inknote-surface-elevated) 92%,
+    var(--primary-color)
+  );
   --inknote-status-active-color: var(--note-status-active-color);
   --inknote-status-on-hold-color: var(--note-status-on-hold-color);
   --inknote-status-completed-color: var(--note-status-completed-color);
@@ -545,6 +561,20 @@ button {
   --inknote-editor-autocomplete-selected-background: var(
     --editor-selection-background
   );
+  --inknote-mermaid-background: var(--color-workspace);
+  --inknote-mermaid-surface: var(--color-code-background);
+  --inknote-mermaid-text: var(--color-text);
+  --inknote-mermaid-border: color-mix(
+    in srgb,
+    var(--primary-color) 68%,
+    var(--color-divider)
+  );
+  --inknote-mermaid-line: var(--color-text-secondary);
+  --inknote-mermaid-edge-label-background: var(--color-workspace);
+  --inknote-mermaid-accent: var(--primary-color);
+  --inknote-callout-note-color: var(--primary-color);
+  --inknote-callout-tip-color: var(--tag-green-color);
+  --inknote-callout-warning-color: var(--tag-orange-color);
 
   /* -------------------------------------------------------
      Sidebar columns
@@ -601,20 +631,38 @@ button {
     --mde-preview-inline-code-text-color,
     var(--mde-preview-inline-code-color)
   );
-  --inknote-navigation-hover-background: var(
-    --grouped-segment-hover-background
+  --mde-preview-inline-code-color: var(
+    --mde-preview-inline-code-text-color,
+    var(--md-inline-code-color)
+  );
+  --inknote-navigation-hover-background: color-mix(
+    in srgb,
+    var(--inknote-surface-navigation) 90%,
+    var(--primary-color)
   );
   --inknote-navigation-selected-background: var(
-    --tabular-menu-active-background
+    --tabular-menu-active-background,
+    var(--inknote-navigation-hover-background)
   );
-  --inknote-notes-hover-background: var(
-    --note-list-view-item-active-background
+  --inknote-notes-hover-background: color-mix(
+    in srgb,
+    var(--inknote-surface-notes) 92%,
+    var(--primary-color)
   );
-  --inknote-notes-selected-background: var(
-    --note-list-view-item-selected-background
+  --inknote-notes-selected-background: color-mix(
+    in srgb,
+    var(--inknote-surface-notes) 80%,
+    var(--primary-color)
   );
-  --inknote-input-focus-background: var(--input-background);
-  --inknote-input-hover-background: var(--button-hover-background-color);
+  --inknote-input-focus-background: var(
+    --input-background,
+    var(--inknote-surface-elevated)
+  );
+  --inknote-input-hover-background: color-mix(
+    in srgb,
+    var(--inknote-surface-elevated) 92%,
+    var(--primary-color)
+  );
   --inknote-status-active-color: var(
     --note-status-active,
     var(--note-status-active-color)
@@ -665,6 +713,61 @@ button {
     --editor-tooltip-autocomplete-item-selected-background-color,
     var(--editor-selection-background)
   );
+  --inknote-mermaid-background: var(
+    --mermaid-cluster-background-color,
+    var(--color-workspace)
+  );
+  --inknote-mermaid-surface: var(
+    --mermaid-node-background-color,
+    var(--color-code-background)
+  );
+  --inknote-mermaid-text: var(--mermaid-text-color, var(--color-text));
+  --inknote-mermaid-border: var(
+    --mermaid-node-border-color,
+    var(--color-divider)
+  );
+  --inknote-mermaid-line: var(
+    --mermaid-line-color,
+    var(--color-text-secondary)
+  );
+  --inknote-mermaid-edge-label-background: var(
+    --mermaid-edge-label-background-color,
+    var(--color-workspace)
+  );
+  --inknote-mermaid-accent: var(--mermaid-primary-color, var(--primary-color));
+  --inknote-callout-note-color: var(--primary-color);
+  --inknote-callout-tip-color: var(--tag-green-color);
+  --inknote-callout-warning-color: var(--tag-orange-color);
+}
+
+/* Acrylic belongs to the native window, not to the reading surfaces. Package
+   themes expose the same neutral scale, so retain their palette while giving
+   text, hover states, dialogs, and Markdown an opaque enough base to read. */
+body.acrylic-window .workspace-shell[data-theme-id^='external:'] {
+  --inknote-surface-navigation: color-mix(
+    in srgb,
+    var(--color-neutral-700, var(--sidebar-background)) 92%,
+    transparent
+  );
+  --inknote-surface-notes: color-mix(
+    in srgb,
+    var(--color-neutral-800, var(--note-list-bar-background)) 94%,
+    transparent
+  );
+  --inknote-surface-workspace: color-mix(
+    in srgb,
+    var(--color-neutral-900, var(--editor-background)) 97%,
+    transparent
+  );
+  --inknote-surface-elevated: color-mix(
+    in srgb,
+    var(--color-neutral-900, var(--inline-dropdown-menu-background)) 98%,
+    transparent
+  );
+  --inknote-editor-background: var(--inknote-surface-workspace);
+  --inknote-editor-gutter-background: var(--inknote-surface-workspace);
+  --inknote-editor-tooltip-background: var(--inknote-surface-elevated);
+  --inknote-input-focus-background: var(--inknote-surface-elevated);
 }
 
 /* =========================================================
