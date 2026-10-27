@@ -7,9 +7,12 @@ import { organizationCommandIds } from '../../../renderer/features/organization/
 import {
   createNoteId,
   createRevision,
+  createTagId,
   type Notebook,
   type NoteDocument,
+  type TagSummary,
 } from '../../../shared/documents/document.types';
+import { selectionForCatalogueTag } from '../../../renderer/features/navigation/model/navigation.selections';
 
 const documents: readonly NoteDocument[] = [
   {
@@ -53,7 +56,175 @@ const notebooks: readonly Notebook[] = [
   },
 ];
 
+const catalogue: TagSummary = {
+  id: createTagId('tag:catalogue'),
+  name: 'catalogue',
+  color: 'teal',
+  count: 1,
+  createdAt: '2026-10-26T12:00:00.000Z',
+  updatedAt: '2026-10-26T12:00:00.000Z',
+};
+
 describe('NavigationPanel', () => {
+  it('routes tag creation through a menu command', async () => {
+    const onExecuteTagCommand = jest.fn().mockResolvedValue({
+      ...catalogue,
+      name: 'roadmap',
+      color: 'blue',
+    } satisfies TagSummary);
+
+    render(
+      <NavigationPanel
+        documents={documents}
+        notebooks={notebooks}
+        tags={[]}
+        selection={navigationDestinations.allNotes}
+        onSelectionChange={jest.fn()}
+        onExecuteNotebookCommand={jest.fn()}
+        onExecuteTagCommand={onExecuteTagCommand}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create tag' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tag name' }), {
+      target: { value: 'Roadmap' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tag color' }), {
+      target: { value: 'blue' },
+    });
+
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('dialog', { name: 'New tag' }));
+    });
+
+    expect(onExecuteTagCommand).toHaveBeenCalledWith(
+      organizationCommandIds.createTag,
+      { kind: 'create', name: 'Roadmap', color: 'blue' },
+      'menu',
+    );
+  });
+
+  it('routes a tag edit through commands and reconciles the active tag selection', async () => {
+    const updated = {
+      ...catalogue,
+      name: 'team catalogue',
+      color: 'purple',
+      updatedAt: '2026-10-26T12:01:00.000Z',
+    } satisfies TagSummary;
+    const onSelectionChange = jest.fn();
+    const onExecuteTagCommand = jest.fn().mockResolvedValue(updated);
+
+    render(
+      <NavigationPanel
+        documents={documents}
+        notebooks={notebooks}
+        tags={[catalogue]}
+        selection={selectionForCatalogueTag(catalogue)}
+        onSelectionChange={onSelectionChange}
+        onExecuteNotebookCommand={jest.fn()}
+        onExecuteTagCommand={onExecuteTagCommand}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /^catalogue/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit Tag…' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tag name' }), {
+      target: { value: 'Team catalogue' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tag color' }), {
+      target: { value: 'purple' },
+    });
+
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole('dialog', { name: 'Edit catalogue tag' }),
+      );
+    });
+
+    expect(onExecuteTagCommand).toHaveBeenCalledWith(
+      organizationCommandIds.updateTag,
+      {
+        kind: 'update',
+        tagId: catalogue.id,
+        name: 'Team catalogue',
+        color: 'purple',
+      },
+      'context-menu',
+    );
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      selectionForCatalogueTag(updated),
+    );
+  });
+
+  it('describes deletion, dispatches only after confirmation, and falls back from a deleted tag', async () => {
+    const onSelectionChange = jest.fn();
+    const onExecuteTagCommand = jest.fn().mockResolvedValue(undefined);
+    const confirm = jest.spyOn(globalThis, 'confirm').mockReturnValue(true);
+
+    try {
+      render(
+        <NavigationPanel
+          documents={documents}
+          notebooks={notebooks}
+          tags={[catalogue]}
+          selection={selectionForCatalogueTag(catalogue)}
+          onSelectionChange={onSelectionChange}
+          onExecuteNotebookCommand={jest.fn()}
+          onExecuteTagCommand={onExecuteTagCommand}
+        />,
+      );
+
+      fireEvent.contextMenu(screen.getByRole('button', { name: /^catalogue/ }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete Tag…' }));
+      });
+
+      expect(confirm).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'every associated note, including archived notes',
+        ),
+      );
+      expect(onExecuteTagCommand).toHaveBeenCalledWith(
+        organizationCommandIds.deleteTag,
+        { kind: 'delete', tagId: catalogue.id },
+        'context-menu',
+      );
+      expect(onSelectionChange).toHaveBeenCalledWith(
+        navigationDestinations.allNotes,
+      );
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it('does not dispatch a deletion command when the confirmation is cancelled', async () => {
+    const onExecuteTagCommand = jest.fn();
+    const confirm = jest.spyOn(globalThis, 'confirm').mockReturnValue(false);
+
+    try {
+      render(
+        <NavigationPanel
+          documents={documents}
+          notebooks={notebooks}
+          tags={[catalogue]}
+          selection={selectionForCatalogueTag(catalogue)}
+          onSelectionChange={jest.fn()}
+          onExecuteNotebookCommand={jest.fn()}
+          onExecuteTagCommand={onExecuteTagCommand}
+        />,
+      );
+
+      fireEvent.contextMenu(screen.getByRole('button', { name: /^catalogue/ }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Delete Tag…' }));
+      });
+
+      expect(onExecuteTagCommand).not.toHaveBeenCalled();
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
   it('opens a focused notebook detail view with scoped counts and filters', async () => {
     const onSelectionChange = jest.fn();
     const onExecuteNotebookCommand = jest.fn().mockResolvedValue(notebooks[1]);

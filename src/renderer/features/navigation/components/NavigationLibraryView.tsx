@@ -55,6 +55,7 @@ import { NavigationNotebookIcon } from './NavigationNotebookIcon';
 import { NavigationRow } from './NavigationRow';
 
 type NotebookCommandSource = 'menu' | 'context-menu';
+type TagCommandSource = 'menu' | 'context-menu';
 
 type NavigationLibraryViewProps = {
   selection: NavigationSelection;
@@ -74,6 +75,9 @@ type NavigationLibraryViewProps = {
     source: NotebookCommandSource,
   ) => Promise<void>;
   onEditNotebook: (notebook: Notebook) => void;
+  onCreateTag?: (source: TagCommandSource) => void;
+  onEditTag?: (tag: TagSummary, source: TagCommandSource) => void;
+  onDeleteTag?: (tag: TagSummary, source: TagCommandSource) => Promise<void>;
 };
 
 /**
@@ -92,6 +96,9 @@ export function NavigationLibraryView({
   onExecuteNotebookCommand,
   onOpenNotebookDetail,
   onEditNotebook,
+  onCreateTag,
+  onEditTag,
+  onDeleteTag,
 }: NavigationLibraryViewProps) {
   const [notebookQuery, setNotebookQuery] = useState('');
   const [collapsedNotebookIds, setCollapsedNotebookIds] = useState<
@@ -119,6 +126,12 @@ export function NavigationLibraryView({
     NotebookIconName | undefined
   >(undefined);
   const [subnotebookError, setSubnotebookError] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [tagContextMenu, setTagContextMenu] = useState<Readonly<{
+    tag: TagSummary;
+    x: number;
+    y: number;
+  }> | null>(null);
 
   const isSelected = (id: string) => selection.id === id;
   const noteCountByNotebook = useMemo(
@@ -305,6 +318,45 @@ export function NavigationLibraryView({
     }
   };
 
+  const openTagContextMenu = (
+    event: MouseEvent<HTMLButtonElement>,
+    tag: TagSummary,
+  ): void => {
+    event.preventDefault();
+    setTagContextMenu({ tag, x: event.clientX, y: event.clientY });
+  };
+
+  const openKeyboardTagContextMenu = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    tag: TagSummary,
+  ): void => {
+    if (
+      event.key !== 'ContextMenu' &&
+      !(event.shiftKey && event.key === 'F10')
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setTagContextMenu({
+      tag,
+      x: bounds.left + Math.min(bounds.width / 2, 96),
+      y: bounds.bottom,
+    });
+  };
+
+  const deleteTag = async (tag: TagSummary): Promise<void> => {
+    setTagContextMenu(null);
+
+    try {
+      await onDeleteTag?.(tag, 'context-menu');
+      setTagError(null);
+    } catch {
+      setTagError('The tag could not be deleted.');
+    }
+  };
+
   return (
     <>
       <NavigationRow
@@ -335,6 +387,15 @@ export function NavigationLibraryView({
               onClick={() => setIsNotebookSearchVisible((current) => !current)}
             >
               <SearchIcon />
+            </button>
+            <button
+              type="button"
+              className="navigation-icon-button"
+              aria-label="Create tag"
+              title="Create tag"
+              onClick={() => onCreateTag?.('menu')}
+            >
+              <PlusIcon />
             </button>
             <button
               type="button"
@@ -557,6 +618,12 @@ export function NavigationLibraryView({
         </div>
       )}
 
+      {tagError !== null && (
+        <p className="navigation-inline-error" role="alert">
+          {tagError}
+        </p>
+      )}
+
       {expandedSections.tags &&
         visibleTags.map((tag) => {
           const tagSelection = selectionForCatalogueTag(tag);
@@ -579,6 +646,8 @@ export function NavigationLibraryView({
               depth={1}
               selected={isSelected(tagSelection.id)}
               onClick={() => onSelectionChange(tagSelection)}
+              onContextMenu={(event) => openTagContextMenu(event, tag)}
+              onKeyDown={(event) => openKeyboardTagContextMenu(event, tag)}
             />
           );
         })}
@@ -647,6 +716,42 @@ export function NavigationLibraryView({
                 Delete Notebook…
               </button>
             )}
+          </div>
+        </>
+      )}
+
+      {tagContextMenu !== null && (
+        <>
+          <button
+            type="button"
+            className="navigation-context-menu__backdrop"
+            aria-label="Close tag menu"
+            onClick={() => setTagContextMenu(null)}
+          />
+          <div
+            className="navigation-context-menu"
+            role="menu"
+            aria-label={`${tagContextMenu.tag.name} tag actions`}
+            style={{ left: tagContextMenu.x, top: tagContextMenu.y }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onEditTag?.(tagContextMenu.tag, 'context-menu');
+                setTagContextMenu(null);
+              }}
+            >
+              Edit Tag…
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="navigation-context-menu__delete"
+              onClick={() => void deleteTag(tagContextMenu.tag)}
+            >
+              Delete Tag…
+            </button>
           </div>
         </>
       )}

@@ -514,6 +514,7 @@ export function WorkspacePage() {
           selection={navigationSelection}
           onSelectionChange={setNavigationSelection}
           onExecuteNotebookCommand={executeOrganizationCommand}
+          onExecuteTagCommand={executeOrganizationCommand}
         />
       }
       notes={

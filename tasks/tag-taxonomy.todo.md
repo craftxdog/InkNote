@@ -320,18 +320,18 @@ reconcile the active tag selection after accepted rename/delete.
 
 **Acceptance criteria:**
 
-- [ ] UI actions dispatch typed menu/context-menu commands and never invoke a
+- [x] UI actions dispatch typed menu/context-menu commands and never invoke a
       durable operation directly.
-- [ ] Delete confirmation describes association removal; cancellation dispatches
+- [x] Delete confirmation describes association removal; cancellation dispatches
       nothing.
-- [ ] Rename updates the active filter name; deleting its selected tag falls
+- [x] Rename updates the active filter name; deleting its selected tag falls
       back to All Notes without changing unrelated views.
 
 **Verification:**
 
-- [ ] Red → green: `npm test -- --runInBand src/__tests__/features/navigation/NavigationLibraryView.test.tsx src/__tests__/features/navigation/NavigationPanel.test.tsx src/__tests__/App.test.tsx`
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
+- [x] Red → green: `npm test -- --runInBand src/__tests__/features/navigation/NavigationLibraryView.test.tsx src/__tests__/features/navigation/NavigationPanel.test.tsx src/__tests__/App.test.tsx`
+- [x] `npm run lint`
+- [x] `npm run typecheck`
 
 **Dependencies:** Task 10.
 
