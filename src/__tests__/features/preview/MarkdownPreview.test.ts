@@ -225,6 +225,46 @@ describe('enhanceInkNoteMarkdownTree', () => {
     );
   });
 
+  it('turns Mermaid fences into anchored component mounts instead of raw code blocks', () => {
+    const tree: MarkdownSyntaxTree = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'pre',
+          properties: {},
+          position: {
+            start: { line: 7 },
+            end: { line: 10 },
+          },
+          children: [
+            {
+              type: 'element',
+              tagName: 'code',
+              properties: { className: ['language-mermaid'] },
+              children: [
+                { type: 'text', value: 'sequenceDiagram\nAlice->>Bob: Hello' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    enhanceInkNoteMarkdownTree(tree);
+
+    expect(tree.children[0]).toMatchObject({
+      type: 'element',
+      tagName: 'div',
+      properties: {
+        className: ['inknote-mermaid-mount'],
+        dataMermaid: 'true',
+        dataSourceLine: 7,
+        dataSourceEndLine: 10,
+      },
+    });
+  });
+
   it('keeps fenced-code titles and filenames for the preview header', () => {
     const metadataByLine = codeFenceMetadataFor(
       [

@@ -13,6 +13,7 @@ import type { SourceScrollPosition } from '../../markdown/model/scrollSynchroniz
 import { MarkdownPreview } from './MarkdownPreview';
 
 import '../styles/preview.css';
+import '../styles/inkdropMermaid.css';
 
 type PreviewPanelProps = {
   document: NoteDocument | null;

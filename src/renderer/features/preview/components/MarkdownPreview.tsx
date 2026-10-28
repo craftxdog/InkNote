@@ -18,7 +18,10 @@ import {
 import { createPreviewScrollRenderGuard } from '../../markdown/model/previewScrollRenderGuard';
 import { replaceEmojiShortcodes } from '../../markdown/model/emojiCompletions';
 import { parseNoteReference } from '../../references/model/noteReferences';
-import { renderMermaidDiagrams } from '../mermaidPresentation';
+import {
+  mountMermaidDiagrams,
+  type MountedMermaidDiagrams,
+} from '../mermaidPresentation';
 import type {
   NoteDocument,
   NoteId,
@@ -636,6 +639,16 @@ const decorateCodeBlock = (
         }),
   };
 
+  if (language.toLocaleLowerCase() === 'mermaid') {
+    pre.tagName = 'div';
+    pre.properties = {
+      ...pre.properties,
+      className: ['inknote-mermaid-mount'],
+      dataMermaid: 'true',
+    };
+    return;
+  }
+
   if (!codeLanguagesWithPresentation.has(language.toLocaleLowerCase())) {
     return;
   }
@@ -732,6 +745,8 @@ const enhanceChildren = (
       decorateCodeBlock(child, codeFenceMetadataByLine);
     }
 
+    const isMermaidMount = child.properties.dataMermaid === 'true';
+
     if (
       child.tagName === 'code' &&
       (!isElement(parent) || parent.tagName !== 'pre')
@@ -743,7 +758,7 @@ const enhanceChildren = (
 
     enhanceChildren(
       child,
-      isProtected || protectedInlineTags.has(child.tagName),
+      isProtected || protectedInlineTags.has(child.tagName) || isMermaidMount,
       codeFenceMetadataByLine,
       referenceDocumentsById,
     );
@@ -900,7 +915,7 @@ export function MarkdownPreview({
   const onOpenReferenceRef = useRef(onOpenReference);
   const pendingSynchronizedScrollTop = useRef<number | null>(null);
   const renderedHtmlRef = useRef('');
-  const renderedMermaidThemeRef = useRef<string | undefined>(undefined);
+  const mountedMermaidDiagramsRef = useRef<MountedMermaidDiagrams | null>(null);
   const previewScrollRenderGuardRef = useRef(createPreviewScrollRenderGuard());
   const referenceDocumentsById = useMemo(
     () =>
@@ -1091,21 +1106,25 @@ export function MarkdownPreview({
     const preview = containerRef.current;
 
     if (preview === null) {
-      return;
+      return undefined;
     }
 
-    // Mermaid serializes its palette into the SVG. Restoring the sanitized
-    // Markdown on a theme change recreates its fences without changing note
-    // content, then the current palette is rendered below.
-    if (renderedMermaidThemeRef.current !== themeRevision) {
-      preview.innerHTML = html;
-      renderedMermaidThemeRef.current = themeRevision;
-    }
+    const mountedDiagrams = mountMermaidDiagrams(preview, undefined);
 
-    // Mermaid renders after the already-sanitized Markdown HTML is in the
-    // document. Its own output is sanitized again before replacing the fence.
-    void renderMermaidDiagrams(preview).catch(() => undefined);
-  }, [html, themeRevision]);
+    mountedMermaidDiagramsRef.current = mountedDiagrams;
+
+    return () => {
+      mountedDiagrams.dispose();
+
+      if (mountedMermaidDiagramsRef.current === mountedDiagrams) {
+        mountedMermaidDiagramsRef.current = null;
+      }
+    };
+  }, [html]);
+
+  useEffect(() => {
+    mountedMermaidDiagramsRef.current?.updateTheme(themeRevision);
+  }, [themeRevision]);
 
   return (
     <div

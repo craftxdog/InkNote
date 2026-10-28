@@ -1,3 +1,5 @@
+@import '@inkdropapp/css/tokens.css';
+@import '@inkdropapp/css/mermaid.css';
 @import 'tailwindcss';
 
 /* External Inkdrop themes declare @layer theme.ui / theme.syntax /
@@ -247,8 +249,11 @@
 
   /*
  * This is InkNote's own dark appearance: the contrast and hierarchy follow
- * the application surfaces rather than reproducing a third-party theme.
+ * the application surfaces rather than reproducing a third-party theme. Apply
+ * the same token set to :root so Inkdrop's root-scoped preview token sheets
+ * inherit the selected native palette too.
  */
+  :root:has(.workspace-shell[data-theme-id='native-dark']),
   .workspace-shell[data-theme-id='native-dark'] {
     --primary-color: #86b6f8;
     --primary-color-active: #80b6ff;
@@ -572,6 +577,10 @@ button {
   --inknote-mermaid-line: var(--color-text-secondary);
   --inknote-mermaid-edge-label-background: var(--color-workspace);
   --inknote-mermaid-accent: var(--primary-color);
+  --inknote-mermaid-page-background: var(
+    --inline-dropdown-menu-background,
+    var(--editor-drawer-background)
+  );
   --inknote-callout-note-color: var(--primary-color);
   --inknote-callout-tip-color: var(--tag-green-color);
   --inknote-callout-warning-color: var(--tag-orange-color);
@@ -738,6 +747,18 @@ button {
   --inknote-callout-note-color: var(--primary-color);
   --inknote-callout-tip-color: var(--tag-green-color);
   --inknote-callout-warning-color: var(--tag-orange-color);
+}
+
+/* `@inkdropapp/css/mermaid.css` resolves its contrast pairs with light-dark().
+   The renderer gets the selected appearance as data-theme, so carry that
+   semantic choice into the preview instead of selecting diagram colours in
+   JavaScript or maintaining a per-package palette. */
+.workspace-shell[data-theme='light'] {
+  color-scheme: light;
+}
+
+.workspace-shell[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 /* Acrylic belongs to the native window, not to the reading surfaces. Package

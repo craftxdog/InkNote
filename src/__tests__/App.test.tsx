@@ -287,7 +287,7 @@ describe('App', () => {
     );
   });
 
-  it('opens preferences and applies the selected theme', () => {
+  it('opens preferences, applies the selected theme, and synchronizes document appearance', async () => {
     const { container } = render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -296,10 +296,14 @@ describe('App', () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Dark theme' }));
-    expect(container.querySelector('.workspace-shell')).toHaveAttribute(
-      'data-theme',
-      'dark',
-    );
+    await waitFor(() => {
+      expect(container.querySelector('.workspace-shell')).toHaveAttribute(
+        'data-theme',
+        'dark',
+      );
+      expect(document.documentElement.style.colorScheme).toBe('dark');
+      expect(document.body).toHaveClass('dark-mode');
+    });
   });
 
   it('selects an installed theme and applies its acrylic state without executing package code', async () => {
