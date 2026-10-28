@@ -75,7 +75,7 @@ type NavigationLibraryViewProps = {
     source: NotebookCommandSource,
   ) => Promise<void>;
   onEditNotebook: (notebook: Notebook) => void;
-  onCreateTag?: (source: TagCommandSource) => void;
+  onCreateNotebook?: (source: NotebookCommandSource) => void;
   onEditTag?: (tag: TagSummary, source: TagCommandSource) => void;
   onDeleteTag?: (tag: TagSummary, source: TagCommandSource) => Promise<void>;
 };
@@ -96,7 +96,7 @@ export function NavigationLibraryView({
   onExecuteNotebookCommand,
   onOpenNotebookDetail,
   onEditNotebook,
-  onCreateTag,
+  onCreateNotebook,
   onEditTag,
   onDeleteTag,
 }: NavigationLibraryViewProps) {
@@ -361,9 +361,9 @@ export function NavigationLibraryView({
             <button
               type="button"
               className="navigation-icon-button"
-              aria-label="Create tag"
-              title="Create tag"
-              onClick={() => onCreateTag?.('menu')}
+              aria-label="Create notebook"
+              title="Create notebook"
+              onClick={() => onCreateNotebook?.('menu')}
             >
               <PlusIcon />
             </button>
@@ -388,70 +388,65 @@ export function NavigationLibraryView({
         </p>
       )}
 
-      {visibleNotebookRows.map(
-        ({ notebook, depth, noteCount, hasChildren }) => {
-          const isExpanded =
-            notebookQuery.trim().length > 0 ||
-            !collapsedNotebookIds.has(notebook.id);
-          const notebookSelection = selectionForNotebook(notebook, {
-            includeDescendants: hasChildren && !isExpanded,
-          });
+      {visibleNotebookRows.map(({ notebook, depth, hasChildren }) => {
+        const isExpanded =
+          notebookQuery.trim().length > 0 ||
+          !collapsedNotebookIds.has(notebook.id);
+        const notebookSelection = selectionForNotebook(notebook, {
+          includeDescendants: hasChildren && !isExpanded,
+        });
 
-          return (
-            <NavigationRow
-              key={notebook.id}
-              label={notebook.name}
-              icon={<NavigationNotebookIcon notebook={notebook} />}
-              count={noteCount}
-              depth={depth + 1}
-              selected={isSelected(notebookSelection.id)}
-              onClick={() => onSelectionChange(notebookSelection)}
-              onContextMenu={(event) =>
-                openNotebookContextMenu(event, notebook)
+        return (
+          <NavigationRow
+            key={notebook.id}
+            label={notebook.name}
+            icon={<NavigationNotebookIcon notebook={notebook} />}
+            depth={depth + 1}
+            selected={isSelected(notebookSelection.id)}
+            onClick={() => onSelectionChange(notebookSelection)}
+            onContextMenu={(event) => openNotebookContextMenu(event, notebook)}
+            onKeyDown={(event) => {
+              openKeyboardContextMenu(event, notebook);
+
+              if (event.defaultPrevented) {
+                return;
               }
-              onKeyDown={(event) => {
-                openKeyboardContextMenu(event, notebook);
 
-                if (event.defaultPrevented) {
-                  return;
-                }
-
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  openNotebookDetail(notebook, 'menu');
-                }
-              }}
-              toggle={
-                hasChildren
-                  ? {
-                      expanded: isExpanded,
-                      title: `${isExpanded ? 'Collapse' : 'Expand'} ${notebook.name}`,
-                      icon: <ChevronIcon />,
-                      onClick: () => {
-                        setCollapsedNotebookIds((current) => {
-                          const next = new Set(current);
-
-                          if (next.has(notebook.id)) {
-                            next.delete(notebook.id);
-                          } else {
-                            next.add(notebook.id);
-                          }
-
-                          return next;
-                        });
-                      },
-                    }
-                  : undefined
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                openNotebookDetail(notebook, 'menu');
               }
-              action={{
-                label: 'Detail',
-                title: `Show details for ${notebook.name}`,
-                onClick: () => openNotebookDetail(notebook, 'menu'),
-              }}
-            />
-          );
-        },
-      )}
+            }}
+            toggle={
+              hasChildren
+                ? {
+                    expanded: isExpanded,
+                    title: `${isExpanded ? 'Collapse' : 'Expand'} ${notebook.name}`,
+                    icon: <ChevronIcon />,
+                    onClick: () => {
+                      setCollapsedNotebookIds((current) => {
+                        const next = new Set(current);
+
+                        if (next.has(notebook.id)) {
+                          next.delete(notebook.id);
+                        } else {
+                          next.add(notebook.id);
+                        }
+
+                        return next;
+                      });
+                    },
+                  }
+                : undefined
+            }
+            action={{
+              label: 'Detail',
+              title: `Show details for ${notebook.name}`,
+              onClick: () => openNotebookDetail(notebook, 'menu'),
+            }}
+          />
+        );
+      })}
 
       <NavigationHeader
         title="Status"

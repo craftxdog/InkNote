@@ -15,7 +15,7 @@ export type NotebookEditorValues = Readonly<{
 }>;
 
 type NotebookEditorDialogProps = Readonly<{
-  notebook: Notebook;
+  notebook?: Notebook;
   notebooks: readonly Notebook[];
   onCancel: () => void;
   onSave: (values: NotebookEditorValues) => Promise<void>;
@@ -29,19 +29,26 @@ export function NotebookEditorDialog({
 }: NotebookEditorDialogProps) {
   const dialogRef = useRef<HTMLFormElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState(notebook.name);
+  const isEditing = notebook !== undefined;
+  const [name, setName] = useState(notebook?.name ?? '');
   const [parentId, setParentId] = useState<string | null>(
-    notebook.parentId ?? null,
+    notebook?.parentId ?? null,
   );
   const [icon, setIcon] = useState<NotebookIconName | null>(
-    notebook.icon ?? null,
+    notebook?.icon ?? null,
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eligibleParents = useMemo(
-    () => eligibleNotebookParents(notebooks, notebook.id),
-    [notebook.id, notebooks],
+    () =>
+      notebook === undefined
+        ? notebooks.filter(({ id }) => id !== 'inbox')
+        : eligibleNotebookParents(notebooks, notebook.id),
+    [notebook, notebooks],
   );
+  const dialogTitle = isEditing
+    ? `Edit ${notebook.name} notebook`
+    : 'New notebook';
 
   useEffect(() => {
     nameInputRef.current?.focus();
@@ -111,7 +118,9 @@ export function NotebookEditorDialog({
       <button
         type="button"
         className="navigation-dialog__dismiss"
-        aria-label="Cancel editing notebook"
+        aria-label={
+          isEditing ? 'Cancel editing notebook' : 'Cancel creating notebook'
+        }
         onClick={onCancel}
       />
       <form
@@ -122,7 +131,7 @@ export function NotebookEditorDialog({
         aria-labelledby="notebook-editor-title"
         onSubmit={(event) => void submit(event)}
       >
-        <h2 id="notebook-editor-title">Edit {notebook.name} notebook</h2>
+        <h2 id="notebook-editor-title">{dialogTitle}</h2>
         <label htmlFor="notebook-editor-name">
           Name
           <input
@@ -181,7 +190,7 @@ export function NotebookEditorDialog({
             Cancel
           </button>
           <button type="submit" disabled={isSaving || name.trim().length === 0}>
-            {isSaving ? 'Saving…' : 'Save'}
+            {isSaving ? 'Saving…' : isEditing ? 'Save' : 'Create'}
           </button>
         </div>
       </form>

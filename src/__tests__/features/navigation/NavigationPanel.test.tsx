@@ -66,12 +66,19 @@ const catalogue: TagSummary = {
 };
 
 describe('NavigationPanel', () => {
-  it('routes tag creation through a menu command', async () => {
-    const onExecuteTagCommand = jest.fn().mockResolvedValue({
-      ...catalogue,
-      name: 'roadmap',
-      color: 'blue',
-    } satisfies TagSummary);
+  it('routes root notebook creation through the notebook header', async () => {
+    const createdNotebook = {
+      id: 'roadmap',
+      name: 'Roadmap',
+      parentId: null,
+      icon: 'rocket',
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+    } satisfies Notebook;
+    const onExecuteNotebookCommand = jest
+      .fn()
+      .mockResolvedValue(createdNotebook);
+    const onSelectionChange = jest.fn();
 
     render(
       <NavigationPanel
@@ -79,28 +86,33 @@ describe('NavigationPanel', () => {
         notebooks={notebooks}
         tags={[]}
         selection={navigationDestinations.allNotes}
-        onSelectionChange={jest.fn()}
-        onExecuteNotebookCommand={jest.fn()}
-        onExecuteTagCommand={onExecuteTagCommand}
+        onSelectionChange={onSelectionChange}
+        onExecuteNotebookCommand={onExecuteNotebookCommand}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create tag' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Tag name' }), {
+    expect(
+      screen.queryByRole('button', { name: 'Create tag' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create notebook' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Notebook name' }), {
       target: { value: 'Roadmap' },
     });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tag color' }), {
-      target: { value: 'blue' },
+    fireEvent.change(screen.getByRole('combobox', { name: 'Notebook icon' }), {
+      target: { value: 'rocket' },
     });
 
     await act(async () => {
-      fireEvent.submit(screen.getByRole('dialog', { name: 'New tag' }));
+      fireEvent.submit(screen.getByRole('dialog', { name: 'New notebook' }));
     });
 
-    expect(onExecuteTagCommand).toHaveBeenCalledWith(
-      organizationCommandIds.createTag,
-      { kind: 'create', name: 'Roadmap', color: 'blue' },
+    expect(onExecuteNotebookCommand).toHaveBeenCalledWith(
+      organizationCommandIds.createNotebook,
+      { kind: 'create', name: 'Roadmap', parentId: null, icon: 'rocket' },
       'menu',
+    );
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'notebook-roadmap' }),
     );
   });
 

@@ -113,8 +113,8 @@ describe('NavigationLibraryView', () => {
     expect(
       screen.getByRole('button', { name: /^All Notes/ }),
     ).toHaveTextContent('2');
-    expect(screen.getByRole('button', { name: /^Work/ })).toHaveTextContent(
-      '1',
+    expect(screen.getByRole('button', { name: /^Work$/ })).toHaveTextContent(
+      'Work',
     );
     expect(screen.getByRole('button', { name: /^project/ })).toHaveTextContent(
       '2',
@@ -144,9 +144,7 @@ describe('NavigationLibraryView', () => {
     );
   });
 
-  it('keeps the modal tag action as the only plus control in the notebooks header', () => {
-    const onCreateTag = jest.fn();
-
+  it('exposes the plus action only for notebook creation', () => {
     render(
       <NavigationLibraryView
         selection={navigationDestinations.allNotes}
@@ -158,7 +156,6 @@ describe('NavigationLibraryView', () => {
         onExecuteNotebookCommand={jest.fn()}
         onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
         onEditNotebook={jest.fn()}
-        onCreateTag={onCreateTag}
       />,
     );
 
@@ -171,17 +168,11 @@ describe('NavigationLibraryView', () => {
     expect(screen.getByRole('textbox', { name: 'Filter tags' })).toBeVisible();
 
     expect(
-      screen.queryByRole('button', { name: 'Create notebook' }),
-    ).toBeNull();
+      screen.getByRole('button', { name: 'Create notebook' }),
+    ).toBeVisible();
     expect(
-      screen.queryByRole('textbox', { name: 'New notebook name' }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole('combobox', { name: 'Notebook icon' }),
-    ).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create tag' }));
-    expect(onCreateTag).toHaveBeenCalledWith('menu');
+      screen.queryByRole('button', { name: 'Create tag' }),
+    ).not.toBeInTheDocument();
   });
 
   it('collapses and expands arbitrary persisted notebook branches', () => {

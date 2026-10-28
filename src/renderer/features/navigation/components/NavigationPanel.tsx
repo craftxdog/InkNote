@@ -9,6 +9,7 @@ import type {
   TagSummary,
 } from '../../../../shared/documents/document.types';
 import {
+  createCreateNotebookCommandRequest,
   createOpenNotebookCommandRequest,
   createUpdateNotebookCommandRequest,
   type NotebookCommandRequest,
@@ -91,6 +92,7 @@ export function NavigationPanel({
   const [detailNotebookId, setDetailNotebookId] = useState<string | null>(null);
   const [editingNotebook, setEditingNotebook] =
     useState<NotebookEditRequest | null>(null);
+  const [isCreatingNotebook, setIsCreatingNotebook] = useState(false);
   const [tagEditor, setTagEditor] = useState<TagEditorRequest | null>(null);
   const detailNotebook =
     detailNotebookId === null
@@ -149,6 +151,22 @@ export function NavigationPanel({
         }),
       );
     }
+  };
+
+  const createNotebook = async (
+    values: NotebookEditorValues,
+  ): Promise<void> => {
+    const result = await onExecuteNotebookCommand(
+      organizationCommandIds.createNotebook,
+      createCreateNotebookCommandRequest(values),
+      'menu',
+    );
+
+    if (!isNotebook(result)) {
+      throw new Error('The notebook command did not create a notebook.');
+    }
+
+    onSelectionChange(selectionForNotebook(result));
   };
 
   const executeTag = async (
@@ -240,7 +258,7 @@ export function NavigationPanel({
             onEditNotebook={(notebook) =>
               setEditingNotebook({ notebook, source: 'context-menu' })
             }
-            onCreateTag={(source) => setTagEditor({ source })}
+            onCreateNotebook={() => setIsCreatingNotebook(true)}
             onEditTag={(tag, source) => setTagEditor({ tag, source })}
             onDeleteTag={deleteTag}
           />
@@ -273,6 +291,13 @@ export function NavigationPanel({
             notebooks={notebooks}
             onCancel={() => setEditingNotebook(null)}
             onSave={updateNotebook}
+          />
+        )}
+        {isCreatingNotebook && (
+          <NotebookEditorDialog
+            notebooks={notebooks}
+            onCancel={() => setIsCreatingNotebook(false)}
+            onSave={createNotebook}
           />
         )}
         {tagEditor !== null && (

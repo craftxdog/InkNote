@@ -95,6 +95,7 @@
 
 .navigation-row {
   --navigation-depth: 0;
+  --navigation-row-detail-inline-size: 48px;
 
   position: relative;
 
@@ -166,12 +167,8 @@
 }
 
 .navigation-row--has-action .navigation-row__primary {
-  /* Preserve room for the notebook name and count while Detail is hidden. */
-  padding-right: 12px;
-}
-
-.navigation-row:hover .navigation-row__primary {
-  padding-right: 96px;
+  /* Detail always owns the same compact slot, including before hover. */
+  padding-right: calc(12px + var(--navigation-row-detail-inline-size));
 }
 
 .navigation-row__primary:focus-visible {
@@ -310,10 +307,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.navigation-row:hover .navigation-row__count {
-  visibility: hidden;
-}
-
 /* =========================================================
    6. DETAIL ACTION
 
@@ -324,7 +317,7 @@
    Hover:
    - aparece
    - entra suavemente
-   - reserva espacio temporalmente para no comprimir el contenido en reposo
+   - ocupa un espacio fijo para no comprimir el contenido al aparecer
 ========================================================= */
 
 .navigation-row__action {
@@ -333,19 +326,20 @@
   top: 50%;
   right: 12px;
 
-  min-width: 0;
-  height: 28px;
+  box-sizing: border-box;
+  width: var(--navigation-row-detail-inline-size);
+  height: 24px;
 
   display: inline-flex;
 
   align-items: center;
   justify-content: center;
 
-  gap: 2px;
+  gap: 0;
 
   margin: 0;
 
-  padding: 0 8px 0 10px;
+  padding: 0 4px 0 6px;
 
   color: var(--color-text-secondary);
 
@@ -359,7 +353,7 @@
 
   border-radius: 999px;
 
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
   line-height: 1;
 
@@ -412,7 +406,7 @@
 }
 
 .navigation-row__action-arrow {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 300;
   line-height: 0.8;
 }
