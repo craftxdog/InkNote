@@ -1,5 +1,4 @@
 import {
-  useDeferredValue,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -16,12 +15,14 @@ import {
   type SourceScrollPosition,
 } from '../../markdown/model/scrollSynchronization';
 import { createPreviewScrollRenderGuard } from '../../markdown/model/previewScrollRenderGuard';
+import { createPreviewLayoutSettler } from '../../markdown/model/previewLayoutSettlement';
 import { replaceEmojiShortcodes } from '../../markdown/model/emojiCompletions';
 import { parseNoteReference } from '../../references/model/noteReferences';
 import {
-  mountMermaidDiagrams,
+  createMermaidPresentation,
   type MountedMermaidDiagrams,
 } from '../mermaidPresentation';
+import { reconcilePreviewMarkup } from '../previewMarkupReconciliation';
 import type {
   NoteDocument,
   NoteId,
@@ -909,8 +910,9 @@ export function MarkdownPreview({
   scrollContainerRef,
 }: MarkdownPreviewProps) {
   const [html, setHtml] = useState('');
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const [renderedMarkdown, setRenderedMarkdown] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const deferredMarkdown = useDeferredValue(markdown);
   const onSourceLineChangeRef = useRef(onSourceLineChange);
   const onOpenReferenceRef = useRef(onOpenReference);
   const pendingSynchronizedScrollTop = useRef<number | null>(null);
@@ -933,18 +935,22 @@ export function MarkdownPreview({
 
   useEffect(() => {
     let isDisposed = false;
-    const codeFenceMetadataByLine = codeFenceMetadataFor(deferredMarkdown);
+    const codeFenceMetadataByLine = codeFenceMetadataFor(markdown);
 
     void renderInkNoteMarkdown(
-      deferredMarkdown,
+      markdown,
       codeFenceMetadataByLine,
       referenceDocumentsById,
     )
       .then((result) => {
-        if (!isDisposed && renderedHtmlRef.current !== result) {
-          previewScrollRenderGuardRef.current.beginRender();
-          renderedHtmlRef.current = result;
-          setHtml(result);
+        if (!isDisposed) {
+          if (renderedHtmlRef.current !== result) {
+            previewScrollRenderGuardRef.current.beginRender();
+            renderedHtmlRef.current = result;
+            setHtml(result);
+          }
+
+          setRenderedMarkdown(markdown);
         }
 
         return undefined;
@@ -952,10 +958,14 @@ export function MarkdownPreview({
       .catch(() => {
         const fallback = '<p>Unable to render this document.</p>';
 
-        if (!isDisposed && renderedHtmlRef.current !== fallback) {
-          previewScrollRenderGuardRef.current.beginRender();
-          renderedHtmlRef.current = fallback;
-          setHtml(fallback);
+        if (!isDisposed) {
+          if (renderedHtmlRef.current !== fallback) {
+            previewScrollRenderGuardRef.current.beginRender();
+            renderedHtmlRef.current = fallback;
+            setHtml(fallback);
+          }
+
+          setRenderedMarkdown(markdown);
         }
 
         return undefined;
@@ -964,19 +974,32 @@ export function MarkdownPreview({
     return () => {
       isDisposed = true;
     };
-  }, [deferredMarkdown, referenceDocumentsById]);
+  }, [markdown, referenceDocumentsById]);
 
   useLayoutEffect(() => {
-    const guard = previewScrollRenderGuardRef.current;
+    const presentation = createMermaidPresentation();
 
-    if (guard.shouldReportScroll()) {
-      return undefined;
+    mountedMermaidDiagramsRef.current = presentation;
+
+    return () => {
+      presentation.dispose();
+
+      if (mountedMermaidDiagramsRef.current === presentation) {
+        mountedMermaidDiagramsRef.current = null;
+      }
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const preview = containerRef.current;
+
+    if (preview === null) {
+      return;
     }
 
-    const frame = window.requestAnimationFrame(() => guard.completeRender());
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [html]);
+    reconcilePreviewMarkup(preview, html);
+    mountedMermaidDiagramsRef.current?.sync(preview, themeRevision);
+  }, [html, themeRevision]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -1022,6 +1045,32 @@ export function MarkdownPreview({
       return undefined;
     }
 
+    const beginReaderScroll = (): void => {
+      previewScrollRenderGuardRef.current.beginReaderScroll();
+    };
+    const beginPointerReaderScroll = (event: PointerEvent): void => {
+      // A scrollbar gesture targets the scrolling container itself. Do not
+      // relinquish render ownership merely because a reader clicked a link or
+      // other content that happens to live inside the preview.
+      if (event.target === container) {
+        beginReaderScroll();
+      }
+    };
+    const beginKeyboardReaderScroll = (event: KeyboardEvent): void => {
+      if (
+        [
+          ' ',
+          'ArrowDown',
+          'ArrowUp',
+          'PageDown',
+          'PageUp',
+          'Home',
+          'End',
+        ].includes(event.key)
+      ) {
+        beginReaderScroll();
+      }
+    };
     const reportSourceLine = (): void => {
       if (!previewScrollRenderGuardRef.current.shouldReportScroll()) {
         pendingSynchronizedScrollTop.current = null;
@@ -1055,12 +1104,63 @@ export function MarkdownPreview({
       }
     };
 
+    container.addEventListener('wheel', beginReaderScroll, { passive: true });
+    container.addEventListener('pointerdown', beginPointerReaderScroll, {
+      passive: true,
+    });
+    container.addEventListener('touchstart', beginReaderScroll, {
+      passive: true,
+    });
+    container.addEventListener('keydown', beginKeyboardReaderScroll);
     container.addEventListener('scroll', reportSourceLine, { passive: true });
 
     return () => {
+      container.removeEventListener('wheel', beginReaderScroll);
+      container.removeEventListener('pointerdown', beginPointerReaderScroll);
+      container.removeEventListener('touchstart', beginReaderScroll);
+      container.removeEventListener('keydown', beginKeyboardReaderScroll);
       container.removeEventListener('scroll', reportSourceLine);
     };
   }, [scrollContainerRef]);
+
+  useEffect(() => {
+    const preview = containerRef.current;
+
+    if (preview === null) {
+      return undefined;
+    }
+
+    // Markdown HTML is only the first phase of a preview render. Embedded
+    // renderers such as Mermaid can add their SVG later, changing the anchor
+    // geometry after React has committed. Re-run an editor-originated reveal
+    // from those settled source anchors instead of converting reflow into a
+    // preview-originated scroll.
+    const layoutSettler = createPreviewLayoutSettler(() => {
+      setLayoutRevision((revision) => revision + 1);
+    });
+    const markLayoutChanged = (): void => layoutSettler.schedule();
+    const mutations = new MutationObserver(markLayoutChanged);
+
+    mutations.observe(preview, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'height', 'style', 'viewBox', 'width'],
+    });
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(markLayoutChanged);
+
+    resizeObserver?.observe(preview);
+
+    return () => {
+      layoutSettler.cancel();
+      mutations.disconnect();
+      resizeObserver?.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const container = scrollContainerRef?.current;
@@ -1100,27 +1200,7 @@ export function MarkdownPreview({
 
     pendingSynchronizedScrollTop.current = nextScrollTop;
     container.scrollTo({ top: nextScrollTop, behavior: 'auto' });
-  }, [html, scrollContainerRef, sourceScrollPositionToReveal]);
-
-  useEffect(() => {
-    const preview = containerRef.current;
-
-    if (preview === null) {
-      return undefined;
-    }
-
-    const mountedDiagrams = mountMermaidDiagrams(preview, undefined);
-
-    mountedMermaidDiagramsRef.current = mountedDiagrams;
-
-    return () => {
-      mountedDiagrams.dispose();
-
-      if (mountedMermaidDiagramsRef.current === mountedDiagrams) {
-        mountedMermaidDiagramsRef.current = null;
-      }
-    };
-  }, [html]);
+  }, [html, layoutRevision, scrollContainerRef, sourceScrollPositionToReveal]);
 
   useEffect(() => {
     mountedMermaidDiagramsRef.current?.updateTheme(themeRevision);
@@ -1131,10 +1211,7 @@ export function MarkdownPreview({
       ref={containerRef}
       className="markdown-preview"
       aria-label="Rendered Markdown preview"
-      aria-busy={markdown !== deferredMarkdown}
-      // The HTML was parsed from Markdown and passed through rehype-sanitize
-      // immediately before stringification above.
-      dangerouslySetInnerHTML={{ __html: html }}
+      aria-busy={markdown !== renderedMarkdown}
     />
   );
 }

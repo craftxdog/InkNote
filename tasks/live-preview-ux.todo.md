@@ -142,3 +142,40 @@ correctness, readability, architecture, security, and performance.
       awaiting an unlocked Mac for inspection.
 - [x] No dependency, Markdown security, or persistence scope has expanded.
 - [x] Final code review has no unresolved required findings.
+
+## Task 5: Stabilize preview updates and restore the active note on reload
+
+**Description:** Prevent a burst of editor changes and Mermaid layout
+notifications from visibly rebuilding the preview multiple times, while
+retaining the active non-archived note across a renderer reload.
+
+**Acceptance criteria:**
+
+- [x] A sequence of edits coalesces to one latest preview publication and one
+      settled source-anchor reveal; the prior preview remains visible until
+      that latest result is ready.
+- [x] Existing Mermaid content, themes, and editor-to-preview scroll ownership
+      remain correct after the coalesced update.
+- [x] Reloading restores the previously active note when it remains active;
+      a missing or archived stored ID safely selects the first active note.
+
+**Verification:**
+
+- [x] Red then green focused tests for preview scheduling/layout coalescing
+      and workspace selection restoration.
+- [x] Regression: existing Markdown preview, Mermaid, and scroll-sync tests
+      pass.
+- [x] Manual Electron check: type continuously in a Mermaid note, then use
+      `Cmd/Ctrl+R` and verify the same note remains active.
+
+**Dependencies:** Task 4 visual workflow.
+
+**Files likely touched:**
+
+- `src/renderer/features/preview/components/MarkdownPreview.tsx`
+- `src/renderer/features/markdown/model/*`
+- `src/renderer/platform/documents/useDocumentWorkspace.ts`
+- focused Jest tests under `src/__tests__/features` and
+  `src/__tests__/platform/documents`
+
+**Estimated scope:** Medium (4–5 files).

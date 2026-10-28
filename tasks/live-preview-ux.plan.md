@@ -114,6 +114,24 @@ workspace presentation.
 - None block this delivery. Persisted view preference and broad syntax-language
   coverage remain consciously deferred by the approved specification.
 
+## Approved follow-up: preview stability and reload selection
+
+The approved scroll-anchor fix revealed two follow-up regressions that remain
+within this live-preview workflow: repeated visible preview updates during a
+typing burst, and loss of the active note after a renderer reload. The
+follow-up keeps the existing Markdown pipeline, theme system, Mermaid output,
+and editor/preview scroll contract intact.
+
+- Coalesce preview publication and post-render geometry notifications so a
+  burst of edits produces one settled visual update rather than a sequence of
+  Mermaid remounts and scroll reveals.
+- Restore only the active, non-archived note ID for the current renderer
+  session. A missing or archived ID falls back to the ordinary first-note
+  behavior. Filters, navigation history, drafts, and scroll positions remain
+  out of scope.
+- Start with failing deterministic tests for both contracts, then verify the
+  real Electron flow on a note containing Mermaid.
+
 ## Approval gate
 
 No production implementation starts until this plan is approved. After
