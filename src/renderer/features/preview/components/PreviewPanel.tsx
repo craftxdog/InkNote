@@ -8,9 +8,12 @@ import type {
 } from '../../../../shared/documents/document.types';
 import { INBOX_NOTEBOOK_ID } from '../../../../shared/documents/document.types';
 
+import type { SourceScrollPosition } from '../../markdown/model/scrollSynchronization';
+
 import { MarkdownPreview } from './MarkdownPreview';
 
 import '../styles/preview.css';
+import '../styles/inkdropMermaid.css';
 
 type PreviewPanelProps = {
   document: NoteDocument | null;
@@ -18,11 +21,12 @@ type PreviewPanelProps = {
   isPreviewOnly?: boolean;
   referenceDocuments?: readonly NoteDocument[];
   body?: string;
+  themeRevision?: string;
   isLoading: boolean;
   error: unknown;
   onOpenReference?: (documentId: NoteId) => void;
-  onSourceLineChange?: (sourceLine: number) => void;
-  sourceLineToReveal?: number;
+  onSourceLineChange?: (position: SourceScrollPosition) => void;
+  sourceScrollPositionToReveal?: SourceScrollPosition;
 };
 
 export const PreviewPanel = ({
@@ -31,11 +35,12 @@ export const PreviewPanel = ({
   isPreviewOnly = false,
   referenceDocuments = [],
   body,
+  themeRevision,
   isLoading,
   error,
   onOpenReference,
   onSourceLineChange,
-  sourceLineToReveal,
+  sourceScrollPositionToReveal,
 }: PreviewPanelProps) => {
   const previewScrollRef = useRef<HTMLDivElement>(null);
 
@@ -79,10 +84,11 @@ export const PreviewPanel = ({
       >
         <MarkdownPreview
           markdown={body ?? document.body}
+          themeRevision={themeRevision}
           referenceDocuments={referenceDocuments}
           onOpenReference={onOpenReference}
           onSourceLineChange={onSourceLineChange}
-          sourceLineToReveal={sourceLineToReveal}
+          sourceScrollPositionToReveal={sourceScrollPositionToReveal}
           scrollContainerRef={previewScrollRef}
         />
       </div>

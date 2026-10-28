@@ -3,11 +3,14 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 
 import { NavigationLibraryView } from '../../../renderer/features/navigation/components/NavigationLibraryView';
 import { navigationDestinations } from '../../../renderer/features/navigation/data/navigation.data';
+import { organizationCommandIds } from '../../../renderer/features/organization/model/organizationCommands';
 import {
   createNoteId,
   createRevision,
+  createTagId,
   type Notebook,
   type NoteDocument,
+  type TagSummary,
 } from '../../../shared/documents/document.types';
 
 const documents: readonly NoteDocument[] = [
@@ -61,17 +64,49 @@ const projects: Notebook = {
   updatedAt: '2026-10-21T12:00:00.000Z',
 };
 
+const catalogueTags: readonly TagSummary[] = [
+  {
+    id: createTagId('tag:project'),
+    name: 'project',
+    color: 'purple',
+    count: 2,
+    createdAt: '2026-10-21T12:00:00.000Z',
+    updatedAt: '2026-10-21T12:00:00.000Z',
+  },
+  {
+    id: createTagId('tag:work'),
+    name: 'work',
+    color: 'teal',
+    count: 1,
+    createdAt: '2026-10-21T12:00:00.000Z',
+    updatedAt: '2026-10-21T12:00:00.000Z',
+  },
+  {
+    id: createTagId('tag:zero-count'),
+    name: 'zero count',
+    color: 'brown',
+    count: 0,
+    createdAt: '2026-10-21T12:00:00.000Z',
+    updatedAt: '2026-10-21T12:00:00.000Z',
+  },
+];
+
 describe('NavigationLibraryView', () => {
-  it('derives counts and tag destinations from persisted documents', () => {
+  it('renders durable tag summaries, including zero-count rows', () => {
+    const onSelectionChange = jest.fn();
+
     render(
       <NavigationLibraryView
         selection={navigationDestinations.allNotes}
         documents={documents}
         notebooks={notebooks}
+        tags={catalogueTags}
         expandedSections={{ work: true, status: true, tags: true }}
-        onSelectionChange={jest.fn()}
+        onSelectionChange={onSelectionChange}
         onToggleSection={jest.fn()}
-        onCreateNotebook={jest.fn()}
+        onExecuteNotebookCommand={jest.fn()}
+        onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
+        onEditNotebook={jest.fn()}
       />,
     );
 
@@ -87,17 +122,30 @@ describe('NavigationLibraryView', () => {
     expect(screen.getByRole('button', { name: /^work/ })).toHaveTextContent(
       '1',
     );
+    const zeroCountTag = screen.getByRole('button', {
+      name: /^zero count/,
+    });
+    expect(zeroCountTag).toHaveTextContent('0');
+    expect(zeroCountTag.querySelector('.navigation-tag-dot')).toHaveStyle(
+      '--tag-color: #9a6b4f',
+    );
+
+    fireEvent.click(zeroCountTag);
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'tag:zero-count',
+        label: 'zero count',
+        view: expect.objectContaining({
+          type: 'tag',
+          catalogueTagId: 'tag:zero-count',
+          tagIds: ['zero count'],
+        }),
+      }),
+    );
   });
 
-  it('opens search inputs and creates a persisted notebook through its callback', async () => {
-    const created: Notebook = {
-      id: 'research',
-      name: 'Research',
-      createdAt: '2026-10-21T12:00:00.000Z',
-      updatedAt: '2026-10-21T12:00:00.000Z',
-    };
-    const onCreateNotebook = jest.fn().mockResolvedValue(created);
-    const onSelectionChange = jest.fn();
+  it('keeps the modal tag action as the only plus control in the notebooks header', () => {
+    const onCreateTag = jest.fn();
 
     render(
       <NavigationLibraryView
@@ -105,9 +153,12 @@ describe('NavigationLibraryView', () => {
         documents={documents}
         notebooks={notebooks}
         expandedSections={{ work: true, status: true, tags: true }}
-        onSelectionChange={onSelectionChange}
+        onSelectionChange={jest.fn()}
         onToggleSection={jest.fn()}
-        onCreateNotebook={onCreateNotebook}
+        onExecuteNotebookCommand={jest.fn()}
+        onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
+        onEditNotebook={jest.fn()}
+        onCreateTag={onCreateTag}
       />,
     );
 
@@ -119,67 +170,18 @@ describe('NavigationLibraryView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search tags' }));
     expect(screen.getByRole('textbox', { name: 'Filter tags' })).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create notebook' }));
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'New notebook name' }),
-      {
-        target: { value: 'Research' },
-      },
-    );
-    await act(async () => {
-      fireEvent.submit(
-        screen.getByRole('textbox', { name: 'New notebook name' }),
-      );
-    });
+    expect(
+      screen.queryByRole('button', { name: 'Create notebook' }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('textbox', { name: 'New notebook name' }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('combobox', { name: 'Notebook icon' }),
+    ).toBeNull();
 
-    expect(onCreateNotebook).toHaveBeenCalledWith('Research', null, undefined);
-    await screen.findByRole('button', { name: /^All Notes/ });
-    expect(onSelectionChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        label: 'Research',
-        view: { type: 'notebook', notebookId: 'research' },
-      }),
-    );
-  });
-
-  it('offers a durable visual icon when creating a notebook', async () => {
-    const onCreateNotebook = jest.fn().mockResolvedValue({
-      id: 'ideas',
-      name: 'Ideas',
-      icon: 'lightbulb',
-      createdAt: '2026-10-21T12:00:00.000Z',
-      updatedAt: '2026-10-21T12:00:00.000Z',
-    } satisfies Notebook);
-
-    render(
-      <NavigationLibraryView
-        selection={navigationDestinations.allNotes}
-        documents={documents}
-        notebooks={notebooks}
-        expandedSections={{ work: true, status: true, tags: true }}
-        onSelectionChange={jest.fn()}
-        onToggleSection={jest.fn()}
-        onCreateNotebook={onCreateNotebook}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create notebook' }));
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'New notebook name' }),
-      {
-        target: { value: 'Ideas' },
-      },
-    );
-    fireEvent.change(screen.getByRole('combobox', { name: 'Notebook icon' }), {
-      target: { value: 'lightbulb' },
-    });
-    await act(async () => {
-      fireEvent.submit(
-        screen.getByRole('textbox', { name: 'New notebook name' }),
-      );
-    });
-
-    expect(onCreateNotebook).toHaveBeenCalledWith('Ideas', null, 'lightbulb');
+    fireEvent.click(screen.getByRole('button', { name: 'Create tag' }));
+    expect(onCreateTag).toHaveBeenCalledWith('menu');
   });
 
   it('collapses and expands arbitrary persisted notebook branches', () => {
@@ -191,7 +193,9 @@ describe('NavigationLibraryView', () => {
         expandedSections={{ work: true, status: true, tags: true }}
         onSelectionChange={jest.fn()}
         onToggleSection={jest.fn()}
-        onCreateNotebook={jest.fn()}
+        onExecuteNotebookCommand={jest.fn()}
+        onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
+        onEditNotebook={jest.fn()}
       />,
     );
 
@@ -206,7 +210,7 @@ describe('NavigationLibraryView', () => {
   });
 
   it('creates a subnotebook from the parent context menu', async () => {
-    const onCreateNotebook = jest.fn().mockResolvedValue({
+    const onExecuteNotebookCommand = jest.fn().mockResolvedValue({
       id: 'commands',
       name: 'Commands',
       parentId: 'work',
@@ -223,7 +227,9 @@ describe('NavigationLibraryView', () => {
         expandedSections={{ work: true, status: true, tags: true }}
         onSelectionChange={jest.fn()}
         onToggleSection={jest.fn()}
-        onCreateNotebook={onCreateNotebook}
+        onExecuteNotebookCommand={onExecuteNotebookCommand}
+        onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
+        onEditNotebook={jest.fn()}
       />,
     );
 
@@ -251,15 +257,20 @@ describe('NavigationLibraryView', () => {
       );
     });
 
-    expect(onCreateNotebook).toHaveBeenCalledWith(
-      'Commands',
-      'work',
-      'terminal',
+    expect(onExecuteNotebookCommand).toHaveBeenCalledWith(
+      organizationCommandIds.createNotebook,
+      {
+        kind: 'create',
+        name: 'Commands',
+        parentId: 'work',
+        icon: 'terminal',
+      },
+      'context-menu',
     );
   });
 
   it('offers deletion in a notebook context menu without exposing it for Inbox', async () => {
-    const onDeleteNotebook = jest.fn().mockResolvedValue(undefined);
+    const onExecuteNotebookCommand = jest.fn().mockResolvedValue(undefined);
     const confirm = jest.spyOn(globalThis, 'confirm').mockReturnValue(true);
 
     render(
@@ -270,14 +281,18 @@ describe('NavigationLibraryView', () => {
         expandedSections={{ work: true, status: true, tags: true }}
         onSelectionChange={jest.fn()}
         onToggleSection={jest.fn()}
-        onCreateNotebook={jest.fn()}
-        onDeleteNotebook={onDeleteNotebook}
+        onExecuteNotebookCommand={onExecuteNotebookCommand}
+        onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
+        onEditNotebook={jest.fn()}
       />,
     );
 
     fireEvent.contextMenu(screen.getByRole('button', { name: /^Inbox/ }));
     expect(
       screen.queryByRole('menuitem', { name: 'Delete Notebook…' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Edit Notebook…' }),
     ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole('button', { name: 'Close notebook menu' }),
@@ -290,7 +305,40 @@ describe('NavigationLibraryView', () => {
       );
     });
 
-    expect(onDeleteNotebook).toHaveBeenCalledWith(notebooks[1]);
+    expect(onExecuteNotebookCommand).toHaveBeenCalledWith(
+      organizationCommandIds.deleteNotebook,
+      { kind: 'delete', notebookId: 'work' },
+      'context-menu',
+    );
     confirm.mockRestore();
+  });
+
+  it('delegates notebook edits to its parent navigation surface', () => {
+    const onExecuteNotebookCommand = jest.fn().mockResolvedValue({
+      ...notebooks[1],
+      name: 'Focused work',
+      parentId: null,
+    } satisfies Notebook);
+    const onEditNotebook = jest.fn();
+
+    render(
+      <NavigationLibraryView
+        selection={navigationDestinations.allNotes}
+        documents={documents}
+        notebooks={notebooks}
+        expandedSections={{ work: true, status: true, tags: true }}
+        onSelectionChange={jest.fn()}
+        onToggleSection={jest.fn()}
+        onExecuteNotebookCommand={onExecuteNotebookCommand}
+        onOpenNotebookDetail={jest.fn().mockResolvedValue(undefined)}
+        onEditNotebook={onEditNotebook}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /^Work/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit Notebook…' }));
+
+    expect(onEditNotebook).toHaveBeenCalledWith(notebooks[1]);
+    expect(onExecuteNotebookCommand).not.toHaveBeenCalled();
   });
 });

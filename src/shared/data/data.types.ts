@@ -3,6 +3,7 @@ import { createInvalidDataPathError } from './data.errors';
 export type DataManagementInfo = Readonly<{
   dataDirectory: string;
   backupDirectory: string | null;
+  migrationSafetySnapshotFile: string | null;
 }>;
 
 export type DirectorySelectionPurpose = 'backup' | 'restore' | 'export';
@@ -81,8 +82,19 @@ export const validateDataManagementInfo = (
     value.backupDirectory === null
       ? null
       : validateAbsolutePath(value.backupDirectory, 'Backup directory');
+  const migrationSafetySnapshotFile =
+    value.migrationSafetySnapshotFile === null
+      ? null
+      : validateAbsolutePath(
+          value.migrationSafetySnapshotFile,
+          'Organization migration safety snapshot',
+        );
 
-  return Object.freeze({ dataDirectory, backupDirectory });
+  return Object.freeze({
+    dataDirectory,
+    backupDirectory,
+    migrationSafetySnapshotFile,
+  });
 };
 
 export const validateDirectorySelectionPurpose = (

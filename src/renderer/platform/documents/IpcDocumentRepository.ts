@@ -4,6 +4,7 @@ import { unwrapDocumentIpcResult } from '../../../shared/documents/document.ipc'
 import type {
   DocumentQueryRepository,
   NotebookRepository,
+  TagRepository,
 } from '../../../shared/documents/document.query';
 import type {
   DocumentDeletionRepository,
@@ -11,8 +12,13 @@ import type {
 } from '../../../shared/documents/document.repository';
 import {
   createNoteId,
+  validateDeleteTagResult,
   validateNoteDocument,
   validateNotebook,
+  validateTagSummary,
+  type CreateTagInput,
+  type DeleteTagInput,
+  type DeleteTagResult,
   type CreateNotebookInput,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
@@ -21,6 +27,10 @@ import {
   type PermanentlyDeleteNotesResult,
   type NoteDocument,
   type NoteId,
+  type Notebook,
+  type TagSummary,
+  type UpdateTagInput,
+  type UpdateNotebookInput,
 } from '../../../shared/documents/document.types';
 
 /**
@@ -32,7 +42,8 @@ export class IpcDocumentRepository
     DocumentRepository,
     DocumentDeletionRepository,
     DocumentQueryRepository,
-    NotebookRepository
+    NotebookRepository,
+    TagRepository
 {
   constructor(private readonly api: DocumentApi) {}
 
@@ -94,8 +105,47 @@ export class IpcDocumentRepository
     });
   }
 
+  async listTags(): Promise<readonly TagSummary[]> {
+    const result = await this.api.listTags();
+
+    return unwrapDocumentIpcResult(result, (value) => {
+      if (!Array.isArray(value)) {
+        throw new DocumentTransportError(
+          'INVALID_IPC_RESPONSE',
+          'The tag list response must contain an array.',
+        );
+      }
+
+      return Object.freeze(value.map(validateTagSummary));
+    });
+  }
+
+  async createTag(input: CreateTagInput): Promise<TagSummary> {
+    const result = await this.api.createTag(input);
+
+    return unwrapDocumentIpcResult(result, validateTagSummary);
+  }
+
+  async updateTag(input: UpdateTagInput): Promise<TagSummary> {
+    const result = await this.api.updateTag(input);
+
+    return unwrapDocumentIpcResult(result, validateTagSummary);
+  }
+
+  async deleteTag(input: DeleteTagInput): Promise<DeleteTagResult> {
+    const result = await this.api.deleteTag(input);
+
+    return unwrapDocumentIpcResult(result, validateDeleteTagResult);
+  }
+
   async createNotebook(input: CreateNotebookInput) {
     const result = await this.api.createNotebook(input);
+
+    return unwrapDocumentIpcResult(result, validateNotebook);
+  }
+
+  async updateNotebook(input: UpdateNotebookInput): Promise<Notebook> {
+    const result = await this.api.updateNotebook(input);
 
     return unwrapDocumentIpcResult(result, validateNotebook);
   }

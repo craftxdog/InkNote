@@ -67,6 +67,17 @@
   color: #b33a4b;
 }
 
+.notes-panel__action-error {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--color-text);
+  background: color-mix(in srgb, #d35959 8%, var(--color-code-background));
+  border: 1px solid color-mix(in srgb, #d35959 50%, var(--color-code-border));
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 /* =========================================================
    3. Filter control
 
@@ -90,7 +101,7 @@
 
   background: var(--color-surface-elevated);
 
-  border: 1px solid rgba(0, 0, 0, 0.09);
+  border: 1px solid var(--color-divider);
 
   border-radius: 8px;
 
@@ -184,7 +195,7 @@
 
   transform: translateY(-50%);
 
-  color: white;
+  color: var(--color-surface-elevated);
 
   background: var(--color-text-tertiary);
 
@@ -273,7 +284,7 @@
 
   border: 0;
 
-  border-bottom: 1px solid rgba(27, 27, 25, 0.075);
+  border-bottom: 1px solid var(--color-divider);
 
   -webkit-app-region: no-drag;
 

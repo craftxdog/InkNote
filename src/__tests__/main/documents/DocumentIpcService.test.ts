@@ -5,6 +5,7 @@ import {
   INITIAL_DOCUMENT_REVISION,
   createArchiveMutation,
   createCreateDocumentMutation,
+  createGeneratedTagId,
   createMutationId,
   createNoteId,
 } from '../../../shared/documents/document.types';
@@ -67,10 +68,181 @@ describe('DocumentIpcService', () => {
         notebookId: 'inbox',
         status: 'none',
         tags: [],
+        doctype: 'markdown',
+        pinned: false,
+        numOfTasks: 0,
+        numOfCheckedTasks: 0,
         createdAt: '2026-10-21T12:00:00.000Z',
         updatedAt: '2026-10-21T12:00:00.000Z',
         revision: 'local-1',
         deletedAt: null,
+      },
+    });
+  });
+
+  it('returns validated immutable tag summaries', async () => {
+    const repository = new InMemoryDocumentRepository();
+    const service = new DocumentIpcService(repository);
+
+    await repository.apply(
+      createCreateDocumentMutation({
+        ...createMutation(),
+        tags: ['Work'],
+      }),
+    );
+
+    await expect(service.listTags()).resolves.toEqual({
+      ok: true,
+      value: [
+        expect.objectContaining({
+          id: expect.stringMatching(/^tag:/),
+          name: 'work',
+          color: 'default',
+          count: 1,
+        }),
+      ],
+    });
+  });
+
+  it('validates a complete notebook update before forwarding it to the repository', async () => {
+    const repository = new InMemoryDocumentRepository();
+    const service = new DocumentIpcService(repository);
+
+    await repository.createNotebook({
+      id: 'work',
+      name: 'Work',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+
+    await expect(
+      service.updateNotebook({
+        id: 'work',
+        name: '  Client work  ',
+        parentId: null,
+        icon: 'briefcase',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        id: 'work',
+        name: 'Client work',
+        parentId: null,
+        icon: 'briefcase',
+        createdAt: '2026-10-26T12:00:00.000Z',
+        updatedAt: '2026-10-26T12:01:00.000Z',
+      },
+    });
+    await expect(
+      service.updateNotebook({
+        id: 'work',
+        name: 'Client work',
+        parentId: null,
+        icon: null,
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        id: 'work',
+        name: 'Client work',
+        parentId: null,
+        createdAt: '2026-10-26T12:00:00.000Z',
+        updatedAt: '2026-10-26T12:02:00.000Z',
+      },
+    });
+    await expect(
+      service.updateNotebook({
+        id: 'work',
+        name: '',
+        parentId: null,
+        icon: null,
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_MUTATION' },
+    });
+  });
+
+  it('validates and forwards complete tag lifecycle requests', async () => {
+    const service = new DocumentIpcService(new InMemoryDocumentRepository());
+
+    const created = await service.createTag({
+      id: createGeneratedTagId('catalogue'),
+      name: '  Catalogue  ',
+      color: 'teal',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+
+    expect(created).toEqual({
+      ok: true,
+      value: {
+        id: 'tag:catalogue',
+        name: 'catalogue',
+        color: 'teal',
+        count: 0,
+        createdAt: '2026-10-26T12:00:00.000Z',
+        updatedAt: '2026-10-26T12:00:00.000Z',
+      },
+    });
+
+    await expect(
+      service.updateTag({
+        id: 'tag:catalogue',
+        name: 'Team Catalogue',
+        color: 'purple',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        id: 'tag:catalogue',
+        name: 'team catalogue',
+        color: 'purple',
+      },
+    });
+    await expect(
+      service.deleteTag({
+        id: 'tag:catalogue',
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: { deletedTagId: 'tag:catalogue', affectedNoteIds: [] },
+    });
+    await expect(
+      service.createTag({
+        id: 'legacy-tag',
+        name: 'Legacy',
+        color: 'red',
+        occurredAt: '2026-10-26T12:03:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_MUTATION' },
+    });
+  });
+
+  it('does not forward malformed tag repository values across IPC', async () => {
+    const service = new DocumentIpcService({
+      listTags: async () => [
+        {
+          id: 'tag-malformed',
+          name: 'Malformed',
+          color: 'not-a-color',
+          count: 0,
+          createdAt: '2026-10-21T12:00:00.000Z',
+          updatedAt: '2026-10-21T12:00:00.000Z',
+        },
+      ],
+    } as unknown as ConstructorParameters<typeof DocumentIpcService>[0]);
+
+    await expect(service.listTags()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'INVALID_MUTATION',
+        message: 'Tag color is not supported.',
       },
     });
   });

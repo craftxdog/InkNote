@@ -1,10 +1,16 @@
 /** @jest-environment node */
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import Database from 'better-sqlite3';
+
 import { DataManagementService } from '../../../main/data/DataManagementService';
+import {
+  LocalDocumentStore,
+  ORGANIZATION_DATA_MODEL_SCHEMA_VERSION,
+} from '../../../main/documents/LocalDocumentStore';
 
 describe('DataManagementService', () => {
   let temporaryDirectory: string;
@@ -21,10 +27,12 @@ describe('DataManagementService', () => {
     onSnapshot = async (destination: string) => {
       await writeFile(destination, 'sqlite snapshot', 'utf8');
     },
+    migrationSafetySnapshotFile = async (): Promise<string | null> => null,
   ) =>
     new DataManagementService({
       dataDirectory: path.join(temporaryDirectory, 'user-data'),
       snapshotDatabase: onSnapshot,
+      migrationSafetySnapshotFile,
       now: () => '2026-10-23T15:00:00.000Z',
     });
 
@@ -46,6 +54,7 @@ describe('DataManagementService', () => {
     await expect(service.getInfo()).resolves.toEqual({
       dataDirectory: path.join(temporaryDirectory, 'user-data'),
       backupDirectory,
+      migrationSafetySnapshotFile: null,
     });
   });
 
@@ -87,7 +96,60 @@ describe('DataManagementService', () => {
     await expect(service.getInfo()).resolves.toEqual({
       dataDirectory: path.join(temporaryDirectory, 'user-data'),
       backupDirectory: null,
+      migrationSafetySnapshotFile: null,
     });
+  });
+
+  it('reports a retained organization-migration safety snapshot when one is available', async () => {
+    const safetySnapshotFile = path.join(
+      temporaryDirectory,
+      'user-data',
+      'organization-migration-safety',
+      'v9-from-v7',
+      'before-organization-migration.sqlite',
+    );
+    const service = createService(undefined, async () => safetySnapshotFile);
+
+    await expect(service.getInfo()).resolves.toEqual({
+      dataDirectory: path.join(temporaryDirectory, 'user-data'),
+      backupDirectory: null,
+      migrationSafetySnapshotFile: safetySnapshotFile,
+    });
+  });
+
+  it('backs up the current organization schema in a restore-accepted managed backup', async () => {
+    const dataDirectory = path.join(temporaryDirectory, 'upgraded-user-data');
+    const databasePath = path.join(dataDirectory, 'inknote.sqlite');
+    const backupDirectory = path.join(temporaryDirectory, 'backup');
+    await mkdir(dataDirectory, { recursive: true });
+    const store = new LocalDocumentStore(new Database(databasePath));
+    const service = new DataManagementService({
+      dataDirectory,
+      snapshotDatabase: (destination) => store.backupTo(destination),
+    });
+
+    try {
+      const backup = await service.configureBackup(backupDirectory);
+      const backupDatabase = new Database(backup.backupFile, {
+        readonly: true,
+      });
+
+      try {
+        expect(
+          backupDatabase
+            .prepare('SELECT MAX(version) AS version FROM schema_migrations')
+            .get(),
+        ).toEqual({ version: ORGANIZATION_DATA_MODEL_SCHEMA_VERSION });
+      } finally {
+        backupDatabase.close();
+      }
+
+      await expect(service.backupFileForRestore(backupDirectory)).resolves.toBe(
+        backup.backupFile,
+      );
+    } finally {
+      store.close();
+    }
   });
 
   it('rejects a relative backup path before accessing the filesystem', async () => {

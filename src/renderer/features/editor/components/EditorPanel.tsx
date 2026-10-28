@@ -19,6 +19,7 @@ import {
   type NoteDocument,
   type NoteId,
 } from '../../../../shared/documents/document.types';
+import type { SourceScrollPosition } from '../../markdown/model/scrollSynchronization';
 import { colorForTag } from '../../notes/model/notePresentation';
 
 import { MarkdownEditor } from './MarkdownEditor';
@@ -36,8 +37,8 @@ type EditorPanelProps = {
   onRestoreDocument?: (document: NoteDocument) => Promise<unknown>;
   onBodyDraftChange?: (documentId: NoteId, body: string) => void;
   onBodyDraftPersisted?: (documentId: NoteId, body: string) => void;
-  onSourceLineChange?: (sourceLine: number) => void;
-  sourceLineToReveal?: number;
+  onSourceLineChange?: (position: SourceScrollPosition) => void;
+  sourceScrollPositionToReveal?: SourceScrollPosition;
 };
 const SAVE_DEBOUNCE_MS = 350;
 
@@ -101,7 +102,7 @@ export const EditorPanel = ({
   onBodyDraftChange,
   onBodyDraftPersisted,
   onSourceLineChange,
-  sourceLineToReveal,
+  sourceScrollPositionToReveal,
 }: EditorPanelProps) => {
   const knownDocuments = useRef(new Map<NoteId, NoteDocument>());
   const saveTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(
@@ -516,7 +517,7 @@ export const EditorPanel = ({
           referenceDocuments={referenceDocuments}
           onChange={handleChange}
           onSourceLineChange={onSourceLineChange}
-          sourceLineToReveal={sourceLineToReveal}
+          sourceScrollPositionToReveal={sourceScrollPositionToReveal}
         />
       </div>
     </div>

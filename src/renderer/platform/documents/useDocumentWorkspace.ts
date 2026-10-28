@@ -13,30 +13,58 @@ import {
   INITIAL_DOCUMENT_REVISION,
   createArchiveMutation,
   createCreateDocumentMutation,
+  createGeneratedNotebookId,
+  createGeneratedNoteId,
+  createGeneratedTagId,
   createMutationId,
-  createNoteId,
   createRestoreMutation,
   createUpdateOrganizationMutation,
+  createUpdatePinnedMutation,
   type DocumentMutation,
+  type DeleteTagResult,
   type Notebook,
   type NotebookIconName,
   type NoteDocument,
   type NoteId,
   type NoteStatusValue,
+  type TagColor,
+  type TagId,
+  type TagSummary,
+  type UpdateNotebookInput,
 } from '../../../shared/documents/document.types';
 import {
   DocumentSession,
   type DocumentSessionSnapshot,
 } from './DocumentSession';
 import { IpcDocumentRepository } from './IpcDocumentRepository';
+import {
+  runNoteBatchOperation,
+  type NoteBatchOperationResult,
+} from './noteBatchOperation';
 
 export type DocumentWorkspaceState = Readonly<{
   documents: readonly NoteDocument[];
   archivedDocuments: readonly NoteDocument[];
   notebooks: readonly Notebook[];
+  tags: readonly TagSummary[];
   session: DocumentSessionSnapshot;
   isListLoading: boolean;
   lastError: unknown;
+}>;
+
+export type NotebookUpdateRequest = Readonly<
+  Pick<UpdateNotebookInput, 'id' | 'name' | 'parentId' | 'icon'>
+>;
+
+export type TagCreateRequest = Readonly<{
+  name: string;
+  color: TagColor;
+}>;
+
+export type TagUpdateRequest = Readonly<{
+  id: TagId;
+  name: string;
+  color: TagColor;
 }>;
 
 export type DocumentWorkspaceActions = Readonly<{
@@ -57,15 +85,26 @@ export type DocumentWorkspaceActions = Readonly<{
     parentId?: string | null,
     icon?: NotebookIconName,
   ): Promise<Notebook>;
+  updateNotebook(input: NotebookUpdateRequest): Promise<Notebook>;
   deleteNotebook(notebookId: string): Promise<void>;
+  createTag(input: TagCreateRequest): Promise<TagSummary>;
+  updateTag(input: TagUpdateRequest): Promise<TagSummary>;
+  deleteTag(tagId: TagId): Promise<DeleteTagResult>;
   move(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
+  moveMany(
+    documents: readonly NoteDocument[],
+    notebookId: string,
+  ): Promise<NoteBatchOperationResult>;
+  setPinned(document: NoteDocument, pinned: boolean): Promise<NoteDocument>;
   archive(document: NoteDocument): Promise<NoteDocument>;
-  archiveMany(documents: readonly NoteDocument[]): Promise<void>;
+  archiveMany(
+    documents: readonly NoteDocument[],
+  ): Promise<NoteBatchOperationResult>;
   restore(document: NoteDocument, notebookId?: string): Promise<NoteDocument>;
   restoreMany(
     documents: readonly NoteDocument[],
     notebookId: string,
-  ): Promise<void>;
+  ): Promise<NoteBatchOperationResult>;
   deletePermanently(documents: readonly NoteDocument[]): Promise<void>;
   duplicate(document: NoteDocument, notebookId: string): Promise<NoteDocument>;
 }>;
@@ -95,6 +134,7 @@ export const useDocumentWorkspace = (
     readonly NoteDocument[]
   >([]);
   const [notebooks, setNotebooks] = useState<readonly Notebook[]>([]);
+  const [tags, setTags] = useState<readonly TagSummary[]>([]);
   const [isListLoading, setIsListLoading] = useState(true);
   const [lastError, setLastError] = useState<unknown>(null);
 
@@ -102,21 +142,14 @@ export const useDocumentWorkspace = (
     (
       setCollection: Dispatch<SetStateAction<readonly NoteDocument[]>>,
       document: NoteDocument,
+      compare: (left: NoteDocument, right: NoteDocument) => number,
     ): void => {
       setCollection((current) => {
         const withoutDocument = current.filter(
           (item) => item.id !== document.id,
         );
 
-        return Object.freeze(
-          [document, ...withoutDocument].sort((left, right) => {
-            const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt);
-
-            return byUpdatedAt === 0
-              ? left.id.localeCompare(right.id)
-              : byUpdatedAt;
-          }),
-        );
+        return Object.freeze([document, ...withoutDocument].sort(compare));
       });
     },
     [],
@@ -126,16 +159,18 @@ export const useDocumentWorkspace = (
     setIsListLoading(true);
 
     try {
-      const [nextDocuments, nextArchivedDocuments, nextNotebooks] =
+      const [nextDocuments, nextArchivedDocuments, nextNotebooks, nextTags] =
         await Promise.all([
           repository.listActive(),
           repository.listArchived(),
           repository.listNotebooks(),
+          repository.listTags(),
         ]);
 
       setDocuments(nextDocuments);
       setArchivedDocuments(nextArchivedDocuments);
       setNotebooks(nextNotebooks);
+      setTags(nextTags);
       setLastError(null);
 
       if (
@@ -151,6 +186,17 @@ export const useDocumentWorkspace = (
       setIsListLoading(false);
     }
   }, [repository, session]);
+
+  const refreshAfterTagLifecycleChange =
+    useCallback(async (): Promise<void> => {
+      const selectedDocumentId = session.getSnapshot().selectedDocumentId;
+
+      await refresh();
+
+      if (selectedDocumentId !== null) {
+        await session.open(selectedDocumentId);
+      }
+    }, [refresh, session]);
 
   useEffect(() => {
     const loadTimer = globalThis.setTimeout(() => {
@@ -184,16 +230,27 @@ export const useDocumentWorkspace = (
         const document = await session.apply(mutation);
 
         if (document.deletedAt === null) {
-          upsertDocument(setDocuments, document);
+          upsertDocument(setDocuments, document, compareActiveDocuments);
           setArchivedDocuments((current) =>
             Object.freeze(current.filter((item) => item.id !== document.id)),
           );
         } else {
-          upsertDocument(setArchivedDocuments, document);
+          upsertDocument(
+            setArchivedDocuments,
+            document,
+            compareArchivedDocuments,
+          );
           setDocuments((current) =>
             Object.freeze(current.filter((item) => item.id !== document.id)),
           );
         }
+
+        if (mutation.kind === 'update-tags') {
+          const nextTags = await repository.listTags();
+
+          setTags(nextTags);
+        }
+
         setLastError(null);
 
         return document;
@@ -202,7 +259,7 @@ export const useDocumentWorkspace = (
         throw error;
       }
     },
-    [session, upsertDocument],
+    [repository, session, upsertDocument],
   );
 
   const create = useCallback(
@@ -216,7 +273,7 @@ export const useDocumentWorkspace = (
       }> = {},
     ): Promise<NoteDocument> => {
       const occurredAt = new Date().toISOString();
-      const documentId = createNoteId(createRuntimeId());
+      const documentId = createGeneratedNoteId(createRuntimeId());
       const document = await apply(
         createCreateDocumentMutation({
           id: createMutationId(createRuntimeId()),
@@ -249,7 +306,7 @@ export const useDocumentWorkspace = (
     ): Promise<Notebook> => {
       const occurredAt = new Date().toISOString();
       const notebook = await repository.createNotebook({
-        id: createRuntimeId(),
+        id: createGeneratedNotebookId(createRuntimeId()),
         name,
         parentId,
         icon,
@@ -266,6 +323,32 @@ export const useDocumentWorkspace = (
       setLastError(null);
 
       return notebook;
+    },
+    [repository],
+  );
+
+  const updateNotebook = useCallback(
+    async (input: NotebookUpdateRequest): Promise<Notebook> => {
+      try {
+        const notebook = await repository.updateNotebook({
+          ...input,
+          occurredAt: new Date().toISOString(),
+        });
+
+        setNotebooks((current) =>
+          Object.freeze(
+            current.map((candidate) =>
+              candidate.id === notebook.id ? notebook : candidate,
+            ),
+          ),
+        );
+        setLastError(null);
+
+        return notebook;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
     },
     [repository],
   );
@@ -291,6 +374,68 @@ export const useDocumentWorkspace = (
     [refresh, repository, session],
   );
 
+  const createTag = useCallback(
+    async (input: TagCreateRequest): Promise<TagSummary> => {
+      try {
+        const tag = await repository.createTag({
+          id: createGeneratedTagId(createRuntimeId()),
+          name: input.name,
+          color: input.color,
+          occurredAt: new Date().toISOString(),
+        });
+
+        await refreshAfterTagLifecycleChange();
+        setLastError(null);
+
+        return tag;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
+    },
+    [refreshAfterTagLifecycleChange, repository],
+  );
+
+  const updateTag = useCallback(
+    async (input: TagUpdateRequest): Promise<TagSummary> => {
+      try {
+        const tag = await repository.updateTag({
+          ...input,
+          occurredAt: new Date().toISOString(),
+        });
+
+        await refreshAfterTagLifecycleChange();
+        setLastError(null);
+
+        return tag;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
+    },
+    [refreshAfterTagLifecycleChange, repository],
+  );
+
+  const deleteTag = useCallback(
+    async (tagId: TagId): Promise<DeleteTagResult> => {
+      try {
+        const result = await repository.deleteTag({
+          id: tagId,
+          occurredAt: new Date().toISOString(),
+        });
+
+        await refreshAfterTagLifecycleChange();
+        setLastError(null);
+
+        return result;
+      } catch (error) {
+        setLastError(error);
+        throw error;
+      }
+    },
+    [refreshAfterTagLifecycleChange, repository],
+  );
+
   const move = useCallback(
     async (document: NoteDocument, notebookId: string): Promise<NoteDocument> =>
       apply(
@@ -301,6 +446,44 @@ export const useDocumentWorkspace = (
           source: 'command',
           notebookId,
           status: document.status,
+          occurredAt: new Date().toISOString(),
+        }),
+      ),
+    [apply],
+  );
+
+  const moveMany = useCallback(
+    async (
+      notes: readonly NoteDocument[],
+      notebookId: string,
+    ): Promise<NoteBatchOperationResult> => {
+      const notesById = new Map(notes.map((note) => [note.id, note]));
+
+      return runNoteBatchOperation(
+        notes.map((note) => note.id),
+        async (noteId) => {
+          const note = notesById.get(noteId);
+
+          if (note === undefined) {
+            throw new Error('The selected note is no longer available.');
+          }
+
+          await move(note, notebookId);
+        },
+      );
+    },
+    [move],
+  );
+
+  const setPinned = useCallback(
+    async (document: NoteDocument, pinned: boolean): Promise<NoteDocument> =>
+      apply(
+        createUpdatePinnedMutation({
+          id: createMutationId(createRuntimeId()),
+          documentId: document.id,
+          baseRevision: document.revision,
+          source: 'command',
+          pinned,
           occurredAt: new Date().toISOString(),
         }),
       ),
@@ -358,10 +541,23 @@ export const useDocumentWorkspace = (
   );
 
   const archiveMany = useCallback(
-    async (notes: readonly NoteDocument[]): Promise<void> => {
-      for (const note of notes) {
-        await archive(note);
-      }
+    async (
+      notes: readonly NoteDocument[],
+    ): Promise<NoteBatchOperationResult> => {
+      const notesById = new Map(notes.map((note) => [note.id, note]));
+
+      return runNoteBatchOperation(
+        notes.map((note) => note.id),
+        async (noteId) => {
+          const note = notesById.get(noteId);
+
+          if (note === undefined) {
+            throw new Error('The selected note is no longer available.');
+          }
+
+          await archive(note);
+        },
+      );
     },
     [archive],
   );
@@ -370,10 +566,21 @@ export const useDocumentWorkspace = (
     async (
       notes: readonly NoteDocument[],
       notebookId: string,
-    ): Promise<void> => {
-      for (const note of notes) {
-        await restore(note, notebookId);
-      }
+    ): Promise<NoteBatchOperationResult> => {
+      const notesById = new Map(notes.map((note) => [note.id, note]));
+
+      return runNoteBatchOperation(
+        notes.map((note) => note.id),
+        async (noteId) => {
+          const note = notesById.get(noteId);
+
+          if (note === undefined) {
+            throw new Error('The selected note is no longer available.');
+          }
+
+          await restore(note, notebookId);
+        },
+      );
     },
     [restore],
   );
@@ -425,6 +632,7 @@ export const useDocumentWorkspace = (
     documents,
     archivedDocuments,
     notebooks,
+    tags,
     session: sessionSnapshot,
     isListLoading,
     lastError,
@@ -433,8 +641,14 @@ export const useDocumentWorkspace = (
     apply,
     create,
     createNotebook,
+    updateNotebook,
     deleteNotebook,
+    createTag,
+    updateTag,
+    deleteTag,
     move,
+    moveMany,
+    setPinned,
     archive,
     archiveMany,
     restore,
@@ -450,4 +664,28 @@ const createRuntimeId = (): string => {
   }
 
   return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
+const compareActiveDocuments = (
+  left: NoteDocument,
+  right: NoteDocument,
+): number => {
+  if (left.pinned !== right.pinned) {
+    return left.pinned ? -1 : 1;
+  }
+
+  const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt);
+
+  return byUpdatedAt === 0 ? left.id.localeCompare(right.id) : byUpdatedAt;
+};
+
+const compareArchivedDocuments = (
+  left: NoteDocument,
+  right: NoteDocument,
+): number => {
+  const byDeletedAt = (right.deletedAt ?? '').localeCompare(
+    left.deletedAt ?? '',
+  );
+
+  return byDeletedAt === 0 ? left.id.localeCompare(right.id) : byDeletedAt;
 };

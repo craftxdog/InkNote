@@ -6,9 +6,13 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { InknoteApi } from '../shared/bridge';
 import type {
   CreateNotebookInput,
+  CreateTagInput,
+  DeleteTagInput,
   DeleteNotebookInput,
   DocumentMutation,
   PermanentlyDeleteNotesInput,
+  UpdateNotebookInput,
+  UpdateTagInput,
 } from '../shared/documents/document.types';
 import type { DirectorySelectionPurpose } from '../shared/data/data.types';
 import { IPC_CHANNELS } from '../shared/ipc/channels';
@@ -32,8 +36,17 @@ const inknoteApi: InknoteApi = {
     listArchived: () => ipcRenderer.invoke(IPC_CHANNELS.documents.listArchived),
     listNotebooks: () =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.listNotebooks),
+    listTags: () => ipcRenderer.invoke(IPC_CHANNELS.documents.listTags),
+    createTag: (input: CreateTagInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.createTag, input),
+    updateTag: (input: UpdateTagInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.updateTag, input),
+    deleteTag: (input: DeleteTagInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.deleteTag, input),
     createNotebook: (input: CreateNotebookInput) =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.createNotebook, input),
+    updateNotebook: (input: UpdateNotebookInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documents.updateNotebook, input),
     deleteNotebook: (input: DeleteNotebookInput) =>
       ipcRenderer.invoke(IPC_CHANNELS.documents.deleteNotebook, input),
     deletePermanently: (input: PermanentlyDeleteNotesInput) =>
@@ -61,6 +74,15 @@ const inknoteApi: InknoteApi = {
     getAppearance: () => ipcRenderer.invoke(IPC_CHANNELS.themes.getAppearance),
     setAcrylicEnabled: (enabled: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.themes.setAcrylicEnabled, enabled),
+  },
+  noteOrganization: {
+    getDefaultNotebook: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.noteOrganization.getDefaultNotebook),
+    setDefaultNotebook: (notebookId: string) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.noteOrganization.setDefaultNotebook,
+        notebookId,
+      ),
   },
 };
 

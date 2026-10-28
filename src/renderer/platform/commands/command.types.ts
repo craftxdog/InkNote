@@ -17,11 +17,20 @@ export type CommandInvocation = Readonly<{
 
 export type CommandHandler = (
   invocation: CommandInvocation,
-) => void | Promise<void>;
+) => unknown | Promise<unknown>;
+
+export type CommandDispatchResult = Readonly<{
+  dispatched: boolean;
+  value: unknown;
+}>;
 
 export type ScopedCommandRegistry = Readonly<{
   add(command: string, handler: CommandHandler): Registration;
   dispatch(command: string, invocation?: CommandInvocation): Promise<boolean>;
+  dispatchWithResult(
+    command: string,
+    invocation?: CommandInvocation,
+  ): Promise<CommandDispatchResult>;
 }>;
 
 const COMMAND_ID_PATTERN =

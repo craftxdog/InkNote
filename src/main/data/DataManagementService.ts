@@ -31,6 +31,7 @@ type DataManagementSettings = Readonly<{
 type DataManagementServiceOptions = Readonly<{
   dataDirectory: string;
   snapshotDatabase: (destination: string) => Promise<void>;
+  migrationSafetySnapshotFile?: () => Promise<string | null>;
   now?: () => string;
 }>;
 
@@ -44,6 +45,8 @@ export class DataManagementService {
 
   private readonly snapshotDatabase: (destination: string) => Promise<void>;
 
+  private readonly migrationSafetySnapshotFile: () => Promise<string | null>;
+
   private readonly now: () => string;
 
   constructor(options: DataManagementServiceOptions) {
@@ -52,15 +55,28 @@ export class DataManagementService {
       'Data directory',
     );
     this.snapshotDatabase = options.snapshotDatabase;
+    this.migrationSafetySnapshotFile =
+      options.migrationSafetySnapshotFile ?? (async () => null);
     this.now = options.now ?? (() => new Date().toISOString());
   }
 
   async getInfo(): Promise<DataManagementInfo> {
-    const settings = await this.readSettings();
+    const [settings, retainedSnapshotFile] = await Promise.all([
+      this.readSettings(),
+      this.migrationSafetySnapshotFile(),
+    ]);
+    const migrationSafetySnapshotFile =
+      retainedSnapshotFile === null
+        ? null
+        : validateAbsolutePath(
+            retainedSnapshotFile,
+            'Organization migration safety snapshot',
+          );
 
     return Object.freeze({
       dataDirectory: this.dataDirectory,
       backupDirectory: settings.backupDirectory,
+      migrationSafetySnapshotFile,
     });
   }
 

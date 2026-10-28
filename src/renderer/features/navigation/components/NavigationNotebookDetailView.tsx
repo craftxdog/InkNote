@@ -45,6 +45,7 @@ type NavigationNotebookDetailViewProps = {
   onSelectionChange: (selection: NavigationSelection) => void;
   onToggleSection: (section: NavigationSectionId) => void;
   onOpenNotebookDetail: (notebook: Notebook) => void;
+  onEditNotebook?: (notebook: Notebook) => void;
   onExit: () => void;
 };
 
@@ -62,6 +63,7 @@ export function NavigationNotebookDetailView({
   onSelectionChange,
   onToggleSection,
   onOpenNotebookDetail,
+  onEditNotebook,
   onExit,
 }: NavigationNotebookDetailViewProps) {
   const [tagQuery, setTagQuery] = useState('');
@@ -167,6 +169,17 @@ export function NavigationNotebookDetailView({
             <span>{notebook.name}</span>
           </h2>
         ) : null}
+
+        {notebook.id !== 'inbox' && onEditNotebook !== undefined && (
+          <button
+            type="button"
+            className="navigation-notebook-detail__edit"
+            aria-label={`Edit ${notebook.name} notebook`}
+            onClick={() => onEditNotebook(notebook)}
+          >
+            Edit
+          </button>
+        )}
       </header>
 
       <NavigationRow

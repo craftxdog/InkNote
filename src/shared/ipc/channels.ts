@@ -12,7 +12,12 @@ export const IPC_CHANNELS = {
     listActive: 'documents:list-active',
     listArchived: 'documents:list-archived',
     listNotebooks: 'documents:list-notebooks',
+    listTags: 'documents:list-tags',
+    createTag: 'documents:create-tag',
+    updateTag: 'documents:update-tag',
+    deleteTag: 'documents:delete-tag',
     createNotebook: 'documents:create-notebook',
+    updateNotebook: 'documents:update-notebook',
     deleteNotebook: 'documents:delete-notebook',
     deletePermanently: 'documents:delete-permanently',
   },
@@ -24,6 +29,10 @@ export const IPC_CHANNELS = {
     remove: 'themes:remove',
     getAppearance: 'themes:get-appearance',
     setAcrylicEnabled: 'themes:set-acrylic-enabled',
+  },
+  noteOrganization: {
+    getDefaultNotebook: 'note-organization:get-default-notebook',
+    setDefaultNotebook: 'note-organization:set-default-notebook',
   },
   window: {
     setTrafficLightsVisibility: 'window:set-traffic-lights-visibility',

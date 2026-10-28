@@ -249,10 +249,15 @@
   padding: 12px 14px;
 
   color: var(--color-text);
-  background: rgba(78, 129, 243, 0.07);
+  background: color-mix(
+    in srgb,
+    var(--inknote-callout-note-color) 9%,
+    var(--color-workspace)
+  );
 
-  border: 1px solid rgba(78, 129, 243, 0.18);
-  border-left: 4px solid #4e81f3;
+  border: 1px solid
+    color-mix(in srgb, var(--inknote-callout-note-color) 35%, transparent);
+  border-left: 4px solid var(--inknote-callout-note-color);
   border-radius: 0 7px 7px 0;
 }
 
@@ -265,7 +270,7 @@
 
   margin-bottom: 5px;
 
-  color: #376dd7;
+  color: var(--inknote-callout-note-color);
 
   font-family: var(--font-sans);
   font-size: 12px;
@@ -275,27 +280,43 @@
 }
 
 .markdown-preview .inknote-callout--tip {
-  background: rgba(34, 193, 96, 0.08);
-  border-color: rgba(34, 193, 96, 0.2);
-  border-left-color: #22a75a;
+  background: color-mix(
+    in srgb,
+    var(--inknote-callout-tip-color) 10%,
+    var(--color-workspace)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--inknote-callout-tip-color) 35%,
+    transparent
+  );
+  border-left-color: var(--inknote-callout-tip-color);
 }
 
 .markdown-preview .inknote-callout--tip .inknote-callout__label {
-  color: #16884a;
+  color: var(--inknote-callout-tip-color);
 }
 
 .markdown-preview .inknote-callout--important,
 .markdown-preview .inknote-callout--warning,
 .markdown-preview .inknote-callout--caution {
-  background: rgba(248, 177, 38, 0.1);
-  border-color: rgba(248, 177, 38, 0.25);
-  border-left-color: #d08b12;
+  background: color-mix(
+    in srgb,
+    var(--inknote-callout-warning-color) 12%,
+    var(--color-workspace)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--inknote-callout-warning-color) 38%,
+    transparent
+  );
+  border-left-color: var(--inknote-callout-warning-color);
 }
 
 .markdown-preview .inknote-callout--important .inknote-callout__label,
 .markdown-preview .inknote-callout--warning .inknote-callout__label,
 .markdown-preview .inknote-callout--caution .inknote-callout__label {
-  color: #a66b10;
+  color: var(--inknote-callout-warning-color);
 }
 
 .markdown-preview hr {
@@ -379,94 +400,6 @@
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: pre-line;
-}
-
-.markdown-preview .inknote-mermaid {
-  position: relative;
-
-  margin: 0 0 16px;
-  padding: 16px;
-
-  background:
-    radial-gradient(
-        circle at 1px 1px,
-        rgba(78, 129, 243, 0.14) 1px,
-        transparent 0
-      )
-      0 0 / 16px 16px,
-    color-mix(in srgb, var(--color-workspace) 92%, #e7eefb);
-  border: 1px solid rgba(78, 129, 243, 0.2);
-  border-radius: 9px;
-}
-
-.markdown-preview .inknote-mermaid figcaption {
-  margin: 0 0 8px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.markdown-preview .inknote-mermaid__controls {
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  margin: 0 0 8px;
-}
-
-.markdown-preview .inknote-mermaid__control {
-  min-width: 30px;
-  min-height: 26px;
-  padding: 2px 7px;
-
-  color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-workspace) 84%, #fff);
-  border: 1px solid rgba(78, 129, 243, 0.25);
-  border-radius: 5px;
-
-  font: inherit;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.markdown-preview .inknote-mermaid__control:hover,
-.markdown-preview .inknote-mermaid__control:focus-visible {
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-workspace) 72%, #dce8ff);
-  outline: none;
-}
-
-.markdown-preview .inknote-mermaid__viewport {
-  overflow: auto;
-  max-block-size: min(68vh, 720px);
-  overscroll-behavior: contain;
-  border: 1px solid rgba(78, 129, 243, 0.12);
-  border-radius: 6px;
-  cursor: grab;
-}
-
-.markdown-preview .inknote-mermaid__viewport:focus-visible {
-  outline: 2px solid rgba(78, 129, 243, 0.7);
-  outline-offset: 2px;
-}
-
-.markdown-preview .inknote-mermaid__viewport--panning {
-  cursor: grabbing;
-  user-select: none;
-}
-
-.markdown-preview .inknote-mermaid__canvas {
-  width: 100%;
-  min-width: 100%;
-}
-
-.markdown-preview .inknote-mermaid__canvas svg {
-  display: block;
-  width: 100%;
-  min-width: min-content;
-  max-width: none;
-  height: auto;
-  margin: 0 auto;
 }
 
 .markdown-preview .inknote-code-block--error {

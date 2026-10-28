@@ -152,6 +152,28 @@ export function useWorkspaceThemes(): WorkspaceThemeRuntime {
     }
   }, [themeId]);
 
+  /*
+   * Inkdrop's preview styles define their Mermaid tokens on :root and resolve
+   * contrast pairs through light-dark(). Keep the document's semantic
+   * appearance in sync with the selected workspace theme so those root-scoped
+   * tokens are calculated in the same colour scheme as the workspace. This
+   * deliberately communicates only "light" or "dark"; package CSS remains
+   * the sole owner of concrete diagram colours.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const previousColorScheme = root.style.colorScheme;
+
+    root.style.colorScheme = themeAppearance;
+    body.classList.toggle('dark-mode', themeAppearance === 'dark');
+
+    return () => {
+      root.style.colorScheme = previousColorScheme;
+      body.classList.remove('dark-mode');
+    };
+  }, [themeAppearance]);
+
   useEffect(() => {
     let isCurrent = true;
     const themeApi = window.inknote.themes;

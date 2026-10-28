@@ -1,11 +1,16 @@
 import { createInvalidMutationError } from './document.errors';
 
 declare const noteIdBrand: unique symbol;
+declare const tagIdBrand: unique symbol;
 declare const revisionBrand: unique symbol;
 declare const mutationIdBrand: unique symbol;
 
 export type NoteId = string & {
   readonly [noteIdBrand]: 'NoteId';
+};
+
+export type TagId = string & {
+  readonly [tagIdBrand]: 'TagId';
 };
 
 export type Revision = string & {
@@ -33,6 +38,60 @@ export type NoteStatus = (typeof NOTE_STATUSES)[number];
 export const NOTE_STATUS_NONE = 'none' as const;
 
 export type NoteStatusValue = NoteStatus | typeof NOTE_STATUS_NONE;
+
+export const TAG_COLORS = [
+  'default',
+  'red',
+  'orange',
+  'yellow',
+  'olive',
+  'green',
+  'teal',
+  'blue',
+  'violet',
+  'purple',
+  'pink',
+  'brown',
+  'grey',
+  'black',
+] as const;
+
+export type TagColor = (typeof TAG_COLORS)[number];
+
+export type TagSummary = Readonly<{
+  id: TagId;
+  name: string;
+  color: TagColor;
+  count: number;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export const TAG_NAME_MAX_LENGTH = 64;
+
+export type CreateTagInput = Readonly<{
+  id: TagId;
+  name: string;
+  color: TagColor;
+  occurredAt: string;
+}>;
+
+export type UpdateTagInput = Readonly<{
+  id: TagId;
+  name: string;
+  color: TagColor;
+  occurredAt: string;
+}>;
+
+export type DeleteTagInput = Readonly<{
+  id: TagId;
+  occurredAt: string;
+}>;
+
+export type DeleteTagResult = Readonly<{
+  deletedTagId: TagId;
+  affectedNoteIds: readonly NoteId[];
+}>;
 
 export const INBOX_NOTEBOOK_ID = 'inbox';
 
@@ -81,6 +140,18 @@ export type CreateNotebookInput = Readonly<{
 }>;
 
 /**
+ * Full replacement of the editable notebook fields. Explicit nulls avoid an
+ * ambiguous update where an omitted icon or parent could retain stale state.
+ */
+export type UpdateNotebookInput = Readonly<{
+  id: string;
+  name: string;
+  parentId: string | null;
+  icon: NotebookIconName | null;
+  occurredAt: string;
+}>;
+
+/**
  * A notebook deletion is a durable organization operation. The associated
  * direct notes move to Trash; subnotebooks are preserved by the repository.
  */
@@ -114,6 +185,14 @@ export type NoteDocument = Readonly<{
   notebookId: string;
   status: NoteStatusValue;
   tags: readonly string[];
+  /** Always supplied by persistence; optional for legacy in-memory DTOs. */
+  doctype?: 'markdown';
+  /** Always supplied by persistence; optional for legacy in-memory DTOs. */
+  pinned?: boolean;
+  /** Always supplied by persistence; optional for legacy in-memory DTOs. */
+  numOfTasks?: number;
+  /** Always supplied by persistence; optional for legacy in-memory DTOs. */
+  numOfCheckedTasks?: number;
   createdAt: string;
   updatedAt: string;
   revision: Revision;
@@ -159,6 +238,12 @@ export type UpdateTagsMutation = DocumentMutationBase &
     tags: readonly string[];
   }>;
 
+export type UpdatePinnedMutation = DocumentMutationBase &
+  Readonly<{
+    kind: 'update-pinned';
+    pinned: boolean;
+  }>;
+
 export type UpdateOrganizationMutation = DocumentMutationBase &
   Readonly<{
     kind: 'update-organization';
@@ -183,6 +268,7 @@ export type DocumentMutation =
   | UpdateTitleMutation
   | ReplaceBodyMutation
   | UpdateTagsMutation
+  | UpdatePinnedMutation
   | UpdateOrganizationMutation
   | ArchiveDocumentMutation
   | RestoreDocumentMutation;
@@ -219,6 +305,11 @@ export type UpdateTagsMutationInput = DocumentMutationInputBase &
     tags: readonly string[];
   }>;
 
+export type UpdatePinnedMutationInput = DocumentMutationInputBase &
+  Readonly<{
+    pinned: boolean;
+  }>;
+
 export type UpdateOrganizationMutationInput = DocumentMutationInputBase &
   Readonly<{
     notebookId: string;
@@ -233,6 +324,18 @@ export type RestoreDocumentMutationInput = DocumentMutationInputBase &
 
 export const createNoteId = (value: string): NoteId =>
   createOpaqueIdentifier<NoteId>(value, 'Note ID');
+
+export const createTagId = (value: string): TagId =>
+  createOpaqueIdentifier<TagId>(value, 'Tag ID');
+
+export const createGeneratedNoteId = (entropy: string): NoteId =>
+  createNoteId(createPrefixedIdentifier('note:', entropy, 'Generated note ID'));
+
+export const createGeneratedNotebookId = (entropy: string): string =>
+  createPrefixedIdentifier('book:', entropy, 'Generated notebook ID');
+
+export const createGeneratedTagId = (entropy: string): TagId =>
+  createTagId(createPrefixedIdentifier('tag:', entropy, 'Generated tag ID'));
 
 export const createRevision = (value: string): Revision =>
   createOpaqueIdentifier<Revision>(value, 'Revision');
@@ -263,6 +366,60 @@ export const createNotebook = (input: CreateNotebookInput): Notebook => {
     ...(icon === undefined ? {} : { icon }),
     createdAt: input.occurredAt,
     updatedAt: input.occurredAt,
+  });
+};
+
+export const validateUpdateNotebookInput = (
+  value: unknown,
+): UpdateNotebookInput => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError('A notebook update must be an object.');
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const id = normalizeNotebookId(candidate.id);
+
+  if (id === INBOX_NOTEBOOK_ID) {
+    throw createInvalidMutationError('The Inbox notebook cannot be updated.');
+  }
+
+  const name = validateText(candidate.name, 'Notebook name').trim();
+
+  if (name.length === 0) {
+    throw createInvalidMutationError('Notebook name must not be empty.');
+  }
+
+  if (candidate.parentId === undefined) {
+    throw createInvalidMutationError(
+      'Notebook update parentId must be explicit.',
+    );
+  }
+
+  const parentId =
+    candidate.parentId === null
+      ? null
+      : normalizeNotebookParentId(candidate.parentId, id);
+
+  if (candidate.icon === undefined) {
+    throw createInvalidMutationError('Notebook update icon must be explicit.');
+  }
+
+  const icon =
+    candidate.icon === null ? null : normalizeNotebookIcon(candidate.icon);
+
+  if (icon === undefined) {
+    throw createInvalidMutationError('Notebook icon must be explicit.');
+  }
+
+  return Object.freeze({
+    id,
+    name,
+    parentId,
+    icon,
+    occurredAt: readNonEmptyString(
+      candidate.occurredAt,
+      'Notebook update timestamp',
+    ),
   });
 };
 
@@ -394,6 +551,20 @@ export const createUpdateTagsMutation = (
     tags: normalizeTags(input.tags),
   });
 
+export const createUpdatePinnedMutation = (
+  input: UpdatePinnedMutationInput,
+): UpdatePinnedMutation => {
+  if (typeof input.pinned !== 'boolean') {
+    throw createInvalidMutationError('Document pin state must be boolean.');
+  }
+
+  return freezeMutation({
+    ...createMutationBase(input),
+    kind: 'update-pinned',
+    pinned: input.pinned,
+  });
+};
+
 export const createUpdateOrganizationMutation = (
   input: UpdateOrganizationMutationInput,
 ): UpdateOrganizationMutation =>
@@ -449,6 +620,10 @@ export const validateDocumentMutation = (
       return createUpdateTagsMutation(
         candidate as unknown as UpdateTagsMutationInput,
       );
+    case 'update-pinned':
+      return createUpdatePinnedMutation(
+        candidate as unknown as UpdatePinnedMutationInput,
+      );
     case 'update-organization':
       return createUpdateOrganizationMutation(
         candidate as unknown as UpdateOrganizationMutationInput,
@@ -487,6 +662,13 @@ export const validateNoteDocument = (value: unknown): NoteDocument => {
     notebookId: normalizeNotebookId(candidate.notebookId ?? INBOX_NOTEBOOK_ID),
     status: normalizeNoteStatus(candidate.status ?? NOTE_STATUS_NONE),
     tags: normalizeTags(candidate.tags ?? []),
+    doctype: normalizeDocumentDoctype(candidate.doctype),
+    pinned: normalizeDocumentPinned(candidate.pinned),
+    numOfTasks: normalizeTaskCount(candidate.numOfTasks, 'Document task count'),
+    numOfCheckedTasks: normalizeTaskCount(
+      candidate.numOfCheckedTasks,
+      'Document checked task count',
+    ),
     createdAt: readNonEmptyString(candidate.createdAt, 'Document createdAt'),
     updatedAt: readNonEmptyString(candidate.updatedAt, 'Document updatedAt'),
     revision: createRevision(
@@ -499,6 +681,90 @@ export const validateNoteDocument = (value: unknown): NoteDocument => {
   });
 };
 
+export const validateTagSummary = (value: unknown): TagSummary => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError('A tag summary must be an object.');
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const name = readNonEmptyString(candidate.name, 'Tag name').trim();
+
+  if (name.length === 0) {
+    throw createInvalidMutationError('Tag name must not be empty.');
+  }
+
+  return Object.freeze({
+    id: createTagId(readNonEmptyString(candidate.id, 'Tag ID')),
+    name,
+    color: normalizeTagColor(candidate.color),
+    count: normalizeTagCount(candidate.count),
+    createdAt: readNonEmptyString(candidate.createdAt, 'Tag createdAt'),
+    updatedAt: readNonEmptyString(candidate.updatedAt, 'Tag updatedAt'),
+  });
+};
+
+export const validateCreateTagInput = (value: unknown): CreateTagInput => {
+  const input = validateTagLifecycleInput(value, 'Tag creation');
+
+  if (!input.id.startsWith('tag:')) {
+    throw createInvalidMutationError(
+      'A new tag ID must use the generated tag: prefix.',
+    );
+  }
+
+  return input;
+};
+
+export const validateUpdateTagInput = (value: unknown): UpdateTagInput =>
+  validateTagLifecycleInput(value, 'Tag update');
+
+export const validateDeleteTagInput = (value: unknown): DeleteTagInput => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError('A tag deletion must be an object.');
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return Object.freeze({
+    id: createTagId(readNonEmptyString(candidate.id, 'Tag ID')),
+    occurredAt: readNonEmptyString(candidate.occurredAt, 'Tag timestamp'),
+  });
+};
+
+export const validateDeleteTagResult = (value: unknown): DeleteTagResult => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError(
+      'A tag deletion result must be an object.',
+    );
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const affectedNoteIds = candidate.affectedNoteIds;
+
+  if (!Array.isArray(affectedNoteIds)) {
+    throw createInvalidMutationError(
+      'Tag deletion affected note IDs must be an array.',
+    );
+  }
+
+  const normalizedNoteIds = affectedNoteIds.map((noteId) =>
+    createNoteId(noteId as string),
+  );
+
+  if (new Set(normalizedNoteIds).size !== normalizedNoteIds.length) {
+    throw createInvalidMutationError(
+      'Tag deletion affected note IDs must be unique.',
+    );
+  }
+
+  return Object.freeze({
+    deletedTagId: createTagId(
+      readNonEmptyString(candidate.deletedTagId, 'Deleted tag ID'),
+    ),
+    affectedNoteIds: Object.freeze(normalizedNoteIds),
+  });
+};
+
 const createOpaqueIdentifier = <T extends string>(
   value: string,
   label: string,
@@ -508,6 +774,20 @@ const createOpaqueIdentifier = <T extends string>(
   }
 
   return value as T;
+};
+
+const createPrefixedIdentifier = (
+  prefix: string,
+  entropy: string,
+  label: string,
+): string => {
+  const normalizedEntropy = readNonEmptyString(entropy, label).trim();
+
+  if (normalizedEntropy.length === 0) {
+    throw createInvalidMutationError(`${label} must be a non-empty string.`);
+  }
+
+  return `${prefix}${normalizedEntropy}`;
 };
 
 export const INITIAL_DOCUMENT_REVISION = createRevision('initial');
@@ -596,6 +876,96 @@ const normalizeNoteStatus = (value: unknown): NoteStatusValue => {
   }
 
   return value as NoteStatusValue;
+};
+
+const normalizeDocumentDoctype = (value: unknown): 'markdown' => {
+  if (value === undefined) {
+    return 'markdown';
+  }
+
+  if (value !== 'markdown') {
+    throw createInvalidMutationError('Document doctype is not supported.');
+  }
+
+  return value;
+};
+
+const normalizeDocumentPinned = (value: unknown): boolean => {
+  if (value === undefined) {
+    return false;
+  }
+
+  if (typeof value !== 'boolean') {
+    throw createInvalidMutationError('Document pin state must be boolean.');
+  }
+
+  return value;
+};
+
+const normalizeTaskCount = (value: unknown, label: string): number => {
+  if (value === undefined) {
+    return 0;
+  }
+
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw createInvalidMutationError(
+      `${label} must be a non-negative integer.`,
+    );
+  }
+
+  return value;
+};
+
+const normalizeTagColor = (value: unknown): TagColor => {
+  if (!(TAG_COLORS as readonly unknown[]).includes(value)) {
+    throw createInvalidMutationError('Tag color is not supported.');
+  }
+
+  return value as TagColor;
+};
+
+const validateTagLifecycleInput = (
+  value: unknown,
+  label: string,
+): CreateTagInput => {
+  if (typeof value !== 'object' || value === null) {
+    throw createInvalidMutationError(`${label} must be an object.`);
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return Object.freeze({
+    id: createTagId(readNonEmptyString(candidate.id, 'Tag ID')),
+    name: normalizeTagLifecycleName(candidate.name),
+    color: normalizeTagColor(candidate.color),
+    occurredAt: readNonEmptyString(candidate.occurredAt, 'Tag timestamp'),
+  });
+};
+
+const normalizeTagLifecycleName = (value: unknown): string => {
+  const name = validateText(value, 'Tag name').trim().toLocaleLowerCase();
+
+  if (name.length === 0) {
+    throw createInvalidMutationError('Tag name must not be empty.');
+  }
+
+  if (name.length > TAG_NAME_MAX_LENGTH) {
+    throw createInvalidMutationError(
+      `Tag name must not exceed ${TAG_NAME_MAX_LENGTH} characters.`,
+    );
+  }
+
+  return name;
+};
+
+const normalizeTagCount = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw createInvalidMutationError(
+      'Tag count must be a non-negative integer.',
+    );
+  }
+
+  return value;
 };
 
 const normalizeTags = (value: unknown): readonly string[] => {

@@ -95,6 +95,14 @@ const createScopedCommands = (
 
       return options.commandRegistry.dispatch(command, invocation);
     },
+    dispatchWithResult: async (
+      command: string,
+      invocation?: CommandInvocation,
+    ) => {
+      options.scope.assertOpen();
+
+      return options.commandRegistry.dispatchWithResult(command, invocation);
+    },
   });
 
 const createScopedKeymaps = (

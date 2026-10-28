@@ -1,9 +1,15 @@
 import type {
+  CreateTagInput,
+  DeleteTagInput,
+  DeleteTagResult,
   CreateNotebookInput,
   DeleteNotebookInput,
   DeleteNotebookResult,
   Notebook,
   NoteDocument,
+  TagSummary,
+  UpdateTagInput,
+  UpdateNotebookInput,
 } from './document.types';
 
 /**
@@ -18,11 +24,30 @@ export interface DocumentQueryRepository {
 }
 
 /**
+ * Independent read port for the durable tag catalogue. It remains separate
+ * from note queries so tag UI can grow without expanding unrelated callers.
+ */
+export interface TagQueryRepository {
+  listTags(): Promise<readonly TagSummary[]>;
+}
+
+/**
+ * Explicit tag lifecycle port. Catalogue writes remain separate from note
+ * mutations because the store must propagate tag-name changes through Yjs.
+ */
+export interface TagRepository extends TagQueryRepository {
+  createTag(input: CreateTagInput): Promise<TagSummary>;
+  updateTag(input: UpdateTagInput): Promise<TagSummary>;
+  deleteTag(input: DeleteTagInput): Promise<DeleteTagResult>;
+}
+
+/**
  * Small, explicit write port for notebook taxonomy. Notes retain the CRDT as
  * their authority; notebook names are local relational metadata until sync is
  * introduced for this collection.
  */
 export interface NotebookRepository {
   createNotebook(input: CreateNotebookInput): Promise<Notebook>;
+  updateNotebook(input: UpdateNotebookInput): Promise<Notebook>;
   deleteNotebook(input: DeleteNotebookInput): Promise<DeleteNotebookResult>;
 }

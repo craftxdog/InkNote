@@ -1,6 +1,7 @@
 import type { DocumentIpcResult } from './documents/document.ipc';
 import type { DataIpcResult } from './data/data.ipc';
 import type { ThemeIpcResult } from './themes/theme.ipc';
+import type { NoteOrganizationIpcResult } from './note-organization/noteOrganizationPreferences.ipc';
 import type {
   BackupResult,
   DataManagementInfo,
@@ -10,19 +11,26 @@ import type {
 } from './data/data.types';
 import type {
   DocumentMutation,
+  CreateTagInput,
+  DeleteTagInput,
+  DeleteTagResult,
   CreateNotebookInput,
   DeleteNotebookInput,
   DeleteNotebookResult,
+  UpdateNotebookInput,
   PermanentlyDeleteNotesInput,
   PermanentlyDeleteNotesResult,
   Notebook,
   NoteDocument,
+  TagSummary,
+  UpdateTagInput,
 } from './documents/document.types';
 import type {
   ThemeAppearanceSettings,
   ThemeDescriptor,
   ThemeStyles,
 } from './themes/theme.types';
+import type { DefaultNotebookPreference } from './note-organization/noteOrganizationPreferences.types';
 
 export type WindowControlsApi = {
   setTrafficLightsVisible: (visible: boolean) => Promise<boolean>;
@@ -36,8 +44,17 @@ export type DocumentApi = {
   listActive: () => Promise<DocumentIpcResult<readonly NoteDocument[]>>;
   listArchived: () => Promise<DocumentIpcResult<readonly NoteDocument[]>>;
   listNotebooks: () => Promise<DocumentIpcResult<readonly Notebook[]>>;
+  listTags: () => Promise<DocumentIpcResult<readonly TagSummary[]>>;
+  createTag: (input: CreateTagInput) => Promise<DocumentIpcResult<TagSummary>>;
+  updateTag: (input: UpdateTagInput) => Promise<DocumentIpcResult<TagSummary>>;
+  deleteTag: (
+    input: DeleteTagInput,
+  ) => Promise<DocumentIpcResult<DeleteTagResult>>;
   createNotebook: (
     input: CreateNotebookInput,
+  ) => Promise<DocumentIpcResult<Notebook>>;
+  updateNotebook: (
+    input: UpdateNotebookInput,
   ) => Promise<DocumentIpcResult<Notebook>>;
   deleteNotebook: (
     input: DeleteNotebookInput,
@@ -75,9 +92,21 @@ export type ThemeApi = {
   ) => Promise<ThemeIpcResult<ThemeAppearanceSettings>>;
 };
 
+/** Renderer-safe note organization settings. The preference stays in the
+ * main process and is validated against the durable notebook catalogue. */
+export type NoteOrganizationApi = {
+  getDefaultNotebook: () => Promise<
+    NoteOrganizationIpcResult<DefaultNotebookPreference>
+  >;
+  setDefaultNotebook: (
+    notebookId: string,
+  ) => Promise<NoteOrganizationIpcResult<DefaultNotebookPreference>>;
+};
+
 export type InknoteApi = {
   windowControls: WindowControlsApi;
   documents: DocumentApi;
   data: DataManagementApi;
   themes?: ThemeApi;
+  noteOrganization: NoteOrganizationApi;
 };

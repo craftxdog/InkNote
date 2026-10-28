@@ -39,11 +39,15 @@ import { runThemeIpcOperation } from '../shared/themes/theme.ipc';
 import { validateExternalThemeId } from '../shared/themes/theme.types';
 
 import { DataManagementService } from './data/DataManagementService';
+import { DocumentStoreStartup } from './data/DocumentStoreStartup';
 import { MarkdownExportService } from './data/MarkdownExportService';
+import { OrganizationMigrationSafetyService } from './data/OrganizationMigrationSafetyService';
 import { RestoreDatabaseService } from './data/RestoreDatabaseService';
 import { DocumentIpcService } from './documents/DocumentIpcService';
 import { LocalDocumentStore } from './documents/LocalDocumentStore';
 import { ThemePackageService } from './themes/ThemePackageService';
+import { NoteOrganizationPreferencesService } from './note-organization/NoteOrganizationPreferencesService';
+import { runNoteOrganizationIpcOperation } from '../shared/note-organization/noteOrganizationPreferences.ipc';
 import MenuBuilder from './menu';
 import { isAllowedExternalUrl, secureRendererPreferences } from './security';
 import startAutoUpdates from './updates';
@@ -55,11 +59,18 @@ import { resolveHtmlPath } from './util';
 
 let mainWindow: BrowserWindow | null = null;
 
-let localDocumentStore: LocalDocumentStore | null = null;
+let documentStoreStartup: DocumentStoreStartup<LocalDocumentStore> | null =
+  null;
 
 let dataManagementService: DataManagementService | null = null;
 
+let organizationMigrationSafetyService: OrganizationMigrationSafetyService | null =
+  null;
+
 let themePackageService: ThemePackageService | null = null;
+
+let noteOrganizationPreferencesService: NoteOrganizationPreferencesService | null =
+  null;
 
 /* =========================================================
    Legacy IPC example
@@ -181,6 +192,47 @@ function registerDocumentIpcHandlers(getService: () => DocumentIpcService) {
     return getService().listNotebooks();
   });
 
+  ipcMain.handle(IPC_CHANNELS.documents.listTags, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    return getService().listTags();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.documents.createTag, async (event, input) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    const result = await getService().createTag(input);
+    await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+    return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.documents.updateTag, async (event, input) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    const result = await getService().updateTag(input);
+    await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+    return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.documents.deleteTag, async (event, input) => {
+    if (!isMainWindowSender(event.sender)) {
+      return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+    }
+
+    const result = await getService().deleteTag(input);
+    await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+    return result;
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.documents.createNotebook,
     async (event, input) => {
@@ -189,6 +241,20 @@ function registerDocumentIpcHandlers(getService: () => DocumentIpcService) {
       }
 
       const result = await getService().createNotebook(input);
+      await refreshConfiguredBackupAfterDocumentChange(result.ok);
+
+      return result;
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.documents.updateNotebook,
+    async (event, input) => {
+      if (!isMainWindowSender(event.sender)) {
+        return createDocumentIpcFailure(new Error('Untrusted IPC sender.'));
+      }
+
+      const result = await getService().updateNotebook(input);
       await refreshConfiguredBackupAfterDocumentChange(result.ok);
 
       return result;
@@ -304,15 +370,15 @@ function registerDataIpcHandlers() {
         databasePath: getDatabasePath(),
         snapshotDatabase: (destination) => activeStore.backupTo(destination),
         closeDatabase: () => {
-          activeStore.close();
-
-          if (localDocumentStore === activeStore) {
-            localDocumentStore = null;
-          }
+          getDocumentStoreStartup().close();
         },
       });
 
-      return restoreService.restoreFrom(backupFile);
+      const result = await restoreService.restoreFrom(backupFile);
+
+      await initializeLocalDocumentStore();
+
+      return result;
     });
   });
 
@@ -440,14 +506,66 @@ function registerThemeIpcHandlers() {
   );
 }
 
+function registerNoteOrganizationIpcHandlers() {
+  ipcMain.handle(IPC_CHANNELS.noteOrganization.getDefaultNotebook, (event) => {
+    if (!isMainWindowSender(event.sender)) {
+      return runNoteOrganizationIpcOperation(() => {
+        throw new Error('Untrusted IPC sender.');
+      });
+    }
+
+    return runNoteOrganizationIpcOperation(() =>
+      getNoteOrganizationPreferencesService().getDefaultNotebook(),
+    );
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.noteOrganization.setDefaultNotebook,
+    (event, notebookId: unknown) => {
+      if (!isMainWindowSender(event.sender)) {
+        return runNoteOrganizationIpcOperation(() => {
+          throw new Error('Untrusted IPC sender.');
+        });
+      }
+
+      return runNoteOrganizationIpcOperation(() =>
+        getNoteOrganizationPreferencesService().setDefaultNotebook(notebookId),
+      );
+    },
+  );
+}
+
 function getLocalDocumentStore(): LocalDocumentStore {
-  if (localDocumentStore === null) {
-    localDocumentStore = new LocalDocumentStore(
-      new Database(getDatabasePath()),
+  return getDocumentStoreStartup().getInitialized();
+}
+
+function getDocumentStoreStartup(): DocumentStoreStartup<LocalDocumentStore> {
+  if (documentStoreStartup === null) {
+    documentStoreStartup = new DocumentStoreStartup({
+      ensureMigrationSafety: () =>
+        getOrganizationMigrationSafetyService().ensureSnapshotBeforeMigration(),
+      createStore: () =>
+        new LocalDocumentStore(new Database(getDatabasePath())),
+    });
+  }
+
+  return documentStoreStartup;
+}
+
+const initializeLocalDocumentStore = async (): Promise<LocalDocumentStore> =>
+  getDocumentStoreStartup().initialize();
+
+function getOrganizationMigrationSafetyService(): OrganizationMigrationSafetyService {
+  if (organizationMigrationSafetyService === null) {
+    organizationMigrationSafetyService = new OrganizationMigrationSafetyService(
+      {
+        dataDirectory: app.getPath('userData'),
+        databasePath: getDatabasePath(),
+      },
     );
   }
 
-  return localDocumentStore;
+  return organizationMigrationSafetyService;
 }
 
 function getDataManagementService(): DataManagementService {
@@ -456,6 +574,8 @@ function getDataManagementService(): DataManagementService {
       dataDirectory: app.getPath('userData'),
       snapshotDatabase: (destination) =>
         getLocalDocumentStore().backupTo(destination),
+      migrationSafetySnapshotFile: () =>
+        getOrganizationMigrationSafetyService().getRetainedSnapshotFile(),
     });
   }
 
@@ -470,6 +590,22 @@ function getThemePackageService(): ThemePackageService {
   }
 
   return themePackageService;
+}
+
+function getNoteOrganizationPreferencesService(): NoteOrganizationPreferencesService {
+  if (noteOrganizationPreferencesService === null) {
+    noteOrganizationPreferencesService = new NoteOrganizationPreferencesService(
+      {
+        dataDirectory: app.getPath('userData'),
+        listNotebookIds: async () =>
+          (await getLocalDocumentStore().listNotebooks()).map(
+            (notebook) => notebook.id,
+          ),
+      },
+    );
+  }
+
+  return noteOrganizationPreferencesService;
 }
 
 const getDatabasePath = (): string =>
@@ -678,15 +814,19 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  localDocumentStore?.close();
-  localDocumentStore = null;
+  documentStoreStartup?.close();
+  documentStoreStartup = null;
   dataManagementService = null;
+  organizationMigrationSafetyService = null;
   themePackageService = null;
+  noteOrganizationPreferencesService = null;
 });
 
 app
   .whenReady()
   .then(async () => {
+    await initializeLocalDocumentStore();
+
     /**
      * IMPORTANT:
      *
@@ -699,6 +839,7 @@ app
     );
     registerDataIpcHandlers();
     registerThemeIpcHandlers();
+    registerNoteOrganizationIpcHandlers();
 
     await createWindow();
 

@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 
 import {
@@ -9,6 +10,7 @@ import {
 import type {
   DocumentQueryRepository,
   NotebookRepository,
+  TagRepository,
 } from '../../shared/documents/document.query';
 import type {
   DocumentDeletionRepository,
@@ -19,23 +21,37 @@ import {
   INBOX_NOTEBOOK_ID,
   NOTE_STATUS_NONE,
   createArchiveMutation,
+  createGeneratedTagId,
   createMutationId,
   createNotebook as validateAndCreateNotebook,
   createNoteId,
   createRevision,
+  validateCreateTagInput,
+  validateDeleteTagInput,
   validateDocumentMutation,
+  validateUpdateTagInput,
+  validateDeleteTagResult,
+  validateUpdateNotebookInput,
+  validateTagSummary,
+  type CreateTagInput,
   type CreateDocumentMutation,
+  type DeleteTagInput,
+  type DeleteTagResult,
+  type UpdateTagInput,
   type DocumentMutation,
   type CreateNotebookInput,
   type DeleteNotebookInput,
   type DeleteNotebookResult,
+  type UpdateNotebookInput,
   type PermanentlyDeleteNotesInput,
   type PermanentlyDeleteNotesResult,
   type Notebook,
   type NotebookIconName,
   type NoteDocument,
   type NoteId,
+  type TagSummary,
 } from '../../shared/documents/document.types';
+import { summarizeMarkdownTaskProgress } from '../../shared/documents/taskProgress';
 
 const FIRST_SCHEMA_VERSION = 1;
 const ORGANIZATION_SCHEMA_VERSION = 2;
@@ -48,6 +64,10 @@ const NOTEBOOK_ICON_SCHEMA_VERSION = 4;
  * a new, monotonic migration instead of reusing that historical version.
  */
 const NONE_STATUS_SCHEMA_VERSION = 7;
+export const ORGANIZATION_TAG_ID_SCHEMA_VERSION = 8;
+export const ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION = 9;
+export const ORGANIZATION_DATA_MODEL_SCHEMA_VERSION =
+  ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION;
 
 const PENDING_OUTBOX_STATUS = 'pending';
 
@@ -58,6 +78,10 @@ type NoteRow = Readonly<{
   notebook_id: string;
   status: string;
   status_is_none: number;
+  doctype: string;
+  pinned: number;
+  num_of_tasks: number;
+  num_of_checked_tasks: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -68,6 +92,25 @@ type NoteRow = Readonly<{
 type TagRow = Readonly<{
   note_id: string;
   name: string;
+}>;
+
+type TagSummaryRow = Readonly<{
+  id: string;
+  name: string;
+  color: string;
+  count: number;
+  created_at: string;
+  updated_at: string;
+}>;
+
+type LegacyTagRow = Readonly<{
+  name: string;
+  created_at: string;
+}>;
+
+type LegacyNoteTagRow = Readonly<{
+  note_id: string;
+  tag_name: string;
 }>;
 
 type NotebookRow = Readonly<{
@@ -93,6 +136,15 @@ type UpdateRow = Readonly<{
 
 type InsertResult = Readonly<{
   lastInsertRowid: number | bigint;
+}>;
+
+type CountRow = Readonly<{
+  count: number;
+}>;
+
+type TaskProjectionRow = Readonly<{
+  id: string;
+  body: string;
 }>;
 
 export type PendingLocalDocumentUpdate = Readonly<{
@@ -122,7 +174,8 @@ export class LocalDocumentStore
     DocumentRepository,
     DocumentDeletionRepository,
     DocumentQueryRepository,
-    NotebookRepository
+    NotebookRepository,
+    TagRepository
 {
   private readonly applyLocalTransaction: (
     mutation: DocumentMutation,
@@ -135,6 +188,18 @@ export class LocalDocumentStore
   private readonly deleteNotebookTransaction: (
     input: DeleteNotebookInput,
   ) => DeleteNotebookResult;
+
+  private readonly updateNotebookTransaction: (
+    input: UpdateNotebookInput,
+  ) => Notebook;
+
+  private readonly createTagTransaction: (input: CreateTagInput) => TagSummary;
+
+  private readonly updateTagTransaction: (input: UpdateTagInput) => TagSummary;
+
+  private readonly deleteTagTransaction: (
+    input: DeleteTagInput,
+  ) => DeleteTagResult;
 
   private readonly deletePermanentlyTransaction: (
     input: PermanentlyDeleteNotesInput,
@@ -152,6 +217,18 @@ export class LocalDocumentStore
     this.deleteNotebookTransaction = this.database.transaction((input) =>
       this.deleteNotebookAndArchiveDirectNotes(input),
     );
+    this.updateNotebookTransaction = this.database.transaction((input) =>
+      this.updateNotebookRecord(input),
+    );
+    this.createTagTransaction = this.database.transaction((input) =>
+      this.createTagRecord(input),
+    );
+    this.updateTagTransaction = this.database.transaction((input) =>
+      this.updateTagRecord(input),
+    );
+    this.deleteTagTransaction = this.database.transaction((input) =>
+      this.deleteTagRecord(input),
+    );
     this.deletePermanentlyTransaction = this.database.transaction((input) =>
       this.deleteArchivedNotesPermanently(input),
     );
@@ -167,7 +244,7 @@ export class LocalDocumentStore
         `SELECT *
          FROM notes
          WHERE deleted_at IS NULL
-         ORDER BY updated_at DESC, id ASC`,
+         ORDER BY pinned DESC, updated_at DESC, id ASC`,
       )
       .all();
 
@@ -197,6 +274,47 @@ export class LocalDocumentStore
       .all(INBOX_NOTEBOOK_ID);
 
     return Object.freeze(rows.map(notebookFromRow));
+  }
+
+  async listTags(): Promise<readonly TagSummary[]> {
+    const rows = this.database
+      .prepare<[], TagSummaryRow>(
+        `SELECT tags.id, tags.name, tags.color, tags.created_at, tags.updated_at,
+                COUNT(active_notes.id) AS count
+         FROM tags
+         LEFT JOIN note_tags ON note_tags.tag_id = tags.id
+         LEFT JOIN notes AS active_notes
+           ON active_notes.id = note_tags.note_id
+          AND active_notes.deleted_at IS NULL
+         GROUP BY tags.id, tags.name, tags.color, tags.created_at, tags.updated_at
+         ORDER BY tags.name COLLATE NOCASE ASC, tags.id ASC`,
+      )
+      .all();
+
+    return Object.freeze(
+      rows.map((row) =>
+        validateTagSummary({
+          id: row.id,
+          name: row.name,
+          color: row.color,
+          count: row.count,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }),
+      ),
+    );
+  }
+
+  async createTag(input: CreateTagInput): Promise<TagSummary> {
+    return this.createTagTransaction(validateCreateTagInput(input));
+  }
+
+  async updateTag(input: UpdateTagInput): Promise<TagSummary> {
+    return this.updateTagTransaction(validateUpdateTagInput(input));
+  }
+
+  async deleteTag(input: DeleteTagInput): Promise<DeleteTagResult> {
+    return this.deleteTagTransaction(validateDeleteTagInput(input));
   }
 
   async createNotebook(input: CreateNotebookInput): Promise<Notebook> {
@@ -238,6 +356,10 @@ export class LocalDocumentStore
     input: DeleteNotebookInput,
   ): Promise<DeleteNotebookResult> {
     return this.deleteNotebookTransaction(input);
+  }
+
+  async updateNotebook(input: UpdateNotebookInput): Promise<Notebook> {
+    return this.updateNotebookTransaction(validateUpdateNotebookInput(input));
   }
 
   async deletePermanently(
@@ -510,6 +632,204 @@ export class LocalDocumentStore
           .run(NONE_STATUS_SCHEMA_VERSION, new Date().toISOString());
       })();
     }
+
+    const hasTagIdSchema = this.database
+      .prepare<[number], { version: number }>(
+        'SELECT version FROM schema_migrations WHERE version = ?',
+      )
+      .get(ORGANIZATION_TAG_ID_SCHEMA_VERSION);
+
+    if (hasTagIdSchema === undefined) {
+      this.database.transaction(() => this.migrateTagsToIdentifiers())();
+    }
+
+    const hasMetadataSchema = this.database
+      .prepare<[number], { version: number }>(
+        'SELECT version FROM schema_migrations WHERE version = ?',
+      )
+      .get(ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION);
+    const hasDoctypeColumn = this.notesTableHasColumn('doctype');
+    const hasPinnedColumn = this.notesTableHasColumn('pinned');
+    const hasTaskCountColumn = this.notesTableHasColumn('num_of_tasks');
+    const hasCheckedTaskCountColumn = this.notesTableHasColumn(
+      'num_of_checked_tasks',
+    );
+
+    if (
+      hasMetadataSchema === undefined ||
+      !hasDoctypeColumn ||
+      !hasPinnedColumn ||
+      !hasTaskCountColumn ||
+      !hasCheckedTaskCountColumn
+    ) {
+      this.database.transaction(() => {
+        if (!hasDoctypeColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN doctype TEXT NOT NULL DEFAULT 'markdown'
+              CHECK (doctype = 'markdown');
+          `);
+        }
+        if (!hasPinnedColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0
+              CHECK (pinned IN (0, 1));
+          `);
+        }
+        if (!hasTaskCountColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN num_of_tasks INTEGER NOT NULL DEFAULT 0
+              CHECK (num_of_tasks >= 0);
+          `);
+        }
+        if (!hasCheckedTaskCountColumn) {
+          this.database.exec(`
+            ALTER TABLE notes ADD COLUMN num_of_checked_tasks INTEGER NOT NULL DEFAULT 0
+              CHECK (num_of_checked_tasks >= 0);
+          `);
+        }
+        const existingRows = this.database
+          .prepare<[], TaskProjectionRow>('SELECT id, body FROM notes')
+          .all();
+        const updateTaskCounts = this.database.prepare<
+          [number, number, string]
+        >(
+          `UPDATE notes
+           SET num_of_tasks = ?, num_of_checked_tasks = ?
+           WHERE id = ?`,
+        );
+
+        for (const row of existingRows) {
+          const taskProgress = summarizeMarkdownTaskProgress(row.body);
+
+          updateTaskCounts.run(
+            taskProgress.total,
+            taskProgress.checked,
+            row.id,
+          );
+        }
+        this.database
+          .prepare<[number, string]>(
+            `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)
+             ON CONFLICT(version) DO NOTHING`,
+          )
+          .run(
+            ORGANIZATION_NOTE_METADATA_SCHEMA_VERSION,
+            new Date().toISOString(),
+          );
+      })();
+    }
+  }
+
+  private migrateTagsToIdentifiers(): void {
+    const legacyTags = this.database
+      .prepare<[], LegacyTagRow>(
+        `SELECT name, created_at
+         FROM tags
+         ORDER BY name COLLATE NOCASE ASC`,
+      )
+      .all();
+    const legacyLinks = this.database
+      .prepare<[], LegacyNoteTagRow>(
+        `SELECT note_id, tag_name
+         FROM note_tags
+         ORDER BY note_id ASC, tag_name COLLATE NOCASE ASC`,
+      )
+      .all();
+
+    this.database.exec(`
+      ALTER TABLE note_tags RENAME TO note_tags_v7;
+      ALTER TABLE tags RENAME TO tags_v7;
+
+      CREATE TABLE tags (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        color TEXT NOT NULL DEFAULT 'default'
+          CHECK (color IN (
+            'default', 'red', 'orange', 'yellow', 'olive', 'green', 'teal',
+            'blue', 'violet', 'purple', 'pink', 'brown', 'grey', 'black'
+          )),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE note_tags (
+        note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE RESTRICT,
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE RESTRICT,
+        PRIMARY KEY (note_id, tag_id)
+      );
+
+      CREATE INDEX note_tags_tag_id_note_id_idx
+        ON note_tags(tag_id, note_id);
+    `);
+
+    const insertTag = this.database.prepare<
+      [string, string, string, string, string]
+    >(
+      `INSERT INTO tags(id, name, color, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+    const tagIdsByName = new Map<string, string>();
+
+    for (const tag of legacyTags) {
+      const id = createGeneratedTagId(randomUUID());
+
+      insertTag.run(id, tag.name, 'default', tag.created_at, tag.created_at);
+      tagIdsByName.set(tag.name.toLocaleLowerCase(), id);
+    }
+
+    const attachTag = this.database.prepare<[string, string]>(
+      `INSERT INTO note_tags(note_id, tag_id) VALUES (?, ?)`,
+    );
+
+    for (const link of legacyLinks) {
+      const tagId = tagIdsByName.get(link.tag_name.toLocaleLowerCase());
+
+      if (tagId === undefined) {
+        throw createInvalidMutationError(
+          `Legacy tag association references missing tag "${link.tag_name}".`,
+        );
+      }
+
+      attachTag.run(link.note_id, tagId);
+    }
+
+    const copiedTagCount =
+      this.database
+        .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM tags')
+        .get()?.count ?? -1;
+    const copiedLinkCount =
+      this.database
+        .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM note_tags')
+        .get()?.count ?? -1;
+
+    if (
+      copiedTagCount !== legacyTags.length ||
+      copiedLinkCount !== legacyLinks.length
+    ) {
+      throw createInvalidMutationError(
+        'The tag migration did not preserve every tag association.',
+      );
+    }
+
+    const foreignKeyViolations = this.database
+      .prepare<[], Record<string, unknown>>('PRAGMA foreign_key_check')
+      .all();
+
+    if (foreignKeyViolations.length > 0) {
+      throw createInvalidMutationError(
+        'The tag migration produced invalid foreign-key relationships.',
+      );
+    }
+
+    this.database.exec(`
+      DROP TABLE note_tags_v7;
+      DROP TABLE tags_v7;
+    `);
+    this.database
+      .prepare<[number, string]>(
+        'INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)',
+      )
+      .run(ORGANIZATION_TAG_ID_SCHEMA_VERSION, new Date().toISOString());
   }
 
   private notesTableHasColumn(columnName: string): boolean {
@@ -578,6 +898,282 @@ export class LocalDocumentStore
       return toNoteDocument(document);
     } finally {
       yDocument.destroy();
+    }
+  }
+
+  private updateNotebookRecord(input: UpdateNotebookInput): Notebook {
+    const notebook = this.database
+      .prepare<[string], NotebookRow>(
+        `SELECT id, name, parent_id, icon, created_at, updated_at
+         FROM notebooks
+         WHERE id = ?`,
+      )
+      .get(input.id);
+
+    if (notebook === undefined) {
+      throw createInvalidMutationError(
+        `Notebook "${input.id}" does not exist.`,
+      );
+    }
+
+    this.assertValidNotebookParent(input.id, input.parentId);
+
+    this.database
+      .prepare<[string, string | null, string | null, string, string]>(
+        `UPDATE notebooks
+         SET name = ?, parent_id = ?, icon = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(input.name, input.parentId, input.icon, input.occurredAt, input.id);
+
+    return notebookFromRow({
+      ...notebook,
+      name: input.name,
+      parent_id: input.parentId,
+      icon: input.icon,
+      updated_at: input.occurredAt,
+    });
+  }
+
+  private createTagRecord(input: CreateTagInput): TagSummary {
+    const existing = this.database
+      .prepare<[string, string], Pick<TagSummaryRow, 'id'>>(
+        'SELECT id FROM tags WHERE id = ? OR name = ?',
+      )
+      .get(input.id, input.name);
+
+    if (existing !== undefined) {
+      throw createInvalidMutationError(
+        'A tag with the requested ID or name already exists.',
+      );
+    }
+
+    this.database
+      .prepare<[string, string, string, string, string]>(
+        `INSERT INTO tags(id, name, color, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.name,
+        input.color,
+        input.occurredAt,
+        input.occurredAt,
+      );
+
+    return this.readRequiredTagSummary(input.id);
+  }
+
+  private updateTagRecord(input: UpdateTagInput): TagSummary {
+    const existing = this.database
+      .prepare<[string], Pick<TagSummaryRow, 'id' | 'name'>>(
+        'SELECT id, name FROM tags WHERE id = ?',
+      )
+      .get(input.id);
+
+    if (existing === undefined) {
+      throw createInvalidMutationError(`Tag "${input.id}" does not exist.`);
+    }
+
+    if (existing.name === input.name) {
+      this.database
+        .prepare<[string, string, string]>(
+          `UPDATE tags
+           SET color = ?, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(input.color, input.occurredAt, input.id);
+
+      return this.readRequiredTagSummary(input.id);
+    }
+
+    const duplicate = this.database
+      .prepare<[string, string], Pick<TagSummaryRow, 'id'>>(
+        'SELECT id FROM tags WHERE name = ? AND id <> ?',
+      )
+      .get(input.name, input.id);
+
+    if (duplicate !== undefined) {
+      throw createInvalidMutationError(
+        'A tag with the requested name already exists.',
+      );
+    }
+
+    this.database
+      .prepare<[string, string, string, string]>(
+        `UPDATE tags
+         SET name = ?, color = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(input.name, input.color, input.occurredAt, input.id);
+
+    for (const note of this.listTagAssociatedNoteRows(input.id)) {
+      this.propagateTagNameToDocument({
+        note,
+        tagId: existing.id,
+        currentName: existing.name,
+        nextName: input.name,
+        operation: 'update',
+        occurredAt: input.occurredAt,
+      });
+    }
+
+    return this.readRequiredTagSummary(input.id);
+  }
+
+  private deleteTagRecord(input: DeleteTagInput): DeleteTagResult {
+    const tag = this.database
+      .prepare<[string], Pick<TagSummaryRow, 'id' | 'name'>>(
+        'SELECT id, name FROM tags WHERE id = ?',
+      )
+      .get(input.id);
+
+    if (tag === undefined) {
+      throw createInvalidMutationError(`Tag "${input.id}" does not exist.`);
+    }
+
+    const notes = this.listTagAssociatedNoteRows(input.id);
+
+    for (const note of notes) {
+      this.propagateTagNameToDocument({
+        note,
+        tagId: tag.id,
+        currentName: tag.name,
+        nextName: null,
+        operation: 'delete',
+        occurredAt: input.occurredAt,
+      });
+    }
+
+    this.database
+      .prepare<[string]>('DELETE FROM tags WHERE id = ?')
+      .run(input.id);
+
+    return validateDeleteTagResult({
+      deletedTagId: tag.id,
+      affectedNoteIds: notes.map((note) => createNoteId(note.id)),
+    });
+  }
+
+  private listTagAssociatedNoteRows(tagId: string): readonly NoteRow[] {
+    return this.database
+      .prepare<[string], NoteRow>(
+        `SELECT notes.*
+         FROM notes
+         INNER JOIN note_tags ON note_tags.note_id = notes.id
+         WHERE note_tags.tag_id = ?
+         ORDER BY notes.id ASC`,
+      )
+      .all(tagId);
+  }
+
+  private propagateTagNameToDocument(input: {
+    note: NoteRow;
+    tagId: string;
+    currentName: string;
+    nextName: string | null;
+    operation: 'update' | 'delete';
+    occurredAt: string;
+  }): void {
+    const documentId = createNoteId(input.note.id);
+    const operationId = createMutationId(
+      `tag:${input.operation}:${input.tagId}:${input.note.id}:${input.occurredAt}`,
+    );
+    const yDocument = this.loadYDocument(documentId);
+
+    try {
+      const update = captureYUpdate(yDocument, () =>
+        replaceTagNameInYDocument({
+          document: yDocument,
+          currentName: input.currentName,
+          nextName: input.nextName,
+          occurredAt: input.occurredAt,
+          operationId,
+        }),
+      );
+      const document = projectYDocument(
+        yDocument,
+        documentId,
+        input.note.projection_generation + 1,
+      );
+
+      this.updateProjection(document);
+      this.insertUpdate({
+        operationId,
+        documentId,
+        origin: 'local',
+        update,
+        occurredAt: input.occurredAt,
+      });
+    } finally {
+      yDocument.destroy();
+    }
+  }
+
+  private readRequiredTagSummary(id: string): TagSummary {
+    const row = this.database
+      .prepare<[string], TagSummaryRow>(
+        `SELECT tags.id, tags.name, tags.color, tags.created_at, tags.updated_at,
+                COUNT(active_notes.id) AS count
+         FROM tags
+         LEFT JOIN note_tags ON note_tags.tag_id = tags.id
+         LEFT JOIN notes AS active_notes
+           ON active_notes.id = note_tags.note_id
+          AND active_notes.deleted_at IS NULL
+         WHERE tags.id = ?
+         GROUP BY tags.id, tags.name, tags.color, tags.created_at, tags.updated_at`,
+      )
+      .get(id);
+
+    if (row === undefined) {
+      throw createInvalidMutationError(`Tag "${id}" does not exist.`);
+    }
+
+    return validateTagSummary({
+      id: row.id,
+      name: row.name,
+      color: row.color,
+      count: row.count,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  private assertValidNotebookParent(
+    notebookId: string,
+    parentId: string | null,
+  ): void {
+    let currentParentId = parentId;
+    const visitedParentIds = new Set<string>();
+
+    while (currentParentId !== null) {
+      if (currentParentId === notebookId) {
+        throw createInvalidMutationError(
+          'A notebook cannot be placed under itself or one of its descendants.',
+        );
+      }
+
+      if (visitedParentIds.has(currentParentId)) {
+        throw createInvalidMutationError(
+          'The notebook hierarchy contains a cycle.',
+        );
+      }
+
+      visitedParentIds.add(currentParentId);
+
+      const parent = this.database
+        .prepare<[string], Pick<NotebookRow, 'parent_id'>>(
+          'SELECT parent_id FROM notebooks WHERE id = ?',
+        )
+        .get(currentParentId);
+
+      if (parent === undefined) {
+        throw createInvalidMutationError(
+          `Notebook parent "${currentParentId}" does not exist.`,
+        );
+      }
+
+      currentParentId = parent.parent_id;
     }
   }
 
@@ -902,12 +1498,17 @@ export class LocalDocumentStore
           string | null,
           number,
           string,
+          string,
+          number,
+          number,
+          number,
         ]
       >(
         `INSERT INTO notes(
           id, title, body, notebook_id, status, status_is_none, created_at,
-          updated_at, deleted_at, projection_generation, revision
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          updated_at, deleted_at, projection_generation, revision, doctype,
+          pinned, num_of_tasks, num_of_checked_tasks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         document.id,
@@ -921,6 +1522,10 @@ export class LocalDocumentStore
         document.deletedAt,
         document.projectionGeneration,
         document.revision,
+        document.doctype,
+        document.pinned ? 1 : 0,
+        document.numOfTasks,
+        document.numOfCheckedTasks,
       );
 
     this.replaceTags(document.id, document.tags, document.createdAt);
@@ -943,11 +1548,16 @@ export class LocalDocumentStore
           number,
           string,
           string,
+          number,
+          number,
+          number,
+          string,
         ]
       >(
         `UPDATE notes
          SET title = ?, body = ?, notebook_id = ?, status = ?, status_is_none = ?,
-             created_at = ?, updated_at = ?, deleted_at = ?, projection_generation = ?, revision = ?
+             created_at = ?, updated_at = ?, deleted_at = ?, projection_generation = ?, revision = ?,
+             doctype = ?, pinned = ?, num_of_tasks = ?, num_of_checked_tasks = ?
          WHERE id = ?`,
       )
       .run(
@@ -961,6 +1571,10 @@ export class LocalDocumentStore
         document.deletedAt,
         document.projectionGeneration,
         document.revision,
+        document.doctype,
+        document.pinned ? 1 : 0,
+        document.numOfTasks,
+        document.numOfCheckedTasks,
         document.id,
       );
 
@@ -988,18 +1602,35 @@ export class LocalDocumentStore
       .prepare<[string]>('DELETE FROM note_tags WHERE note_id = ?')
       .run(documentId);
 
-    const insertTag = this.database.prepare<[string, string]>(
-      `INSERT INTO tags(name, created_at)
-       VALUES (?, ?)
+    const insertTag = this.database.prepare<
+      [string, string, string, string, string]
+    >(
+      `INSERT INTO tags(id, name, color, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(name) DO NOTHING`,
     );
+    const readTagId = this.database.prepare<[string], Readonly<{ id: string }>>(
+      'SELECT id FROM tags WHERE name = ?',
+    );
     const attachTag = this.database.prepare<[string, string]>(
-      `INSERT INTO note_tags(note_id, tag_name) VALUES (?, ?)`,
+      `INSERT INTO note_tags(note_id, tag_id) VALUES (?, ?)`,
     );
 
     for (const tag of tags) {
-      insertTag.run(tag, occurredAt);
-      attachTag.run(documentId, tag);
+      insertTag.run(
+        createGeneratedTagId(randomUUID()),
+        tag,
+        'default',
+        occurredAt,
+        occurredAt,
+      );
+      const tagRow = readTagId.get(tag);
+
+      if (tagRow === undefined) {
+        throw createInvalidMutationError(`Tag "${tag}" could not be resolved.`);
+      }
+
+      attachTag.run(documentId, tagRow.id);
     }
   }
 
@@ -1012,7 +1643,7 @@ export class LocalDocumentStore
       .prepare(
         `SELECT note_tags.note_id, tags.name
          FROM note_tags
-         INNER JOIN tags ON tags.name = note_tags.tag_name
+         INNER JOIN tags ON tags.id = note_tags.tag_id
          WHERE note_tags.note_id IN (${rows.map(() => '?').join(', ')})
          ORDER BY tags.name COLLATE NOCASE ASC`,
       )
@@ -1036,7 +1667,7 @@ export class LocalDocumentStore
       .prepare<[string], Pick<TagRow, 'name'>>(
         `SELECT tags.name
          FROM note_tags
-         INNER JOIN tags ON tags.name = note_tags.tag_name
+         INNER JOIN tags ON tags.id = note_tags.tag_id
          WHERE note_tags.note_id = ?
          ORDER BY tags.name COLLATE NOCASE ASC`,
       )
@@ -1117,6 +1748,10 @@ export class LocalDocumentStore
 type PersistedDocumentProjection = NoteDocument &
   Readonly<{
     projectionGeneration: number;
+    doctype: 'markdown';
+    pinned: boolean;
+    numOfTasks: number;
+    numOfCheckedTasks: number;
   }>;
 
 const captureYUpdate = (document: Y.Doc, operation: () => void): Uint8Array => {
@@ -1158,7 +1793,9 @@ const applyMutationToYDocument = (
         replaceYText(body, mutation.body);
         metadata.set('createdAt', mutation.occurredAt);
         metadata.set('deletedAt', null);
+        metadata.set('doctype', 'markdown');
         metadata.set('notebookId', mutation.notebookId);
+        metadata.set('pinned', false);
         metadata.set('status', mutation.status);
         replaceYArray(tags, mutation.tags);
         break;
@@ -1170,6 +1807,9 @@ const applyMutationToYDocument = (
         break;
       case 'update-tags':
         replaceYArray(tags, mutation.tags);
+        break;
+      case 'update-pinned':
+        metadata.set('pinned', mutation.pinned);
         break;
       case 'update-organization':
         metadata.set('notebookId', mutation.notebookId);
@@ -1188,6 +1828,53 @@ const applyMutationToYDocument = (
 
     metadata.set('updatedAt', mutation.occurredAt);
     metadata.set('lastOperationId', mutation.id);
+  });
+};
+
+const replaceTagNameInYDocument = (input: {
+  document: Y.Doc;
+  currentName: string;
+  nextName: string | null;
+  occurredAt: string;
+  operationId: string;
+}): void => {
+  const tags = input.document.getArray<string>('tags');
+  const metadata = input.document.getMap<unknown>('metadata');
+  const currentName = input.currentName.trim().toLocaleLowerCase();
+  const nextTags: string[] = [];
+  const seenTagNames = new Set<string>();
+  let foundCurrentName = false;
+
+  for (const tag of tags.toArray()) {
+    const isCurrentName = tag.trim().toLocaleLowerCase() === currentName;
+    const nextTag = isCurrentName ? input.nextName : tag;
+
+    foundCurrentName ||= isCurrentName;
+
+    if (nextTag === null) {
+      continue;
+    }
+
+    const normalizedNextTag = nextTag.trim().toLocaleLowerCase();
+
+    if (seenTagNames.has(normalizedNextTag)) {
+      continue;
+    }
+
+    seenTagNames.add(normalizedNextTag);
+    nextTags.push(nextTag);
+  }
+
+  if (!foundCurrentName) {
+    throw createInvalidMutationError(
+      `The Yjs document does not contain tag "${input.currentName}".`,
+    );
+  }
+
+  input.document.transact(() => {
+    replaceYArray(tags, nextTags);
+    metadata.set('updatedAt', input.occurredAt);
+    metadata.set('lastOperationId', input.operationId);
   });
 };
 
@@ -1232,11 +1919,13 @@ const projectYDocument = (
     'updatedAt',
   );
   const deletedAt = readDeletedAt(metadata.get('deletedAt'));
+  const body = document.getText('body').toString();
+  const taskProgress = summarizeMarkdownTaskProgress(body);
 
   return Object.freeze({
     id,
     title: document.getText('title').toString(),
-    body: document.getText('body').toString(),
+    body,
     notebookId: readNotebookId(metadata.get('notebookId')),
     status: readNoteStatus(metadata.get('status')),
     tags: Object.freeze(
@@ -1244,6 +1933,10 @@ const projectYDocument = (
         (left, right) => left.localeCompare(right),
       ),
     ),
+    doctype: readDocumentDoctype(metadata.get('doctype')),
+    pinned: readDocumentPinned(metadata.get('pinned')),
+    numOfTasks: taskProgress.total,
+    numOfCheckedTasks: taskProgress.checked,
     createdAt,
     updatedAt,
     deletedAt,
@@ -1260,6 +1953,13 @@ const documentFromRow = (row: NoteRow, tags: readonly string[]): NoteDocument =>
     notebookId: row.notebook_id,
     status: readNoteStatus(row.status, row.status_is_none),
     tags: Object.freeze([...tags]),
+    doctype: readDocumentDoctype(row.doctype),
+    pinned: readDocumentPinned(row.pinned),
+    numOfTasks: readTaskCount(row.num_of_tasks, 'task count'),
+    numOfCheckedTasks: readTaskCount(
+      row.num_of_checked_tasks,
+      'checked task count',
+    ),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -1286,6 +1986,10 @@ const toNoteDocument = (
     notebookId: projection.notebookId,
     status: projection.status,
     tags: Object.freeze([...projection.tags]),
+    doctype: projection.doctype,
+    pinned: projection.pinned,
+    numOfTasks: projection.numOfTasks,
+    numOfCheckedTasks: projection.numOfCheckedTasks,
     createdAt: projection.createdAt,
     updatedAt: projection.updatedAt,
     deletedAt: projection.deletedAt,
@@ -1388,6 +2092,40 @@ const readNotebookId = (value: unknown): string => {
   throw createInvalidMutationError(
     'A CRDT document must contain a non-empty notebookId.',
   );
+};
+
+const readDocumentDoctype = (value: unknown): 'markdown' => {
+  if (value === undefined || value === 'markdown') {
+    return 'markdown';
+  }
+
+  throw createInvalidMutationError(
+    'A note projection must contain the Markdown doctype.',
+  );
+};
+
+const readDocumentPinned = (value: unknown): boolean => {
+  if (value === undefined || value === 0 || value === false) {
+    return false;
+  }
+
+  if (value === 1 || value === true) {
+    return true;
+  }
+
+  throw createInvalidMutationError(
+    'A note projection must contain a valid pinned marker.',
+  );
+};
+
+const readTaskCount = (value: unknown, label: string): number => {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw createInvalidMutationError(
+      `A note projection must contain a non-negative ${label}.`,
+    );
+  }
+
+  return value;
 };
 
 const persistedStatus = (status: NoteDocument['status']): string =>

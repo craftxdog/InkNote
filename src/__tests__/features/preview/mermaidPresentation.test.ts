@@ -1,120 +1,56 @@
 const render = jest.fn();
-const initialize = jest.fn();
+const unmount = jest.fn();
+const createRoot = jest.fn(() => ({ render, unmount }));
 
-jest.mock('mermaid', () => ({
-  __esModule: true,
-  default: {
-    initialize,
-    render,
-  },
-}));
+jest.mock('react-dom/client', () => ({ createRoot }));
+jest.mock(
+  '../../../renderer/features/preview/components/InkdropMermaidDiagram',
+  () => ({ InkdropMermaidDiagram: () => null }),
+);
 
-import {
-  mermaidConfiguration,
-  renderMermaidDiagrams,
-  sanitizeMermaidSvg,
-} from '../../../renderer/features/preview/mermaidPresentation';
+import { mountMermaidDiagrams } from '../../../renderer/features/preview/mermaidPresentation';
 
-describe('sanitizeMermaidSvg', () => {
-  it('configures Mermaid to emit SVG labels rather than foreignObject labels', () => {
-    expect(mermaidConfiguration).toMatchObject({
-      securityLevel: 'strict',
-      htmlLabels: false,
-    });
+describe('mountMermaidDiagrams', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('retains an SVG diagram while removing executable and external content', () => {
-    const svg = sanitizeMermaidSvg(`
-      <svg xmlns="http://www.w3.org/2000/svg" onload="alert('nope')">
-        <text><tspan>Safe SVG label</tspan></text>
-        <script>alert('nope')</script>
-        <foreignObject><div>untrusted HTML</div></foreignObject>
-        <a href="https://example.invalid"><text>External link</text></a>
-        <style>@import url(https://example.invalid/theme.css);</style>
-        <rect style="fill: url(https://example.invalid/pixel.svg)" />
-        <path style="marker-end: url(#arrowhead)" />
-      </svg>
-    `);
-
-    expect(svg).not.toBeNull();
-    expect(svg?.getAttribute('role')).toBe('img');
-    expect(svg?.querySelector('script')).toBeNull();
-    expect(svg?.querySelector('foreignObject')).toBeNull();
-    expect(svg?.querySelector('text')?.textContent).toBe('Safe SVG label');
-    expect(svg?.querySelector('a')?.getAttribute('href')).toBeNull();
-    expect(svg?.querySelector('style')).toBeNull();
-    expect(svg?.querySelector('rect')?.getAttribute('style')).toBeNull();
-    expect(svg?.querySelector('path')?.getAttribute('style')).toBe(
-      'marker-end: url(#arrowhead)',
-    );
-  });
-
-  it('rejects markup that is not a valid SVG document', () => {
-    expect(sanitizeMermaidSvg('<svg><g></svg>')).toBeNull();
-    expect(sanitizeMermaidSvg('<div>not an SVG</div>')).toBeNull();
-  });
-
-  it('replaces Mermaid fences with a safe, source-anchored diagram', async () => {
-    render.mockResolvedValue({
-      svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>CI</text></svg>',
-    });
+  it('replaces Mermaid mounts with Inkdrop renderer roots while preserving source anchors', () => {
     const preview = document.createElement('div');
 
-    preview.innerHTML = `
-      <pre class="inknote-code-block" data-language="MERMAID" data-code-title="CI flow" data-source-line="3" data-source-end-line="8"><code>flowchart TD\nA --&gt; B</code></pre>
-    `;
-    document.body.append(preview);
+    preview.innerHTML = [
+      '<div class="inknote-mermaid-mount" data-mermaid="true" data-code-title="CI flow" data-source-line="3" data-source-end-line="8">',
+      '<code>flowchart TD\nA --&gt; B</code>',
+      '</div>',
+    ].join('');
 
-    await renderMermaidDiagrams(preview, async () => ({ render }));
+    const mounted = mountMermaidDiagrams(preview, 'nord');
 
-    expect(render).toHaveBeenCalledWith(
-      expect.stringMatching(/^inknote-mermaid-/),
-      'flowchart TD\nA --> B',
+    expect(createRoot).toHaveBeenCalledWith(
+      preview.querySelector('.inknote-mermaid-mount'),
     );
-    const figure = preview.querySelector('figure.inknote-mermaid');
+    expect(render).toHaveBeenCalledTimes(1);
 
-    expect(figure?.getAttribute('data-source-line')).toBe('3');
-    expect(figure?.getAttribute('aria-label')).toBe('CI flow');
-    expect(figure?.textContent).toContain('CI flow');
-    expect(figure?.querySelector('svg')?.getAttribute('role')).toBe('img');
+    const diagram = render.mock.calls[0]?.[0];
 
-    preview.remove();
-  });
-
-  it('adds keyboard-accessible pan and zoom controls to each diagram', async () => {
-    render.mockResolvedValue({
-      svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>CI</text></svg>',
+    expect(diagram.props).toMatchObject({
+      code: 'flowchart TD\nA --> B',
+      themeRevision: 'nord',
+      title: 'CI flow',
     });
-    const preview = document.createElement('div');
+    expect(
+      preview
+        .querySelector('.inknote-mermaid-mount')
+        ?.getAttribute('data-source-line'),
+    ).toBe('3');
 
-    preview.innerHTML = `
-      <pre class="inknote-code-block" data-language="MERMAID"><code>flowchart TD\nA --&gt; B</code></pre>
-    `;
-    document.body.append(preview);
-
-    await renderMermaidDiagrams(preview, async () => ({ render }));
-
-    const figure = preview.querySelector<HTMLElement>('.inknote-mermaid');
-    const viewport = preview.querySelector<HTMLElement>(
-      '.inknote-mermaid__viewport',
-    );
-    const canvas = preview.querySelector<HTMLElement>(
-      '.inknote-mermaid__canvas',
-    );
-    const zoomIn = preview.querySelector<HTMLButtonElement>(
-      '[aria-label="Zoom in Mermaid diagram"]',
+    mounted.updateTheme('solarized-dark');
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(render.mock.calls[1]?.[0].props.themeRevision).toBe(
+      'solarized-dark',
     );
 
-    expect(viewport).not.toBeNull();
-    expect(viewport?.getAttribute('tabindex')).toBe('0');
-    expect(zoomIn).not.toBeNull();
-    expect(figure?.dataset.zoom).toBe('1');
-
-    zoomIn?.click();
-
-    expect(figure?.dataset.zoom).toBe('1.25');
-    expect(canvas?.style.width).toBe('125%');
-
-    preview.remove();
+    mounted.dispose();
+    expect(unmount).toHaveBeenCalledTimes(1);
   });
 });

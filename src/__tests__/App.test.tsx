@@ -50,6 +50,7 @@ describe('App', () => {
           listActive: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           createNotebook: jest.fn(),
         },
       },
@@ -69,7 +70,7 @@ describe('App', () => {
     expect(setTrafficLightsVisible).toHaveBeenCalledWith(true);
   });
 
-  it('creates and opens a local note with the documented new-note shortcut', async () => {
+  it('creates and opens local notes through the new-note control and documented shortcut', async () => {
     const createDocument = (id: string): NoteDocument =>
       Object.freeze({
         id: createNoteId(id),
@@ -107,6 +108,7 @@ describe('App', () => {
           listActive: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           createNotebook: jest.fn(),
         },
       },
@@ -114,9 +116,13 @@ describe('App', () => {
 
     render(<App />);
 
-    fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
+
+    await waitFor(() => expect(apply).toHaveBeenCalledTimes(2));
 
     expect(apply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -166,6 +172,84 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('navigates between explicitly opened notes with the history controls and keymap', async () => {
+    const first: NoteDocument = {
+      id: createNoteId('history-first'),
+      title: 'History first',
+      body: 'first',
+      notebookId: 'inbox',
+      status: 'active',
+      tags: [],
+      createdAt: '2026-10-21T12:00:00.000Z',
+      updatedAt: '2026-10-21T12:00:00.000Z',
+      revision: createRevision('local-history-first'),
+      deletedAt: null,
+    };
+    const second: NoteDocument = {
+      ...first,
+      id: createNoteId('history-second'),
+      title: 'History second',
+      body: 'second',
+      revision: createRevision('local-history-second'),
+    };
+    const byId = new Map([
+      [first.id, first],
+      [second.id, second],
+    ]);
+    Object.defineProperty(window, 'inknote', {
+      configurable: true,
+      value: {
+        windowControls: { setTrafficLightsVisible },
+        documents: {
+          get: jest.fn().mockImplementation(async (id) => ({
+            ok: true,
+            value: byId.get(id) ?? null,
+          })),
+          apply: jest.fn(),
+          listActive: jest.fn().mockResolvedValue({
+            ok: true,
+            value: [first, second],
+          }),
+          listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          createNotebook: jest.fn(),
+        },
+      },
+    });
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: /History first/i });
+    fireEvent.click(screen.getByRole('button', { name: /History first/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History first',
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /History second/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History second',
+      ),
+    );
+
+    expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History first',
+      ),
+    );
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note title' })).toHaveValue(
+        'History second',
+      ),
+    );
+  });
+
   it('keeps workspace shortcuts available while the Markdown editor has focus', async () => {
     render(<App />);
     const editor = document.createElement('div');
@@ -203,7 +287,7 @@ describe('App', () => {
     );
   });
 
-  it('opens preferences and applies the selected theme', () => {
+  it('opens preferences, applies the selected theme, and synchronizes document appearance', async () => {
     const { container } = render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -212,10 +296,14 @@ describe('App', () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Dark theme' }));
-    expect(container.querySelector('.workspace-shell')).toHaveAttribute(
-      'data-theme',
-      'dark',
-    );
+    await waitFor(() => {
+      expect(container.querySelector('.workspace-shell')).toHaveAttribute(
+        'data-theme',
+        'dark',
+      );
+      expect(document.documentElement.style.colorScheme).toBe('dark');
+      expect(document.body).toHaveClass('dark-mode');
+    });
   });
 
   it('selects an installed theme and applies its acrylic state without executing package code', async () => {
@@ -251,6 +339,7 @@ describe('App', () => {
           listActive: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           createNotebook: jest.fn(),
         },
         themes: {
@@ -321,6 +410,8 @@ describe('App', () => {
       value: {
         dataDirectory: '/private/inknote',
         backupDirectory: null,
+        migrationSafetySnapshotFile:
+          '/private/inknote/organization-migration-safety/v9-from-v7/before-organization-migration.sqlite',
       },
     });
     const chooseDirectory = jest.fn(async (purpose: string) => ({
@@ -349,6 +440,7 @@ describe('App', () => {
           listActive: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           createNotebook: jest.fn(),
         },
         data: {
@@ -368,6 +460,14 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByText('/private/inknote')).toBeInTheDocument(),
     );
+    expect(
+      screen.getByText('Organization migration safety snapshot'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        '/private/inknote/organization-migration-safety/v9-from-v7/before-organization-migration.sqlite',
+      ),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Configure backup…' }));
     await waitFor(() =>
@@ -385,6 +485,48 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(chooseDirectory).toHaveBeenCalledWith('backup');
     expect(chooseDirectory).toHaveBeenCalledWith('export');
+  });
+
+  it('hides the organization-migration safety location when no snapshot exists', async () => {
+    const getInfo = jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        dataDirectory: '/private/inknote',
+        backupDirectory: null,
+        migrationSafetySnapshotFile: null,
+      },
+    });
+
+    Object.defineProperty(window, 'inknote', {
+      configurable: true,
+      value: {
+        windowControls: { setTrafficLightsVisible },
+        documents: {
+          get: jest.fn().mockResolvedValue({ ok: true, value: null }),
+          apply: jest.fn(),
+          listActive: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          createNotebook: jest.fn(),
+        },
+        data: {
+          getInfo,
+          chooseDirectory: jest.fn(),
+          configureBackup: jest.fn(),
+          restoreBackup: jest.fn(),
+          exportMarkdown: jest.fn(),
+        },
+      },
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    await waitFor(() => expect(getInfo).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText('Organization migration safety snapshot'),
+    ).not.toBeInTheDocument();
   });
 
   it('updates the preview from the editor draft before its debounced save', async () => {
@@ -422,6 +564,7 @@ describe('App', () => {
           }),
           listArchived: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           listNotebooks: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           createNotebook: jest.fn(),
         },
       },
@@ -485,6 +628,7 @@ describe('App', () => {
             ok: true,
             value: [notebook],
           }),
+          listTags: jest.fn().mockResolvedValue({ ok: true, value: [] }),
           createNotebook: jest.fn(),
         },
       },

@@ -14,6 +14,7 @@ import type {
   ThemeAppearanceSettings,
   ThemeDescriptor,
 } from '../../../shared/themes/theme.types';
+import type { Notebook } from '../../../shared/documents/document.types';
 import type {
   AvailableWorkspaceTheme,
   WorkspaceThemeId,
@@ -26,10 +27,15 @@ type WorkspacePreferencesProps = {
   acrylic: ThemeAppearanceSettings;
   isThemeCatalogLoading: boolean;
   themeError: string | null;
+  notebooks: readonly Notebook[];
+  defaultNotebookId: string;
+  isDefaultNotebookLoading: boolean;
+  defaultNotebookError: string | null;
   onThemeChange: (theme: WorkspaceThemeId) => void;
   onInstallTheme: () => Promise<void>;
   onRemoveTheme: (theme: ThemeDescriptor) => Promise<void>;
   onAcrylicChange: (enabled: boolean) => Promise<void>;
+  onDefaultNotebookChange: (notebookId: string) => Promise<void>;
   onClose: () => void;
 };
 
@@ -52,6 +58,11 @@ type ThemeNotice = Readonly<{
   message: string;
 }>;
 
+type DefaultNotebookNotice = Readonly<{
+  tone: 'success' | 'error';
+  message: string;
+}>;
+
 /** A compact app-native preference surface, intentionally not a cloned UI. */
 export function WorkspacePreferences({
   isOpen,
@@ -60,10 +71,15 @@ export function WorkspacePreferences({
   acrylic,
   isThemeCatalogLoading,
   themeError,
+  notebooks,
+  defaultNotebookId,
+  isDefaultNotebookLoading,
+  defaultNotebookError,
   onThemeChange,
   onInstallTheme,
   onRemoveTheme,
   onAcrylicChange,
+  onDefaultNotebookChange,
   onClose,
 }: WorkspacePreferencesProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -72,6 +88,9 @@ export function WorkspacePreferences({
   const [dataNotice, setDataNotice] = useState<DataNotice | null>(null);
   const [isThemeBusy, setIsThemeBusy] = useState(false);
   const [themeNotice, setThemeNotice] = useState<ThemeNotice | null>(null);
+  const [isDefaultNotebookBusy, setIsDefaultNotebookBusy] = useState(false);
+  const [defaultNotebookNotice, setDefaultNotebookNotice] =
+    useState<DefaultNotebookNotice | null>(null);
 
   const refreshDataInfo = useCallback(async (): Promise<void> => {
     const data = window.inknote.data;
@@ -278,6 +297,28 @@ export function WorkspacePreferences({
     [onAcrylicChange],
   );
 
+  const changeDefaultNotebook = useCallback(
+    async (notebookId: string): Promise<void> => {
+      setIsDefaultNotebookBusy(true);
+
+      try {
+        await onDefaultNotebookChange(notebookId);
+        setDefaultNotebookNotice({
+          tone: 'success',
+          message: 'Default notebook updated.',
+        });
+      } catch (error) {
+        setDefaultNotebookNotice({
+          tone: 'error',
+          message: messageForDataError(error),
+        });
+      } finally {
+        setIsDefaultNotebookBusy(false);
+      }
+    },
+    [onDefaultNotebookChange],
+  );
+
   if (!isOpen) {
     return null;
   }
@@ -423,6 +464,50 @@ export function WorkspacePreferences({
             </dl>
           </section>
 
+          <section aria-labelledby="organization-heading">
+            <h3 id="organization-heading">New notes</h3>
+            <p>
+              Choose where a note created from All Notes, Tags, Status, or Trash
+              starts. Creating from a notebook keeps that notebook.
+            </p>
+
+            <label className="workspace-preferences__default-notebook">
+              <span>Default notebook</span>
+              <select
+                value={defaultNotebookId}
+                disabled={
+                  isDefaultNotebookLoading ||
+                  isDefaultNotebookBusy ||
+                  notebooks.length === 0
+                }
+                onChange={(event) =>
+                  void changeDefaultNotebook(event.target.value)
+                }
+              >
+                {notebooks.map((notebook) => (
+                  <option key={notebook.id} value={notebook.id}>
+                    {notebook.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {defaultNotebookNotice === null &&
+            defaultNotebookError === null ? null : (
+              <p
+                className={`workspace-preferences__default-notebook-notice workspace-preferences__default-notebook-notice--${defaultNotebookNotice?.tone ?? 'error'}`}
+                role={
+                  defaultNotebookNotice?.tone === 'error' ||
+                  defaultNotebookError !== null
+                    ? 'alert'
+                    : 'status'
+                }
+              >
+                {defaultNotebookNotice?.message ?? defaultNotebookError}
+              </p>
+            )}
+          </section>
+
           <section aria-labelledby="data-management-heading">
             <h3 id="data-management-heading">Local data</h3>
             <p>
@@ -439,6 +524,13 @@ export function WorkspacePreferences({
                 <dt>Backup directory</dt>
                 <dd>{dataInfo?.backupDirectory ?? 'Not configured'}</dd>
               </div>
+              {dataInfo === null ||
+              dataInfo.migrationSafetySnapshotFile === null ? null : (
+                <div>
+                  <dt>Organization migration safety snapshot</dt>
+                  <dd>{dataInfo.migrationSafetySnapshotFile}</dd>
+                </div>
+              )}
             </dl>
 
             <div className="workspace-preferences__data-actions">

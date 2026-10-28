@@ -12,8 +12,18 @@ import {
   type Notebook,
   type NotebookIconName,
   type NoteDocument,
+  type TagSummary,
 } from '../../../../shared/documents/document.types';
-import { colorForTag, tagColorHex } from '../../notes/model/notePresentation';
+import { tagColorHex } from '../../notes/model/notePresentation';
+import {
+  createCreateNotebookCommandRequest,
+  createDeleteNotebookCommandRequest,
+  type NotebookCommandRequest,
+} from '../../organization/model/notebookCommandRequest';
+import {
+  organizationCommandIds,
+  type OrganizationCommand,
+} from '../../organization/model/organizationCommands';
 
 import { navigationDestinations } from '../data/navigation.data';
 
@@ -24,10 +34,11 @@ import type {
 } from '../model/navigation.types';
 import {
   selectionForNotebook,
+  selectionForCatalogueTag,
   selectionForStatus,
-  selectionForTag,
   STATUS_LABELS,
 } from '../model/navigation.selections';
+import { NOTEBOOK_ICON_OPTIONS } from '../model/notebookIconOptions';
 import { buildNotebookTreeRows } from '../model/notebookTree';
 
 import {
@@ -43,20 +54,30 @@ import { NavigationHeader } from './NavigationSectionHeader';
 import { NavigationNotebookIcon } from './NavigationNotebookIcon';
 import { NavigationRow } from './NavigationRow';
 
+type NotebookCommandSource = 'menu' | 'context-menu';
+type TagCommandSource = 'menu' | 'context-menu';
+
 type NavigationLibraryViewProps = {
   selection: NavigationSelection;
   documents: readonly NoteDocument[];
   notebooks: readonly Notebook[];
+  tags?: readonly TagSummary[];
   expandedSections: NavigationSectionsState;
   onSelectionChange: (selection: NavigationSelection) => void;
   onToggleSection: (section: NavigationSectionId) => void;
-  onCreateNotebook: (
-    name: string,
-    parentId?: string | null,
-    icon?: NotebookIconName,
-  ) => Promise<Notebook>;
-  onDeleteNotebook?: (notebook: Notebook) => Promise<void>;
-  onOpenNotebookDetail?: (notebook: Notebook) => void;
+  onExecuteNotebookCommand: (
+    command: OrganizationCommand,
+    request: NotebookCommandRequest,
+    source: NotebookCommandSource,
+  ) => Promise<unknown>;
+  onOpenNotebookDetail: (
+    notebook: Notebook,
+    source: NotebookCommandSource,
+  ) => Promise<void>;
+  onEditNotebook: (notebook: Notebook) => void;
+  onCreateTag?: (source: TagCommandSource) => void;
+  onEditTag?: (tag: TagSummary, source: TagCommandSource) => void;
+  onDeleteTag?: (tag: TagSummary, source: TagCommandSource) => Promise<void>;
 };
 
 /**
@@ -68,12 +89,16 @@ export function NavigationLibraryView({
   selection,
   documents,
   notebooks,
+  tags = [],
   expandedSections,
   onSelectionChange,
   onToggleSection,
-  onCreateNotebook,
-  onDeleteNotebook,
+  onExecuteNotebookCommand,
   onOpenNotebookDetail,
+  onEditNotebook,
+  onCreateTag,
+  onEditTag,
+  onDeleteTag,
 }: NavigationLibraryViewProps) {
   const [notebookQuery, setNotebookQuery] = useState('');
   const [collapsedNotebookIds, setCollapsedNotebookIds] = useState<
@@ -82,11 +107,6 @@ export function NavigationLibraryView({
   const [tagQuery, setTagQuery] = useState('');
   const [isNotebookSearchVisible, setIsNotebookSearchVisible] = useState(false);
   const [isTagSearchVisible, setIsTagSearchVisible] = useState(false);
-  const [isCreatingNotebook, setIsCreatingNotebook] = useState(false);
-  const [newNotebookName, setNewNotebookName] = useState('');
-  const [newNotebookIcon, setNewNotebookIcon] = useState<
-    NotebookIconName | undefined
-  >(undefined);
   const [createError, setCreateError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<Readonly<{
     notebook: Notebook;
@@ -101,6 +121,12 @@ export function NavigationLibraryView({
     NotebookIconName | undefined
   >(undefined);
   const [subnotebookError, setSubnotebookError] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [tagContextMenu, setTagContextMenu] = useState<Readonly<{
+    tag: TagSummary;
+    x: number;
+    y: number;
+  }> | null>(null);
 
   const isSelected = (id: string) => selection.id === id;
   const noteCountByNotebook = useMemo(
@@ -111,19 +137,6 @@ export function NavigationLibraryView({
     () => countBy(documents, (document) => document.status),
     [documents],
   );
-  const tagCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-
-    for (const document of documents) {
-      for (const tag of document.tags) {
-        counts.set(tag, (counts.get(tag) ?? 0) + 1);
-      }
-    }
-
-    return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }, [documents]);
   const notebookRows = useMemo(
     () => buildNotebookTreeRows(notebooks, noteCountByNotebook, notebookQuery),
     [notebooks, noteCountByNotebook, notebookQuery],
@@ -154,32 +167,36 @@ export function NavigationLibraryView({
 
     return Object.freeze(visible);
   }, [collapsedNotebookIds, notebookQuery, notebookRows]);
-  const visibleTags = tagCounts.filter((tag) =>
+  const visibleTags = tags.filter((tag) =>
     includesNormalized(tag.name, tagQuery),
   );
 
-  const submitNotebook = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const createNotebook = async (
+    name: string,
+    parentId: string | null,
+    icon: NotebookIconName | null,
+    source: NotebookCommandSource,
+  ): Promise<Notebook> => {
+    const result = await onExecuteNotebookCommand(
+      organizationCommandIds.createNotebook,
+      createCreateNotebookCommandRequest({ name, parentId, icon }),
+      source,
+    );
 
-    if (newNotebookName.trim().length === 0) {
-      return;
+    if (!isNotebook(result)) {
+      throw new Error('The notebook command did not create a notebook.');
     }
 
-    try {
-      const notebook = await onCreateNotebook(
-        newNotebookName,
-        null,
-        newNotebookIcon,
-      );
+    return result;
+  };
 
-      setNewNotebookName('');
-      setNewNotebookIcon(undefined);
-      setIsCreatingNotebook(false);
-      setCreateError(null);
-      onSelectionChange(selectionForNotebook(notebook));
-    } catch {
-      setCreateError('The notebook could not be created.');
-    }
+  const openNotebookDetail = (
+    notebook: Notebook,
+    source: NotebookCommandSource,
+  ): void => {
+    void onOpenNotebookDetail(notebook, source).catch(() => {
+      setCreateError('The notebook detail could not be opened.');
+    });
   };
 
   const closeSubnotebookDialog = (): void => {
@@ -197,10 +214,11 @@ export function NavigationLibraryView({
     }
 
     try {
-      const notebook = await onCreateNotebook(
+      const notebook = await createNotebook(
         subnotebookName,
         subnotebookParent.id,
-        subnotebookIcon,
+        subnotebookIcon ?? null,
+        'context-menu',
       );
 
       closeSubnotebookDialog();
@@ -241,10 +259,6 @@ export function NavigationLibraryView({
   const deleteNotebook = async (notebook: Notebook): Promise<void> => {
     setContextMenu(null);
 
-    if (onDeleteNotebook === undefined) {
-      return;
-    }
-
     const confirmed = globalThis.confirm(
       `Delete “${notebook.name}”? Its direct notes will move to Trash. Subnotebooks will remain and move up one level.`,
     );
@@ -254,9 +268,62 @@ export function NavigationLibraryView({
     }
 
     try {
-      await onDeleteNotebook(notebook);
+      await onExecuteNotebookCommand(
+        organizationCommandIds.deleteNotebook,
+        createDeleteNotebookCommandRequest(notebook.id),
+        'context-menu',
+      );
+      const parent =
+        notebook.parentId === null || notebook.parentId === undefined
+          ? undefined
+          : notebooks.find((candidate) => candidate.id === notebook.parentId);
+
+      onSelectionChange(
+        parent === undefined
+          ? navigationDestinations.allNotes
+          : selectionForNotebook(parent),
+      );
     } catch {
       setCreateError('The notebook could not be deleted.');
+    }
+  };
+
+  const openTagContextMenu = (
+    event: MouseEvent<HTMLButtonElement>,
+    tag: TagSummary,
+  ): void => {
+    event.preventDefault();
+    setTagContextMenu({ tag, x: event.clientX, y: event.clientY });
+  };
+
+  const openKeyboardTagContextMenu = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    tag: TagSummary,
+  ): void => {
+    if (
+      event.key !== 'ContextMenu' &&
+      !(event.shiftKey && event.key === 'F10')
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setTagContextMenu({
+      tag,
+      x: bounds.left + Math.min(bounds.width / 2, 96),
+      y: bounds.bottom,
+    });
+  };
+
+  const deleteTag = async (tag: TagSummary): Promise<void> => {
+    setTagContextMenu(null);
+
+    try {
+      await onDeleteTag?.(tag, 'context-menu');
+      setTagError(null);
+    } catch {
+      setTagError('The tag could not be deleted.');
     }
   };
 
@@ -294,13 +361,9 @@ export function NavigationLibraryView({
             <button
               type="button"
               className="navigation-icon-button"
-              aria-label="Create notebook"
-              title="Create notebook"
-              aria-pressed={isCreatingNotebook}
-              onClick={() => {
-                setCreateError(null);
-                setIsCreatingNotebook((current) => !current);
-              }}
+              aria-label="Create tag"
+              title="Create tag"
+              onClick={() => onCreateTag?.('menu')}
             >
               <PlusIcon />
             </button>
@@ -317,35 +380,6 @@ export function NavigationLibraryView({
             placeholder="Filter notebooks"
           />
         </div>
-      )}
-
-      {isCreatingNotebook && (
-        <form className="navigation-inline-control" onSubmit={submitNotebook}>
-          <input
-            aria-label="New notebook name"
-            value={newNotebookName}
-            onChange={(event) => setNewNotebookName(event.target.value)}
-            placeholder="Notebook name"
-          />
-          <select
-            aria-label="Notebook icon"
-            value={newNotebookIcon ?? 'auto'}
-            onChange={(event) =>
-              setNewNotebookIcon(
-                event.target.value === 'auto'
-                  ? undefined
-                  : (event.target.value as NotebookIconName),
-              )
-            }
-          >
-            <option value="auto">Auto icon</option>
-            {NOTEBOOK_ICON_OPTIONS.map(({ value, label }) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </form>
       )}
 
       {createError !== null && (
@@ -382,12 +416,9 @@ export function NavigationLibraryView({
                   return;
                 }
 
-                if (
-                  event.key === 'Enter' &&
-                  onOpenNotebookDetail !== undefined
-                ) {
+                if (event.key === 'Enter') {
                   event.preventDefault();
-                  onOpenNotebookDetail(notebook);
+                  openNotebookDetail(notebook, 'menu');
                 }
               }}
               toggle={
@@ -412,15 +443,11 @@ export function NavigationLibraryView({
                     }
                   : undefined
               }
-              action={
-                onOpenNotebookDetail === undefined
-                  ? undefined
-                  : {
-                      label: 'Detail',
-                      title: `Show details for ${notebook.name}`,
-                      onClick: () => onOpenNotebookDetail(notebook),
-                    }
-              }
+              action={{
+                label: 'Detail',
+                title: `Show details for ${notebook.name}`,
+                onClick: () => openNotebookDetail(notebook, 'menu'),
+              }}
             />
           );
         },
@@ -519,21 +546,26 @@ export function NavigationLibraryView({
         </div>
       )}
 
+      {tagError !== null && (
+        <p className="navigation-inline-error" role="alert">
+          {tagError}
+        </p>
+      )}
+
       {expandedSections.tags &&
         visibleTags.map((tag) => {
-          const tagColor = colorForTag(tag.name);
-          const tagSelection = selectionForTag(tag.name);
+          const tagSelection = selectionForCatalogueTag(tag);
 
           return (
             <NavigationRow
-              key={tag.name}
+              key={tag.id}
               label={tag.name}
               icon={
                 <span
                   className="navigation-tag-dot"
                   style={
                     {
-                      '--tag-color': tagColorHex[tagColor],
+                      '--tag-color': tagColorHex[tag.color],
                     } as CSSProperties
                   }
                 />
@@ -542,6 +574,8 @@ export function NavigationLibraryView({
               depth={1}
               selected={isSelected(tagSelection.id)}
               onClick={() => onSelectionChange(tagSelection)}
+              onContextMenu={(event) => openTagContextMenu(event, tag)}
+              onKeyDown={(event) => openKeyboardTagContextMenu(event, tag)}
             />
           );
         })}
@@ -578,29 +612,74 @@ export function NavigationLibraryView({
             >
               New Sub Notebook…
             </button>
-            {onOpenNotebookDetail !== undefined && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                openNotebookDetail(contextMenu.notebook, 'context-menu');
+                setContextMenu(null);
+              }}
+            >
+              Open Detail
+            </button>
+            {contextMenu.notebook.id !== 'inbox' && (
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  onOpenNotebookDetail(contextMenu.notebook);
+                  onEditNotebook(contextMenu.notebook);
                   setContextMenu(null);
                 }}
               >
-                Open Detail
+                Edit Notebook…
               </button>
             )}
-            {contextMenu.notebook.id !== 'inbox' &&
-              onDeleteNotebook !== undefined && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="navigation-context-menu__delete"
-                  onClick={() => void deleteNotebook(contextMenu.notebook)}
-                >
-                  Delete Notebook…
-                </button>
-              )}
+            {contextMenu.notebook.id !== 'inbox' && (
+              <button
+                type="button"
+                role="menuitem"
+                className="navigation-context-menu__delete"
+                onClick={() => void deleteNotebook(contextMenu.notebook)}
+              >
+                Delete Notebook…
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {tagContextMenu !== null && (
+        <>
+          <button
+            type="button"
+            className="navigation-context-menu__backdrop"
+            aria-label="Close tag menu"
+            onClick={() => setTagContextMenu(null)}
+          />
+          <div
+            className="navigation-context-menu"
+            role="menu"
+            aria-label={`${tagContextMenu.tag.name} tag actions`}
+            style={{ left: tagContextMenu.x, top: tagContextMenu.y }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onEditTag?.(tagContextMenu.tag, 'context-menu');
+                setTagContextMenu(null);
+              }}
+            >
+              Edit Tag…
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="navigation-context-menu__delete"
+              onClick={() => void deleteTag(tagContextMenu.tag)}
+            >
+              Delete Tag…
+            </button>
           </div>
         </>
       )}
@@ -685,29 +764,8 @@ const countBy = <T,>(
 const includesNormalized = (value: string, query: string): boolean =>
   value.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
 
-export const NOTEBOOK_ICON_OPTIONS: readonly Readonly<{
-  value: NotebookIconName;
-  label: string;
-}>[] = [
-  { value: 'briefcase', label: 'Briefcase' },
-  { value: 'rocket', label: 'Rocket' },
-  { value: 'book', label: 'Book' },
-  { value: 'note', label: 'Note' },
-  { value: 'code', label: 'Code' },
-  { value: 'palette', label: 'Palette' },
-  { value: 'calendar', label: 'Calendar' },
-  { value: 'target', label: 'Target' },
-  { value: 'heart', label: 'Heart' },
-  { value: 'globe', label: 'Globe' },
-  { value: 'folder', label: 'Folder' },
-  { value: 'lightbulb', label: 'Idea' },
-  { value: 'terminal', label: 'Terminal' },
-  { value: 'laptop', label: 'Computer' },
-  { value: 'flask', label: 'Research' },
-  { value: 'wrench', label: 'Tools' },
-  { value: 'music', label: 'Music' },
-  { value: 'camera', label: 'Media' },
-  { value: 'leaf', label: 'Nature' },
-  { value: 'bookmark', label: 'Reference' },
-  { value: 'star', label: 'Favorite' },
-];
+const isNotebook = (value: unknown): value is Notebook =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as Notebook).id === 'string' &&
+  typeof (value as Notebook).name === 'string';

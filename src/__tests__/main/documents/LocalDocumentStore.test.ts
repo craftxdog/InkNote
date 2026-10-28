@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import Database from 'better-sqlite3';
+import * as Y from 'yjs';
 
 import { LocalDocumentStore } from '../../../main/documents/LocalDocumentStore';
 import {
@@ -12,11 +13,13 @@ import {
   createArchiveMutation,
   createNotebook,
   createCreateDocumentMutation,
+  createGeneratedTagId,
   createMutationId,
   createNoteId,
   createReplaceBodyMutation,
   createRestoreMutation,
   createUpdateOrganizationMutation,
+  createUpdatePinnedMutation,
   createUpdateTagsMutation,
   type CreateDocumentMutation,
 } from '../../../shared/documents/document.types';
@@ -45,6 +48,101 @@ const countRows = (database: Database.Database, table: string): number => {
     .get() as RowCount;
 
   return row.count;
+};
+
+const createVersion7TagFixture = (databasePath: string): void => {
+  const legacyDatabase = new Database(databasePath);
+
+  legacyDatabase.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    );
+    INSERT INTO schema_migrations(version, applied_at)
+    VALUES
+      (1, '2026-10-21T12:00:00.000Z'),
+      (2, '2026-10-21T12:00:00.000Z'),
+      (3, '2026-10-21T12:00:00.000Z'),
+      (4, '2026-10-21T12:00:00.000Z'),
+      (7, '2026-10-21T12:00:00.000Z');
+
+    CREATE TABLE notes (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      notebook_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      status_is_none INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      projection_generation INTEGER NOT NULL,
+      revision TEXT NOT NULL
+    );
+    CREATE TABLE notebooks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      parent_id TEXT,
+      icon TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE tags (
+      name TEXT PRIMARY KEY COLLATE NOCASE,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE note_tags (
+      note_id TEXT NOT NULL,
+      tag_name TEXT NOT NULL,
+      PRIMARY KEY (note_id, tag_name)
+    );
+  `);
+  legacyDatabase
+    .prepare(
+      `INSERT INTO notes(
+        id, title, body, notebook_id, status, status_is_none, created_at,
+        updated_at, deleted_at, projection_generation, revision
+      ) VALUES (?, ?, ?, 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
+    )
+    .run(
+      'active-note',
+      'Active note',
+      '- [x] Migrated task',
+      '2026-10-21T12:00:00.000Z',
+      '2026-10-21T12:00:00.000Z',
+      null,
+    );
+  legacyDatabase
+    .prepare(
+      `INSERT INTO notes(
+        id, title, body, notebook_id, status, status_is_none, created_at,
+        updated_at, deleted_at, projection_generation, revision
+      ) VALUES (?, ?, ?, 'inbox', 'active', 0, ?, ?, ?, 1, 'local-1')`,
+    )
+    .run(
+      'archived-note',
+      'Archived note',
+      '- [ ] Archived migrated task',
+      '2026-10-21T12:00:00.000Z',
+      '2026-10-21T12:00:00.000Z',
+      '2026-10-21T12:01:00.000Z',
+    );
+  legacyDatabase
+    .prepare('INSERT INTO tags(name, created_at) VALUES (?, ?)')
+    .run('active', '2026-10-21T12:00:00.000Z');
+  legacyDatabase
+    .prepare('INSERT INTO tags(name, created_at) VALUES (?, ?)')
+    .run('archived', '2026-10-21T12:00:00.000Z');
+  legacyDatabase
+    .prepare('INSERT INTO tags(name, created_at) VALUES (?, ?)')
+    .run('unused', '2026-10-21T12:00:00.000Z');
+  legacyDatabase
+    .prepare('INSERT INTO note_tags(note_id, tag_name) VALUES (?, ?)')
+    .run('active-note', 'active');
+  legacyDatabase
+    .prepare('INSERT INTO note_tags(note_id, tag_name) VALUES (?, ?)')
+    .run('archived-note', 'archived');
+  legacyDatabase.close();
 };
 
 describe('LocalDocumentStore', () => {
@@ -80,6 +178,10 @@ describe('LocalDocumentStore', () => {
       notebookId: 'inbox',
       status: 'none',
       tags: [],
+      doctype: 'markdown',
+      pinned: false,
+      numOfTasks: 0,
+      numOfCheckedTasks: 0,
       createdAt: '2026-10-21T12:00:00.000Z',
       updatedAt: '2026-10-21T12:00:00.000Z',
       revision: 'local-1',
@@ -175,6 +277,40 @@ describe('LocalDocumentStore', () => {
     ]);
   });
 
+  it('lists pinned active notes before newer unpinned notes', async () => {
+    const pinnedNoteId = createNoteId('pinned-note');
+    const pinned = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-pinned'),
+        documentId: pinnedNoteId,
+        occurredAt: '2026-10-21T12:00:00.000Z',
+      }),
+    );
+    const newerUnpinned = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-newer'),
+        documentId: createNoteId('newer-note'),
+        occurredAt: '2026-10-21T12:02:00.000Z',
+      }),
+    );
+
+    await store.apply(
+      createUpdatePinnedMutation({
+        id: createMutationId('mutation-pin-older'),
+        documentId: pinned.id,
+        baseRevision: pinned.revision,
+        source: 'command',
+        pinned: true,
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+
+    await expect(store.listActive()).resolves.toEqual([
+      expect.objectContaining({ id: pinnedNoteId, pinned: true }),
+      expect.objectContaining({ id: newerUnpinned.id, pinned: false }),
+    ]);
+  });
+
   it('restores an archived note into the selected notebook and permanently removes only archived notes', async () => {
     const created = await store.apply(
       createNoteMutation({ tags: ['work', 'reference'] }),
@@ -255,14 +391,410 @@ describe('LocalDocumentStore', () => {
     expect(tagged.tags).toEqual(['research', 'work']);
     expect(
       database
-        .prepare('SELECT tag_name FROM note_tags ORDER BY tag_name')
+        .prepare(
+          `SELECT tags.name
+           FROM note_tags
+           INNER JOIN tags ON tags.id = note_tags.tag_id
+           ORDER BY tags.name`,
+        )
         .all(),
-    ).toEqual([{ tag_name: 'research' }, { tag_name: 'work' }]);
+    ).toEqual([{ name: 'research' }, { name: 'work' }]);
 
     store.close();
     store = createStore(databasePath);
 
     await expect(store.get(noteId)).resolves.toEqual(tagged);
+  });
+
+  it('projects Markdown task metadata and pins with one local update and outbox record', async () => {
+    const created = await store.apply(createNoteMutation());
+    const withTasks = await store.apply(
+      createReplaceBodyMutation({
+        id: createMutationId('mutation-tasks'),
+        documentId: created.id,
+        baseRevision: created.revision,
+        source: 'editor',
+        body: '- [x] Complete the migration\n- [ ] Verify the snapshot',
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+    const updatesBeforePin = countRows(database, 'note_crdt_updates');
+    const outboxBeforePin = countRows(database, 'sync_outbox');
+    const pinned = await store.apply(
+      createUpdatePinnedMutation({
+        id: createMutationId('mutation-pin'),
+        documentId: withTasks.id,
+        baseRevision: withTasks.revision,
+        source: 'command',
+        pinned: true,
+        occurredAt: '2026-10-21T12:02:00.000Z',
+      }),
+    );
+
+    expect(withTasks).toMatchObject({
+      doctype: 'markdown',
+      pinned: false,
+      numOfTasks: 2,
+      numOfCheckedTasks: 1,
+    });
+    expect(pinned).toMatchObject({
+      pinned: true,
+      numOfTasks: 2,
+      numOfCheckedTasks: 1,
+    });
+    expect(countRows(database, 'note_crdt_updates')).toBe(updatesBeforePin + 1);
+    expect(countRows(database, 'sync_outbox')).toBe(outboxBeforePin + 1);
+  });
+
+  it('projects legacy Yjs metadata with Markdown and unpinned defaults', async () => {
+    const legacyDocument = new Y.Doc();
+
+    try {
+      legacyDocument.getText('title').insert(0, 'Legacy remote note');
+      legacyDocument.getText('body').insert(0, '- [ ] Preserve defaults');
+      const metadata = legacyDocument.getMap<unknown>('metadata');
+
+      metadata.set('createdAt', '2026-10-21T12:00:00.000Z');
+      metadata.set('updatedAt', '2026-10-21T12:00:00.000Z');
+      metadata.set('deletedAt', null);
+      metadata.set('notebookId', 'inbox');
+      metadata.set('status', 'active');
+
+      const document = await store.applyRemoteUpdate({
+        id: 'legacy-remote-update',
+        documentId: createNoteId('legacy-remote-note'),
+        update: Y.encodeStateAsUpdate(legacyDocument),
+        occurredAt: '2026-10-21T12:00:00.000Z',
+      });
+
+      expect(document).toMatchObject({
+        doctype: 'markdown',
+        pinned: false,
+        numOfTasks: 1,
+        numOfCheckedTasks: 0,
+      });
+    } finally {
+      legacyDocument.destroy();
+    }
+  });
+
+  it('resolves create and update tag names to IDs atomically', async () => {
+    const created = await store.apply(createNoteMutation({ tags: ['draft'] }));
+
+    expect(
+      database
+        .prepare(
+          `SELECT tags.name
+           FROM note_tags
+           INNER JOIN tags ON tags.id = note_tags.tag_id
+           WHERE note_tags.note_id = ?`,
+        )
+        .all(created.id),
+    ).toEqual([{ name: 'draft' }]);
+
+    database.exec(`
+      CREATE TRIGGER reject_tag_replacement
+      BEFORE INSERT ON note_tags
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated tag attach failure');
+      END;
+    `);
+
+    await expect(
+      store.apply(
+        createUpdateTagsMutation({
+          id: createMutationId('mutation-replace-tags'),
+          documentId: created.id,
+          baseRevision: created.revision,
+          source: 'editor',
+          tags: ['published'],
+          occurredAt: '2026-10-21T12:01:00.000Z',
+        }),
+      ),
+    ).rejects.toThrow('simulated tag attach failure');
+
+    await expect(store.get(created.id)).resolves.toMatchObject({
+      tags: ['draft'],
+    });
+    expect(
+      database
+        .prepare('SELECT name FROM tags ORDER BY name COLLATE NOCASE')
+        .all(),
+    ).toEqual([{ name: 'draft' }]);
+  });
+
+  it('lists immutable tag summaries with counts derived from active notes only', async () => {
+    const active = await store.apply(
+      createNoteMutation({ tags: ['active', 'shared'] }),
+    );
+    const archivedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-archived-tag'),
+        documentId: createNoteId('archived-tag-note'),
+        tags: ['archived', 'shared'],
+      }),
+    );
+    await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive-tagged-note'),
+        documentId: archivedSource.id,
+        baseRevision: archivedSource.revision,
+        source: 'command',
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+    const unusedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-unused-tag'),
+        documentId: createNoteId('unused-tag-note'),
+        tags: ['unused'],
+      }),
+    );
+    await store.apply(
+      createUpdateTagsMutation({
+        id: createMutationId('mutation-remove-unused-tag'),
+        documentId: unusedSource.id,
+        baseRevision: unusedSource.revision,
+        source: 'editor',
+        tags: ['active'],
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    );
+
+    const tags = await store.listTags();
+
+    expect(tags).toEqual([
+      expect.objectContaining({
+        id: expect.stringMatching(/^tag:/),
+        name: 'active',
+        color: 'default',
+        count: 2,
+      }),
+      expect.objectContaining({ name: 'archived', count: 0 }),
+      expect.objectContaining({ name: 'shared', count: 1 }),
+      expect.objectContaining({ name: 'unused', count: 0 }),
+    ]);
+    expect(Object.isFrozen(tags)).toBe(true);
+    expect(Object.isFrozen(tags[0])).toBe(true);
+    expect(active.tags).toEqual(['active', 'shared']);
+  });
+
+  it('creates and recolors catalogue tags without mutating note associations', async () => {
+    const associated = await store.apply(
+      createNoteMutation({ tags: ['existing'] }),
+    );
+    const outboxCount = countRows(database, 'sync_outbox');
+
+    const created = await store.createTag({
+      id: createGeneratedTagId('catalogue'),
+      name: '  Catalogue  ',
+      color: 'teal',
+      occurredAt: '2026-10-26T12:00:00.000Z',
+    });
+
+    expect(created).toEqual({
+      id: 'tag:catalogue',
+      name: 'catalogue',
+      color: 'teal',
+      count: 0,
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+    });
+    expect(Object.isFrozen(created)).toBe(true);
+
+    const recolored = await store.updateTag({
+      id: created.id,
+      name: created.name,
+      color: 'purple',
+      occurredAt: '2026-10-26T12:01:00.000Z',
+    });
+
+    expect(recolored).toEqual({
+      ...created,
+      color: 'purple',
+      updatedAt: '2026-10-26T12:01:00.000Z',
+    });
+    await expect(store.get(associated.id)).resolves.toEqual(associated);
+    expect(countRows(database, 'sync_outbox')).toBe(outboxCount);
+
+    await expect(
+      store.createTag({
+        id: createGeneratedTagId('duplicate'),
+        name: 'CATALOGUE',
+        color: 'red',
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_MUTATION' });
+    await expect(store.listTags()).resolves.toEqual(
+      expect.arrayContaining([recolored]),
+    );
+  });
+
+  it('renames and deletes a tag through active and archived Yjs documents', async () => {
+    const active = await store.apply(
+      createNoteMutation({ tags: ['active-only', 'shared'] }),
+    );
+    const archivedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-archived-shared'),
+        documentId: createNoteId('archived-shared-note'),
+        tags: ['archived-only', 'shared'],
+      }),
+    );
+    const archived = await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive-shared'),
+        documentId: archivedSource.id,
+        baseRevision: archivedSource.revision,
+        source: 'command',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    );
+    const shared = (await store.listTags()).find(
+      (tag) => tag.name === 'shared',
+    );
+
+    if (shared === undefined) {
+      throw new Error('Expected the shared tag to exist.');
+    }
+
+    const updatesBeforeRename = countRows(database, 'note_crdt_updates');
+    const outboxBeforeRename = countRows(database, 'sync_outbox');
+    const renamed = await store.updateTag({
+      id: shared.id,
+      name: 'Team Shared',
+      color: 'violet',
+      occurredAt: '2026-10-26T12:02:00.000Z',
+    });
+
+    expect(renamed).toMatchObject({
+      id: shared.id,
+      name: 'team shared',
+      color: 'violet',
+      count: 1,
+      createdAt: shared.createdAt,
+      updatedAt: '2026-10-26T12:02:00.000Z',
+    });
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only', 'team shared'],
+      deletedAt: null,
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only', 'team shared'],
+      deletedAt: archived.deletedAt,
+    });
+    expect(countRows(database, 'note_crdt_updates')).toBe(
+      updatesBeforeRename + 2,
+    );
+    expect(countRows(database, 'sync_outbox')).toBe(outboxBeforeRename + 2);
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only', 'team shared'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only', 'team shared'],
+      deletedAt: archived.deletedAt,
+    });
+
+    const deletion = await store.deleteTag({
+      id: renamed.id,
+      occurredAt: '2026-10-26T12:03:00.000Z',
+    });
+
+    expect(deletion).toEqual({
+      deletedTagId: renamed.id,
+      affectedNoteIds: [archived.id, active.id],
+    });
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only'],
+      deletedAt: archived.deletedAt,
+    });
+    await expect(store.listTags()).resolves.not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: renamed.id })]),
+    );
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['active-only'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['archived-only'],
+      deletedAt: archived.deletedAt,
+    });
+  });
+
+  it('rolls back a tag rename when one associated Yjs update fails', async () => {
+    const active = await store.apply(createNoteMutation({ tags: ['shared'] }));
+    const archivedSource = await store.apply(
+      createNoteMutation({
+        id: createMutationId('mutation-create-rollback-archived'),
+        documentId: createNoteId('tag-rollback-archived'),
+        tags: ['shared'],
+      }),
+    );
+    const archived = await store.apply(
+      createArchiveMutation({
+        id: createMutationId('mutation-archive-rollback'),
+        documentId: archivedSource.id,
+        baseRevision: archivedSource.revision,
+        source: 'command',
+        occurredAt: '2026-10-26T12:01:00.000Z',
+      }),
+    );
+    const shared = (await store.listTags()).find(
+      (tag) => tag.name === 'shared',
+    );
+
+    if (shared === undefined) {
+      throw new Error('Expected the shared tag to exist.');
+    }
+
+    const updateCount = countRows(database, 'note_crdt_updates');
+    const outboxCount = countRows(database, 'sync_outbox');
+    database.exec(`
+      CREATE TRIGGER fail_tag_rename_on_archived_note
+      BEFORE INSERT ON note_crdt_updates
+      WHEN NEW.note_id = 'tag-rollback-archived'
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated tag propagation failure');
+      END;
+    `);
+
+    await expect(
+      store.updateTag({
+        id: shared.id,
+        name: 'renamed shared',
+        color: 'teal',
+        occurredAt: '2026-10-26T12:02:00.000Z',
+      }),
+    ).rejects.toThrow('simulated tag propagation failure');
+
+    await expect(store.get(active.id)).resolves.toMatchObject({
+      tags: ['shared'],
+    });
+    await expect(store.get(archived.id)).resolves.toMatchObject({
+      tags: ['shared'],
+      deletedAt: archived.deletedAt,
+    });
+    await expect(store.listTags()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: shared.id,
+          name: 'shared',
+          color: 'default',
+        }),
+      ]),
+    );
+    expect(countRows(database, 'note_crdt_updates')).toBe(updateCount);
+    expect(countRows(database, 'sync_outbox')).toBe(outboxCount);
   });
 
   it('persists None without polluting the task-status sidebar values', async () => {
@@ -385,6 +917,117 @@ describe('LocalDocumentStore', () => {
     ).toEqual({ version: 7 });
   });
 
+  it('migrates version-7 tags to durable IDs without losing archived or unused tags', async () => {
+    store.close();
+    rmSync(databasePath, { force: true });
+    createVersion7TagFixture(databasePath);
+
+    store = createStore(databasePath);
+
+    await expect(store.listActive()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'active-note',
+        tags: ['active'],
+        numOfTasks: 1,
+        numOfCheckedTasks: 1,
+      }),
+    ]);
+    await expect(store.listArchived()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'archived-note',
+        tags: ['archived'],
+        numOfTasks: 1,
+        numOfCheckedTasks: 0,
+      }),
+    ]);
+    expect(
+      database
+        .prepare<[], { name: string }>('PRAGMA table_info(note_tags)')
+        .all()
+        .map((column: { name: string }) => column.name),
+    ).toEqual(['note_id', 'tag_id']);
+    expect(
+      database
+        .prepare(
+          'SELECT id, name, color FROM tags ORDER BY name COLLATE NOCASE',
+        )
+        .all(),
+    ).toEqual([
+      { id: expect.stringMatching(/^tag:/), name: 'active', color: 'default' },
+      {
+        id: expect.stringMatching(/^tag:/),
+        name: 'archived',
+        color: 'default',
+      },
+      { id: expect.stringMatching(/^tag:/), name: 'unused', color: 'default' },
+    ]);
+    expect(
+      database
+        .prepare(
+          `SELECT note_tags.note_id, tags.name
+           FROM note_tags
+           INNER JOIN tags ON tags.id = note_tags.tag_id
+           ORDER BY note_tags.note_id`,
+        )
+        .all(),
+    ).toEqual([
+      { note_id: 'active-note', name: 'active' },
+      { note_id: 'archived-note', name: 'archived' },
+    ]);
+    expect(
+      database
+        .prepare('SELECT version FROM schema_migrations WHERE version = 8')
+        .get(),
+    ).toEqual({ version: 8 });
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.listArchived()).resolves.toEqual([
+      expect.objectContaining({ id: 'archived-note', tags: ['archived'] }),
+    ]);
+  });
+
+  it('rolls back the tag-ID migration when its final migration record cannot be written', () => {
+    store.close();
+    rmSync(databasePath, { force: true });
+    createVersion7TagFixture(databasePath);
+
+    const legacyDatabase = new Database(databasePath);
+    legacyDatabase.exec(`
+      CREATE TRIGGER reject_tag_id_migration
+      BEFORE INSERT ON schema_migrations
+      WHEN NEW.version = 8
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated tag migration failure');
+      END;
+    `);
+    legacyDatabase.close();
+
+    expect(() => createStore(databasePath)).toThrow(
+      'simulated tag migration failure',
+    );
+    database.close();
+
+    const verificationDatabase = new Database(databasePath, { readonly: true });
+
+    try {
+      expect(
+        verificationDatabase
+          .prepare<[], { name: string }>('PRAGMA table_info(note_tags)')
+          .all()
+          .map((column: { name: string }) => column.name),
+      ).toEqual(['note_id', 'tag_name']);
+      expect(
+        verificationDatabase
+          .prepare('SELECT version FROM schema_migrations WHERE version = 8')
+          .get(),
+      ).toBeUndefined();
+    } finally {
+      verificationDatabase.close();
+    }
+  });
+
   it('persists empty notebooks independently from notes', async () => {
     const notebookInput = {
       id: 'research',
@@ -466,6 +1109,89 @@ describe('LocalDocumentStore', () => {
         expect.objectContaining({ id: 'projects', parentId: 'work' }),
       ]),
     );
+  });
+
+  it('updates a legacy notebook without changing its identity or note associations', async () => {
+    const created = await store.createNotebook({
+      id: 'work',
+      name: 'Work',
+      icon: 'briefcase',
+      occurredAt: '2026-10-21T12:00:00.000Z',
+    });
+    const directNote = await store.apply(
+      createNoteMutation({ notebookId: 'work' }),
+    );
+
+    await expect(
+      store.updateNotebook({
+        id: 'work',
+        name: '  Client work  ',
+        parentId: null,
+        icon: null,
+        occurredAt: '2026-10-21T12:01:00.000Z',
+      }),
+    ).resolves.toEqual({
+      id: 'work',
+      name: 'Client work',
+      parentId: null,
+      createdAt: created.createdAt,
+      updatedAt: '2026-10-21T12:01:00.000Z',
+    });
+    await expect(store.get(directNote.id)).resolves.toMatchObject({
+      id: directNote.id,
+      notebookId: 'work',
+    });
+
+    store.close();
+    store = createStore(databasePath);
+
+    await expect(store.listNotebooks()).resolves.toEqual(
+      expect.arrayContaining([
+        {
+          id: 'work',
+          name: 'Client work',
+          parentId: null,
+          createdAt: created.createdAt,
+          updatedAt: '2026-10-21T12:01:00.000Z',
+        },
+      ]),
+    );
+  });
+
+  it('rejects an unsafe reparent without modifying the existing tree', async () => {
+    await store.createNotebook({
+      id: 'work',
+      name: 'Work',
+      occurredAt: '2026-10-21T12:00:00.000Z',
+    });
+    await store.createNotebook({
+      id: 'projects',
+      name: 'Projects',
+      parentId: 'work',
+      occurredAt: '2026-10-21T12:01:00.000Z',
+    });
+    const before = await store.listNotebooks();
+
+    await expect(
+      store.updateNotebook({
+        id: 'work',
+        name: 'Renamed work',
+        parentId: 'projects',
+        icon: null,
+        occurredAt: '2026-10-21T12:02:00.000Z',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_MUTATION' });
+    await expect(
+      store.updateNotebook({
+        id: 'projects',
+        name: 'Renamed projects',
+        parentId: 'missing',
+        icon: null,
+        occurredAt: '2026-10-21T12:03:00.000Z',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_MUTATION' });
+
+    await expect(store.listNotebooks()).resolves.toEqual(before);
   });
 
   it("trashes a deleted notebook's direct notes and promotes its subnotebooks", async () => {

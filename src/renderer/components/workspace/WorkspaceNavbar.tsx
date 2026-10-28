@@ -35,6 +35,10 @@ type WorkspaceNavbarProps = {
 
   onToggleNavigation: () => void;
   onToggleWorkspaceExpanded: () => void;
+  canNavigateBack: boolean;
+  canNavigateForward: boolean;
+  onNavigateBack: () => void;
+  onNavigateForward: () => void;
 };
 
 export const WorkspaceNavbar = ({
@@ -47,6 +51,10 @@ export const WorkspaceNavbar = ({
   onOpenPreferences,
   onToggleNavigation,
   onToggleWorkspaceExpanded,
+  canNavigateBack,
+  canNavigateForward,
+  onNavigateBack,
+  onNavigateForward,
 }: WorkspaceNavbarProps) => {
   return (
     <header className="workspace-navbar">
@@ -138,7 +146,9 @@ export const WorkspaceNavbar = ({
             type="button"
             className="navbar-button"
             aria-label="Back"
-            title="Back"
+            title="Back (⌘/Ctrl+← or Alt+←)"
+            disabled={!canNavigateBack}
+            onClick={onNavigateBack}
           >
             <BackIcon />
           </button>
@@ -147,7 +157,9 @@ export const WorkspaceNavbar = ({
             type="button"
             className="navbar-button"
             aria-label="Forward"
-            title="Forward"
+            title="Forward (⌘/Ctrl+→ or Alt+→)"
+            disabled={!canNavigateForward}
+            onClick={onNavigateForward}
           >
             <ForwardIcon />
           </button>

@@ -10,13 +10,18 @@ import {
 
 import {
   previewScrollTopForSourceLine,
+  sourceScrollPositionFor,
   sourceLineForPreviewScroll,
   type SourceScrollAnchor,
+  type SourceScrollPosition,
 } from '../../markdown/model/scrollSynchronization';
 import { createPreviewScrollRenderGuard } from '../../markdown/model/previewScrollRenderGuard';
 import { replaceEmojiShortcodes } from '../../markdown/model/emojiCompletions';
 import { parseNoteReference } from '../../references/model/noteReferences';
-import { renderMermaidDiagrams } from '../mermaidPresentation';
+import {
+  mountMermaidDiagrams,
+  type MountedMermaidDiagrams,
+} from '../mermaidPresentation';
 import type {
   NoteDocument,
   NoteId,
@@ -24,10 +29,11 @@ import type {
 
 type MarkdownPreviewProps = {
   markdown: string;
+  themeRevision?: string;
   referenceDocuments?: readonly NoteDocument[];
   onOpenReference?: (documentId: NoteId) => void;
-  onSourceLineChange?: (sourceLine: number) => void;
-  sourceLineToReveal?: number;
+  onSourceLineChange?: (position: SourceScrollPosition) => void;
+  sourceScrollPositionToReveal?: SourceScrollPosition;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
 };
 
@@ -633,6 +639,16 @@ const decorateCodeBlock = (
         }),
   };
 
+  if (language.toLocaleLowerCase() === 'mermaid') {
+    pre.tagName = 'div';
+    pre.properties = {
+      ...pre.properties,
+      className: ['inknote-mermaid-mount'],
+      dataMermaid: 'true',
+    };
+    return;
+  }
+
   if (!codeLanguagesWithPresentation.has(language.toLocaleLowerCase())) {
     return;
   }
@@ -729,6 +745,8 @@ const enhanceChildren = (
       decorateCodeBlock(child, codeFenceMetadataByLine);
     }
 
+    const isMermaidMount = child.properties.dataMermaid === 'true';
+
     if (
       child.tagName === 'code' &&
       (!isElement(parent) || parent.tagName !== 'pre')
@@ -740,7 +758,7 @@ const enhanceChildren = (
 
     enhanceChildren(
       child,
-      isProtected || protectedInlineTags.has(child.tagName),
+      isProtected || protectedInlineTags.has(child.tagName) || isMermaidMount,
       codeFenceMetadataByLine,
       referenceDocumentsById,
     );
@@ -883,10 +901,11 @@ export const renderInkNoteMarkdown = async (
  */
 export function MarkdownPreview({
   markdown,
+  themeRevision,
   referenceDocuments = [],
   onOpenReference,
   onSourceLineChange,
-  sourceLineToReveal,
+  sourceScrollPositionToReveal,
   scrollContainerRef,
 }: MarkdownPreviewProps) {
   const [html, setHtml] = useState('');
@@ -896,6 +915,7 @@ export function MarkdownPreview({
   const onOpenReferenceRef = useRef(onOpenReference);
   const pendingSynchronizedScrollTop = useRef<number | null>(null);
   const renderedHtmlRef = useRef('');
+  const mountedMermaidDiagramsRef = useRef<MountedMermaidDiagrams | null>(null);
   const previewScrollRenderGuardRef = useRef(createPreviewScrollRenderGuard());
   const referenceDocumentsById = useMemo(
     () =>
@@ -1024,7 +1044,14 @@ export function MarkdownPreview({
       );
 
       if (sourceLine !== null) {
-        onSourceLineChangeRef.current?.(sourceLine);
+        onSourceLineChangeRef.current?.(
+          sourceScrollPositionFor({
+            sourceLine,
+            scrollTop: container.scrollTop,
+            scrollHeight: container.scrollHeight,
+            clientHeight: container.clientHeight,
+          }),
+        );
       }
     };
 
@@ -1041,17 +1068,8 @@ export function MarkdownPreview({
     if (
       container === null ||
       container === undefined ||
-      sourceLineToReveal === undefined
+      sourceScrollPositionToReveal === undefined
     ) {
-      return;
-    }
-
-    const scrollTop = previewScrollTopForSourceLine(
-      sourceScrollAnchorsFor(container),
-      sourceLineToReveal,
-    );
-
-    if (scrollTop === null) {
       return;
     }
 
@@ -1059,7 +1077,22 @@ export function MarkdownPreview({
       0,
       container.scrollHeight - container.clientHeight,
     );
-    const nextScrollTop = Math.min(Math.max(0, scrollTop), maximumScrollTop);
+    let nextScrollTop: number;
+
+    if (sourceScrollPositionToReveal.kind === 'end') {
+      nextScrollTop = maximumScrollTop;
+    } else {
+      const scrollTop = previewScrollTopForSourceLine(
+        sourceScrollAnchorsFor(container),
+        sourceScrollPositionToReveal.sourceLine,
+      );
+
+      if (scrollTop === null) {
+        return;
+      }
+
+      nextScrollTop = Math.min(Math.max(0, scrollTop), maximumScrollTop);
+    }
 
     if (Math.abs(container.scrollTop - nextScrollTop) < 1) {
       return;
@@ -1067,19 +1100,31 @@ export function MarkdownPreview({
 
     pendingSynchronizedScrollTop.current = nextScrollTop;
     container.scrollTo({ top: nextScrollTop, behavior: 'auto' });
-  }, [html, scrollContainerRef, sourceLineToReveal]);
+  }, [html, scrollContainerRef, sourceScrollPositionToReveal]);
 
   useEffect(() => {
     const preview = containerRef.current;
 
     if (preview === null) {
-      return;
+      return undefined;
     }
 
-    // Mermaid renders after the already-sanitized Markdown HTML is in the
-    // document. Its own output is sanitized again before replacing the fence.
-    void renderMermaidDiagrams(preview).catch(() => undefined);
+    const mountedDiagrams = mountMermaidDiagrams(preview, undefined);
+
+    mountedMermaidDiagramsRef.current = mountedDiagrams;
+
+    return () => {
+      mountedDiagrams.dispose();
+
+      if (mountedMermaidDiagramsRef.current === mountedDiagrams) {
+        mountedMermaidDiagramsRef.current = null;
+      }
+    };
   }, [html]);
+
+  useEffect(() => {
+    mountedMermaidDiagramsRef.current?.updateTheme(themeRevision);
+  }, [themeRevision]);
 
   return (
     <div
