@@ -8,8 +8,16 @@ describe('preview scroll render guard', () => {
 
     guard.beginRender();
     expect(guard.shouldReportScroll()).toBe(false);
+  });
 
-    guard.completeRender();
+  it('keeps layout scrolls muted after rendering until the reader scrolls the preview', () => {
+    const guard = createPreviewScrollRenderGuard();
+
+    guard.beginRender();
+    expect(guard.shouldReportScroll()).toBe(false);
+
+    guard.beginReaderScroll();
+
     expect(guard.shouldReportScroll()).toBe(true);
   });
 });

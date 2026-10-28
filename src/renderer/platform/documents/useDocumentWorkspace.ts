@@ -67,6 +67,33 @@ export type TagUpdateRequest = Readonly<{
   color: TagColor;
 }>;
 
+/**
+ * Selection is a renderer-session concern: it survives an Electron renderer
+ * reload but disappears when that renderer window is closed. Durable document
+ * state remains exclusively in the document repository.
+ */
+export const WORKSPACE_SELECTED_DOCUMENT_STORAGE_KEY =
+  'inknote.workspace.selected-document-id';
+
+const selectedDocumentIdFromRendererSession = (): string | null => {
+  try {
+    return window.sessionStorage.getItem(
+      WORKSPACE_SELECTED_DOCUMENT_STORAGE_KEY,
+    );
+  } catch {
+    return null;
+  }
+};
+
+const persistSelectedDocumentIdForRendererSession = (id: NoteId): void => {
+  try {
+    window.sessionStorage.setItem(WORKSPACE_SELECTED_DOCUMENT_STORAGE_KEY, id);
+  } catch {
+    // Selection restoration is an enhancement; unavailable storage must not
+    // block opening a local note.
+  }
+};
+
 export type DocumentWorkspaceActions = Readonly<{
   refresh(): Promise<void>;
   open(id: NoteId): Promise<NoteDocument>;
@@ -173,11 +200,17 @@ export const useDocumentWorkspace = (
       setTags(nextTags);
       setLastError(null);
 
-      if (
-        session.getSnapshot().selectedDocumentId === null &&
-        nextDocuments[0] !== undefined
-      ) {
-        await session.open(nextDocuments[0].id);
+      if (session.getSnapshot().selectedDocumentId === null) {
+        const persistedDocumentId = selectedDocumentIdFromRendererSession();
+        const documentToOpen =
+          nextDocuments.find(
+            (document) => document.id === persistedDocumentId,
+          ) ?? nextDocuments[0];
+
+        if (documentToOpen !== undefined) {
+          await session.open(documentToOpen.id);
+          persistSelectedDocumentIdForRendererSession(documentToOpen.id);
+        }
       }
     } catch (error) {
       setLastError(error);
@@ -213,6 +246,7 @@ export const useDocumentWorkspace = (
       try {
         const document = await session.open(id);
 
+        persistSelectedDocumentIdForRendererSession(document.id);
         setLastError(null);
 
         return document;

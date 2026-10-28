@@ -57,6 +57,14 @@ type MarkdownEditorProps = {
   sourceScrollPositionToReveal?: SourceScrollPosition;
 };
 
+/**
+ * Local edits establish the author's current source line as the split-preview
+ * anchor. Reading it from CodeMirror state avoids measuring DOM before the
+ * editor has completed its own layout update.
+ */
+export const sourceLineForEditorSelection = (state: EditorState): number =>
+  state.doc.lineAt(state.selection.main.head).number;
+
 const inkNoteEditorTheme = EditorView.theme(
   {
     '&': {
@@ -503,6 +511,10 @@ export function MarkdownEditor({
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !isApplyingExternalValue.current) {
           onChangeRef.current(update.state.doc.toString());
+          onSourceLineChangeRef.current?.({
+            kind: 'line',
+            sourceLine: sourceLineForEditorSelection(update.state),
+          });
         }
       }),
     ];

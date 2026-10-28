@@ -2,7 +2,10 @@ import '@testing-library/jest-dom';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
 
-import { useDocumentWorkspace } from '../../../renderer/platform/documents/useDocumentWorkspace';
+import {
+  WORKSPACE_SELECTED_DOCUMENT_STORAGE_KEY,
+  useDocumentWorkspace,
+} from '../../../renderer/platform/documents/useDocumentWorkspace';
 import type {
   DocumentWorkspaceActions,
   DocumentWorkspaceState,
@@ -201,6 +204,143 @@ describe('useDocumentWorkspace notebook updates', () => {
     await waitFor(() =>
       expect(requireWorkspace(workspace).lastError).toBe(failure),
     );
+  });
+});
+
+describe('useDocumentWorkspace renderer-session selection', () => {
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it('reopens the active note after the renderer workspace initializes again', async () => {
+    const firstNote: NoteDocument = {
+      id: createNoteId('note-first'),
+      title: 'First',
+      body: 'First body',
+      notebookId: 'inbox',
+      status: 'none',
+      tags: [],
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+      revision: createRevision('local-first'),
+      deletedAt: null,
+    };
+    const activeNote: NoteDocument = {
+      ...firstNote,
+      id: createNoteId('note-active'),
+      title: 'Active note',
+      revision: createRevision('local-active'),
+    };
+    const documentsById = new Map<string, NoteDocument>([
+      [firstNote.id, firstNote],
+      [activeNote.id, activeNote],
+    ]);
+    const api = createDocumentApi(
+      [inbox],
+      async () => {
+        throw new Error('not used');
+      },
+      {
+        get: async (id) => ({
+          ok: true,
+          value: documentsById.get(id) ?? null,
+        }),
+        listActive: async () => ({ ok: true, value: [firstNote, activeNote] }),
+        listArchived: async () => ({ ok: true, value: [] }),
+      },
+    );
+    let workspace: Workspace | null = null;
+
+    const firstRender = render(
+      <WorkspaceProbe
+        api={api}
+        onWorkspace={(nextWorkspace) => {
+          workspace = nextWorkspace;
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(requireWorkspace(workspace).session.document?.id).toBe(
+        firstNote.id,
+      ),
+    );
+
+    await act(async () => {
+      await requireWorkspace(workspace).open(activeNote.id);
+    });
+    expect(
+      window.sessionStorage.getItem(WORKSPACE_SELECTED_DOCUMENT_STORAGE_KEY),
+    ).toBe(activeNote.id);
+
+    firstRender.unmount();
+    workspace = null;
+
+    render(
+      <WorkspaceProbe
+        api={api}
+        onWorkspace={(nextWorkspace) => {
+          workspace = nextWorkspace;
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(requireWorkspace(workspace).session.document?.id).toBe(
+        activeNote.id,
+      ),
+    );
+  });
+
+  it('falls back to the first active note when the stored note is unavailable', async () => {
+    const firstNote: NoteDocument = {
+      id: createNoteId('note-first'),
+      title: 'First',
+      body: 'First body',
+      notebookId: 'inbox',
+      status: 'none',
+      tags: [],
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+      revision: createRevision('local-first'),
+      deletedAt: null,
+    };
+    window.sessionStorage.setItem(
+      WORKSPACE_SELECTED_DOCUMENT_STORAGE_KEY,
+      'missing-or-archived',
+    );
+    let workspace: Workspace | null = null;
+
+    render(
+      <WorkspaceProbe
+        api={createDocumentApi(
+          [inbox],
+          async () => {
+            throw new Error('not used');
+          },
+          {
+            get: async (id) => ({
+              ok: true,
+              value: id === firstNote.id ? firstNote : null,
+            }),
+            listActive: async () => ({ ok: true, value: [firstNote] }),
+            listArchived: async () => ({ ok: true, value: [] }),
+          },
+        )}
+        onWorkspace={(nextWorkspace) => {
+          workspace = nextWorkspace;
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(requireWorkspace(workspace).session.document?.id).toBe(
+        firstNote.id,
+      ),
+    );
+    expect(
+      window.sessionStorage.getItem(WORKSPACE_SELECTED_DOCUMENT_STORAGE_KEY),
+    ).toBe(firstNote.id);
   });
 });
 

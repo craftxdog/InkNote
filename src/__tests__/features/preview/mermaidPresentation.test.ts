@@ -8,14 +8,15 @@ jest.mock(
   () => ({ InkdropMermaidDiagram: () => null }),
 );
 
-import { mountMermaidDiagrams } from '../../../renderer/features/preview/mermaidPresentation';
+import { createMermaidPresentation } from '../../../renderer/features/preview/mermaidPresentation';
+import { reconcilePreviewMarkup } from '../../../renderer/features/preview/previewMarkupReconciliation';
 
-describe('mountMermaidDiagrams', () => {
+describe('createMermaidPresentation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('replaces Mermaid mounts with Inkdrop renderer roots while preserving source anchors', () => {
+  it('keeps an unchanged diagram mounted when Markdown outside its fence changes', () => {
     const preview = document.createElement('div');
 
     preview.innerHTML = [
@@ -24,7 +25,9 @@ describe('mountMermaidDiagrams', () => {
       '</div>',
     ].join('');
 
-    const mounted = mountMermaidDiagrams(preview, 'nord');
+    const presentation = createMermaidPresentation();
+
+    presentation.sync(preview, 'nord');
 
     expect(createRoot).toHaveBeenCalledWith(
       preview.querySelector('.inknote-mermaid-mount'),
@@ -44,13 +47,56 @@ describe('mountMermaidDiagrams', () => {
         ?.getAttribute('data-source-line'),
     ).toBe('3');
 
-    mounted.updateTheme('solarized-dark');
+    reconcilePreviewMarkup(
+      preview,
+      [
+        '<p>Edited text outside the diagram.</p>',
+        '<div class="inknote-mermaid-mount" data-mermaid="true" data-code-title="CI flow" data-source-line="5" data-source-end-line="10">',
+        '<code>flowchart TD\nA --&gt; B</code>',
+        '</div>',
+      ].join(''),
+    );
+    presentation.sync(preview, 'nord');
+
+    expect(createRoot).toHaveBeenCalledTimes(1);
+    expect(unmount).not.toHaveBeenCalled();
+    expect(render).toHaveBeenCalledTimes(1);
+
+    presentation.updateTheme('solarized-dark');
     expect(render).toHaveBeenCalledTimes(2);
     expect(render.mock.calls[1]?.[0].props.themeRevision).toBe(
       'solarized-dark',
     );
 
-    mounted.dispose();
+    presentation.dispose();
     expect(unmount).toHaveBeenCalledTimes(1);
+  });
+
+  it('unmounts only the Mermaid renderer whose source changed', () => {
+    const preview = document.createElement('div');
+    const presentation = createMermaidPresentation();
+
+    preview.innerHTML = [
+      '<div class="inknote-mermaid-mount" data-mermaid="true">',
+      '<code>flowchart TD\nA --&gt; B</code>',
+      '</div>',
+    ].join('');
+
+    presentation.sync(preview, 'nord');
+    reconcilePreviewMarkup(
+      preview,
+      [
+        '<div class="inknote-mermaid-mount" data-mermaid="true">',
+        '<code>flowchart TD\nA --&gt; C</code>',
+        '</div>',
+      ].join(''),
+    );
+    presentation.sync(preview, 'nord');
+
+    expect(createRoot).toHaveBeenCalledTimes(2);
+    expect(unmount).toHaveBeenCalledTimes(1);
+
+    presentation.dispose();
+    expect(unmount).toHaveBeenCalledTimes(2);
   });
 });
