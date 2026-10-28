@@ -79,7 +79,7 @@
     "better-sqlite3": "^13.0.3",
     "electron-debug": "^4.1.0",
     "electron-log": "^5.4.4",
-    "electron-updater": "^6.8.9",
+    "electron-updater": "^6.8.11",
     "katex": "^0.19.1",
     "pele": "^1.9.0",
     "react": "^19.3.0",
