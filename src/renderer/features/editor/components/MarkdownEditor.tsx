@@ -11,17 +11,14 @@ import {
   type CompletionContext,
 } from '@codemirror/autocomplete';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import {
-  EditorState,
-  RangeSetBuilder,
-  type Extension,
-} from '@codemirror/state';
+  HighlightStyle,
+  indentOnInput,
+  syntaxHighlighting,
+} from '@codemirror/language';
+import { EditorState, type Extension } from '@codemirror/state';
 import {
-  Decoration,
-  type DecorationSet,
   EditorView,
-  ViewPlugin,
   drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -30,7 +27,9 @@ import {
 } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 
+import { codeLanguageDescriptionForFence } from '../../markdown/model/codeLanguages';
 import { findEmojiCompletions } from '../../markdown/model/emojiCompletions';
+import { inkdropSyntaxHighlighter } from '../../markdown/model/inkdropSyntaxHighlighter';
 import {
   sourceScrollPositionFor,
   type SourceScrollPosition,
@@ -95,22 +94,6 @@ const inkNoteEditorTheme = EditorView.theme(
       color: 'var(--primary-color)',
       backgroundColor: 'var(--inknote-editor-active-line-gutter-background)',
     },
-    '.inknote-editor-token--comment': {
-      color: 'var(--syntax-comment-color)',
-      fontStyle: 'italic',
-    },
-    '.inknote-editor-token--keyword': {
-      color: 'var(--syntax-keyword-color)',
-    },
-    '.inknote-editor-token--literal': {
-      color: 'var(--syntax-literal-color)',
-    },
-    '.inknote-editor-token--number': {
-      color: 'var(--syntax-number-color)',
-    },
-    '.inknote-editor-token--string': {
-      color: 'var(--syntax-string-color)',
-    },
   },
   { dark: false },
 );
@@ -157,122 +140,6 @@ const inkNoteMarkdownHighlighting = HighlightStyle.define([
     color: 'var(--syntax-quote-color)',
   },
 ]);
-
-type EditorCodeTokenKind =
-  'comment' | 'keyword' | 'literal' | 'number' | 'string';
-
-export type EditorCodeToken = Readonly<{
-  from: number;
-  to: number;
-  kind: EditorCodeTokenKind;
-}>;
-
-const editorCodeTokenPattern =
-  /(\/\/[^\n]*|#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:true|false|null|undefined)\b|\b\d+(?:\.\d+)?\b|\b(?:async|await|class|const|def|else|export|for|from|function|if|import|interface|let|new|private|public|return|static|type|var|while)\b)/g;
-const editorCodeFencePattern = /^ {0,3}(`{3,}|~{3,})[ \t]*(\S*)?.*$/;
-
-const editorCodeTokenKindFor = (value: string): EditorCodeTokenKind => {
-  if (value.startsWith('//') || value.startsWith('#')) {
-    return 'comment';
-  }
-
-  if (/^(true|false|null|undefined)$/.test(value)) {
-    return 'literal';
-  }
-
-  if (/^\d/.test(value)) {
-    return 'number';
-  }
-
-  if (/^["'`]/.test(value)) {
-    return 'string';
-  }
-
-  return 'keyword';
-};
-
-/**
- * Finds lightweight code tokens only inside fenced Markdown code blocks. This
- * is deliberately parser-free so every fenced language gains a polished,
- * contrast-safe baseline without growing the editor bundle per language.
- */
-export const codeTokensForMarkdown = (
-  markdownSource: string,
-): readonly EditorCodeToken[] => {
-  const tokens: EditorCodeToken[] = [];
-  let activeFence: string | null = null;
-  let lineStart = 0;
-
-  for (const line of markdownSource.split('\n')) {
-    const fence = line.match(editorCodeFencePattern);
-
-    if (activeFence !== null) {
-      const isClosingFence =
-        fence !== null &&
-        fence[1] !== undefined &&
-        fence[1][0] === activeFence[0] &&
-        fence[1].length >= activeFence.length &&
-        line.trim().slice(fence[1].length).length === 0;
-
-      if (isClosingFence) {
-        activeFence = null;
-      } else {
-        editorCodeTokenPattern.lastIndex = 0;
-        let match = editorCodeTokenPattern.exec(line);
-
-        while (match !== null) {
-          const value = match[0];
-          tokens.push(
-            Object.freeze({
-              from: lineStart + match.index,
-              to: lineStart + match.index + value.length,
-              kind: editorCodeTokenKindFor(value),
-            }),
-          );
-          match = editorCodeTokenPattern.exec(line);
-        }
-      }
-    } else if (fence !== null && fence[1] !== undefined) {
-      activeFence = fence[1];
-    }
-
-    lineStart += line.length + 1;
-  }
-
-  return tokens;
-};
-
-const codeTokenDecorationFor = (kind: EditorCodeTokenKind): Decoration =>
-  Decoration.mark({ class: `inknote-editor-token--${kind}` });
-
-const codeTokenDecorationsFor = (document: string): DecorationSet => {
-  const builder = new RangeSetBuilder<Decoration>();
-
-  for (const token of codeTokensForMarkdown(document)) {
-    builder.add(token.from, token.to, codeTokenDecorationFor(token.kind));
-  }
-
-  return builder.finish();
-};
-
-const editorCodeTokenHighlighter = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-
-    constructor(view: EditorView) {
-      this.decorations = codeTokenDecorationsFor(view.state.doc.toString());
-    }
-
-    update(update: { docChanged: boolean; state: EditorState }): void {
-      if (update.docChanged) {
-        this.decorations = codeTokenDecorationsFor(update.state.doc.toString());
-      }
-    }
-  },
-  {
-    decorations: (plugin) => plugin.decorations,
-  },
-);
 
 const emojiCompletionSource = (context: CompletionContext) => {
   const shortcode = context.matchBefore(/:[a-z0-9_+-]*/i);
@@ -487,8 +354,9 @@ export function MarkdownEditor({
       highlightActiveLine(),
       highlightActiveLineGutter(),
       syntaxHighlighting(inkNoteMarkdownHighlighting),
-      markdown(),
-      editorCodeTokenHighlighter,
+      syntaxHighlighting(inkdropSyntaxHighlighter),
+      markdown({ codeLanguages: codeLanguageDescriptionForFence }),
+      indentOnInput(),
       markdownSelectionToolbar,
       markdownAuthoringKeymap,
       autocompletion({

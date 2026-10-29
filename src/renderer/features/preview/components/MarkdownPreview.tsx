@@ -6,7 +6,10 @@ import {
   useState,
   type RefObject,
 } from 'react';
+import { highlightTree } from '@lezer/highlight';
 
+import { codeLanguageForFence } from '../../markdown/model/codeLanguages';
+import { inkdropSyntaxHighlighter } from '../../markdown/model/inkdropSyntaxHighlighter';
 import {
   previewScrollTopForSourceLine,
   sourceScrollPositionFor,
@@ -115,19 +118,6 @@ const sourceAnchoredTags = new Set([
   'pre',
   'table',
 ]);
-const codeLanguagesWithPresentation = new Set([
-  'bash',
-  'javascript',
-  'js',
-  'json',
-  'jsx',
-  'sh',
-  'ts',
-  'tsx',
-  'typescript',
-]);
-const codeTokenPattern =
-  /(\/\/[^\n]*|#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:true|false|null|undefined)\b|\b\d+(?:\.\d+)?\b|\b(?:async|await|class|const|def|else|export|for|from|function|if|import|interface|let|new|private|public|return|static|type|var|while)\b)/g;
 const codeFencePattern = /^ {0,3}(`{3,}|~{3,})[ \t]*(.*?)\s*$/;
 const codeFenceAttributePattern =
   /\b(filename|title)=(?:"([^"]*)"|'([^']*)')/gi;
@@ -339,68 +329,48 @@ const createInlineHtmlNode = (
   children,
 });
 
-const createCodeTokenNode = (
-  value: string,
-  tokenKind: 'comment' | 'keyword' | 'literal' | 'number' | 'string',
-): MarkdownElementNode => ({
-  type: 'element',
-  tagName: 'span',
-  properties: {
-    className: ['inknote-code-token', `inknote-code-token--${tokenKind}`],
-  },
-  children: [createTextNode(value)],
-});
+/**
+ * Convert the semantic spans emitted by the same CodeMirror grammar used by
+ * the editor into Inkdrop's themeable `.tok-*` markup. This deliberately
+ * preserves every unhighlighted range so preview text remains byte-for-byte
+ * equivalent to the fenced source.
+ */
+const highlightedCodeNodesFor = (
+  source: string,
+  fenceInfo: string,
+): MarkdownSyntaxTree[] => {
+  const language = codeLanguageForFence(fenceInfo);
 
-const codeTokenKindFor = (
-  value: string,
-): 'comment' | 'keyword' | 'literal' | 'number' | 'string' => {
-  if (value.startsWith('//') || value.startsWith('#')) {
-    return 'comment';
-  }
-
-  if (/^(true|false|null|undefined)$/.test(value)) {
-    return 'literal';
-  }
-
-  if (/^\d/.test(value)) {
-    return 'number';
-  }
-
-  if (/^["'`]/.test(value)) {
-    return 'string';
-  }
-
-  return 'keyword';
-};
-
-const enhanceCodeTokens = (text: MarkdownTextNode): MarkdownSyntaxTree[] => {
-  codeTokenPattern.lastIndex = 0;
-  let match = codeTokenPattern.exec(text.value);
-
-  if (match === null) {
-    return [text];
+  if (language === null) {
+    return [createTextNode(source)];
   }
 
   const nodes: MarkdownSyntaxTree[] = [];
   let offset = 0;
 
-  while (match !== null) {
-    const token = match[0];
+  highlightTree(
+    language.support.language.parser.parse(source),
+    inkdropSyntaxHighlighter,
+    (from, to, classes) => {
+      if (from > offset) {
+        nodes.push(createTextNode(source.slice(offset, from)));
+      }
 
-    if (match.index > offset) {
-      nodes.push(createTextNode(text.value.slice(offset, match.index)));
-    }
+      nodes.push({
+        type: 'element',
+        tagName: 'span',
+        properties: { className: classes.split(/\s+/).filter(Boolean) },
+        children: [createTextNode(source.slice(from, to))],
+      });
+      offset = to;
+    },
+  );
 
-    nodes.push(createCodeTokenNode(token, codeTokenKindFor(token)));
-    offset = match.index + token.length;
-    match = codeTokenPattern.exec(text.value);
+  if (offset < source.length) {
+    nodes.push(createTextNode(source.slice(offset)));
   }
 
-  if (offset < text.value.length) {
-    nodes.push(createTextNode(text.value.slice(offset)));
-  }
-
-  return nodes;
+  return nodes.length === 0 ? [createTextNode(source)] : nodes;
 };
 
 const enhanceInlineHighlights = (
@@ -629,7 +599,10 @@ const decorateCodeBlock = (
   }
 
   pre.properties = {
-    ...withClassName(pre.properties, 'inknote-code-block'),
+    ...withClassName(
+      withClassName(pre.properties, 'inknote-code-block'),
+      'codeblock',
+    ),
     dataLanguage: language.toUpperCase(),
     ...(metadata?.title === undefined && metadata?.filename === undefined
       ? {}
@@ -650,13 +623,20 @@ const decorateCodeBlock = (
     return;
   }
 
-  if (!codeLanguagesWithPresentation.has(language.toLocaleLowerCase())) {
+  if (codeLanguageForFence(language) === null) {
     return;
   }
 
-  code.children = code.children.flatMap((child) =>
-    isText(child) ? enhanceCodeTokens(child) : [child],
-  );
+  const source = code.children
+    .filter(isText)
+    .map((child) => child.value)
+    .join('');
+
+  if (source.length === 0) {
+    return;
+  }
+
+  code.children = highlightedCodeNodesFor(source, language);
 };
 
 const decorateSourceAnchor = (element: MarkdownElementNode): void => {
@@ -1209,7 +1189,7 @@ export function MarkdownPreview({
   return (
     <div
       ref={containerRef}
-      className="markdown-preview"
+      className="markdown-preview mde-preview"
       aria-label="Rendered Markdown preview"
       aria-busy={markdown !== renderedMarkdown}
     />
