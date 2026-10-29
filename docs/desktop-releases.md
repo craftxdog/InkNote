@@ -26,6 +26,12 @@ Cada script construye el renderer, recompila las dependencias nativas para la
 arquitectura indicada y usa `--publish never`. `package:mac` omite la
 notarización deliberadamente para que sirva como artefacto interno de prueba.
 
+Ejecuta `package:mac` en macOS; genera tanto Intel como Apple Silicon. Ejecuta
+`package:win` en Windows y `package:linux` en Ubuntu. InkNote incluye
+`better-sqlite3`, cuyo módulo nativo no puede recompilarse entre sistemas
+operativos desde macOS. Por ello, la matriz de CI utiliza runners nativos y no
+una compilación cruzada poco fiable.
+
 ## Releases firmadas
 
 Las releases se ejecutan únicamente por plataforma:
