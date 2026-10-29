@@ -1,3 +1,13 @@
+# 0.1.0
+
+## Added
+
+- First public InkNote desktop release for macOS, Windows, and Linux.
+
+## Distribution notes
+
+- The initial installers are unsigned. macOS Gatekeeper and Windows SmartScreen may require an explicit confirmation before installation.
+
 # 2.1.0
 
 - Migrate to `css-minifier-webpack-plugin`

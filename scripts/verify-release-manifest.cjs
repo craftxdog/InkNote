@@ -41,6 +41,28 @@ if (releaseManifest.main !== './dist/main/main.js') {
   mismatches.push('release main must point to ./dist/main/main.js');
 }
 
+const macBuild = rootManifest.build?.mac;
+
+if (macBuild?.identity !== null) {
+  mismatches.push(
+    'unsigned macOS releases must set build.mac.identity to null explicitly',
+  );
+}
+
+if (macBuild?.hardenedRuntime !== false) {
+  mismatches.push(
+    'unsigned macOS releases must disable build.mac.hardenedRuntime',
+  );
+}
+
+for (const field of ['type', 'entitlements', 'entitlementsInherit']) {
+  if (field in (macBuild ?? {})) {
+    mismatches.push(
+      `unsigned macOS releases must not configure build.mac.${field}`,
+    );
+  }
+}
+
 if (mismatches.length > 0) {
   console.error('Release manifest validation failed:');
 
