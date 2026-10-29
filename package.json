@@ -35,15 +35,12 @@
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx,.cjs",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx,.cjs --fix",
     "package": "npm run package:current",
-    "package:current": "npm run build && electron-builder build --publish never -c.mac.notarize=false",
+    "package:current": "npm run build && electron-builder build --publish never",
     "package:linux": "npm run build && electron-builder --linux --x64 --publish never",
-    "package:mac": "npm run build && electron-builder --mac --x64 --arm64 --publish never -c.mac.notarize=false",
+    "package:mac": "npm run build && electron-builder --mac --x64 --arm64 --publish never",
     "package:win": "npm run build && electron-builder --win --x64 --publish never",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
-    "release": "node -e \"throw new Error('Use npm run release:mac, release:win, or release:linux.')\"",
-    "release:linux": "npm run build && electron-builder --linux --x64 --publish always -c.forceCodeSigning=true",
-    "release:mac": "npm run build && cross-env REQUIRE_NOTARIZATION=true electron-builder --mac --x64 --arm64 --publish always -c.forceCodeSigning=true",
-    "release:win": "npm run build && electron-builder --win --x64 --publish always -c.forceCodeSigning=true",
+    "release": "node -e \"throw new Error('Push a v<semver> tag to create an unsigned GitHub Release.')\"",
     "start": "electron-vite dev --watch",
     "test": "cross-env NODE_OPTIONS=--localstorage-file=/tmp/inknote-jest-localstorage jest",
     "test:ci": "cross-env NODE_OPTIONS=--localstorage-file=/tmp/inknote-jest-localstorage jest --runInBand",
@@ -89,7 +86,6 @@
     "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
-    "@electron/notarize": "^3.1.1",
     "@inkdropapp/css": "^0.10.4",
     "@lezer/markdown": "^1.8.1",
     "better-sqlite3": "^13.0.3",
@@ -161,7 +157,6 @@
     "appId": "com.craftxdog.inknote",
     "artifactName": "${productName}-${version}-${arch}-${os}.${ext}",
     "asar": true,
-    "afterSign": ".erb/scripts/notarize.js",
     "asarUnpack": "**\\*.{node,dll}",
     "files": [
       "dist",
@@ -169,7 +164,6 @@
       "package.json"
     ],
     "mac": {
-      "notarize": false,
       "icon": "icon.icns",
       "target": [
         {
@@ -262,11 +256,7 @@
     "extraResources": [
       "./assets/**"
     ],
-    "publish": {
-      "provider": "github",
-      "owner": "craftxdog",
-      "repo": "InkNote"
-    }
+    "publish": null
   },
   "devEngines": {
     "runtime": {

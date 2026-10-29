@@ -5,7 +5,14 @@ import log from 'electron-log';
 let started = false;
 
 export default function startAutoUpdates(): void {
-  if (!app.isPackaged || started) return;
+  if (
+    !app.isPackaged ||
+    started ||
+    process.env.INKNOTE_ENABLE_AUTO_UPDATES !== 'true'
+  ) {
+    return;
+  }
+
   started = true;
   log.transports.file.level = 'info';
   autoUpdater.logger = log;

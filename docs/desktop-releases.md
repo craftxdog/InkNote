@@ -1,7 +1,10 @@
-# Distribución de escritorio
+# Releases de escritorio en GitHub
 
-InkNote genera los instaladores desde runners nativos, igual que las
-arquitecturas y formatos que ofrece Inkdrop:
+InkNote publica instaladores sin firma en GitHub Releases. Están destinados a
+una distribución independiente y a actualizaciones manuales: las personas
+descargan la versión que corresponde a su sistema desde la página de releases.
+
+InkNote genera los instaladores desde runners nativos:
 
 | Plataforma | Arquitectura   | Artefactos          |
 | ---------- | -------------- | ------------------- |
@@ -23,8 +26,7 @@ npm run package:linux
 ```
 
 Cada script construye el renderer, recompila las dependencias nativas para la
-arquitectura indicada y usa `--publish never`. `package:mac` omite la
-notarización deliberadamente para que sirva como artefacto interno de prueba.
+arquitectura indicada y usa `--publish never`.
 
 Ejecuta `package:mac` en macOS; genera tanto Intel como Apple Silicon. Ejecuta
 `package:win` en Windows y `package:linux` en Ubuntu. InkNote incluye
@@ -32,33 +34,38 @@ Ejecuta `package:mac` en macOS; genera tanto Intel como Apple Silicon. Ejecuta
 operativos desde macOS. Por ello, la matriz de CI utiliza runners nativos y no
 una compilación cruzada poco fiable.
 
-## Releases firmadas
+## Publicar una release
 
-Las releases se ejecutan únicamente por plataforma:
+La workflow `Release` se activa al publicar una etiqueta semántica. No requiere
+secretos de Apple, Microsoft ni claves de actualización:
 
 ```bash
-npm run release:mac
-npm run release:win
-npm run release:linux
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-Los scripts de release fuerzan la comprobación de firma. No se debe usar un
-artefacto de `package:*` como distribución pública.
+La matriz crea los paquetes en macOS, Windows y Ubuntu respectivamente. Al
+terminar, un único job adjunta los nueve artefactos a la GitHub Release de esa
+etiqueta:
 
-La workflow `Release` se activa al publicar una etiqueta `v<semver>` y requiere
-estos secretos de GitHub:
+- 4 de macOS: DMG y ZIP para Apple Silicon e Intel.
+- 2 de Windows: instalador NSIS y ZIP.
+- 3 de Linux: AppImage, DEB y ZIP.
 
-| Plataforma | Secretos                                                                     |
-| ---------- | ---------------------------------------------------------------------------- |
-| Todas      | `ELECTRON_BUILDER_UPDATE_SIGN_KEY`                                           |
-| macOS      | `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_ID_PASS`, `APPLE_TEAM_ID` |
-| Windows    | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`                                       |
+Las releases no incluyen actualización automática dentro de la aplicación. Esto
+evita publicar manifiestos de actualización sin firma; las actualizaciones se
+realizan descargando una versión nueva desde GitHub Releases.
 
-`CSC_LINK` almacena el certificado Developer ID para macOS. `WIN_CSC_LINK`
-almacena el certificado Authenticode para Windows. Ambos deben configurarse
-como secretos; nunca se guardan certificados ni contraseñas en el repositorio.
+## Advertencias esperadas
 
-La release de macOS exige notarización y falla cuando faltan credenciales de
-Apple. La de Windows exige una firma Authenticode válida. Linux no tiene una
-firma de ejecutable equivalente en este flujo, pero sí requiere la clave de
-firma de manifiestos de actualización.
+Los instaladores son funcionales, pero los sistemas operativos no pueden
+atribuirlos a una entidad verificada:
+
+- En macOS, Gatekeeper puede pedir una apertura explícita desde Ajustes del
+  sistema o mediante clic secundario y **Abrir**.
+- En Windows, SmartScreen puede mostrar un aviso de editor desconocido y pedir
+  **Más información** y después **Ejecutar de todas formas**.
+- Linux no necesita firma para descargar los formatos publicados.
+
+Estos avisos no cambian el contenido ni la procedencia del archivo: cada
+release procede del repositorio y de la etiqueta de Git que la desencadenó.
