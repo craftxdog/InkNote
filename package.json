@@ -34,9 +34,13 @@
     "postinstall": "npm --prefix .erb/tooling ci && install-electron && electron-builder install-app-deps",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx,.cjs",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx,.cjs --fix",
-    "package": "npm run build && electron-builder build --publish never",
+    "package": "npm run package:current",
+    "package:current": "npm run build && electron-builder build --publish never",
+    "package:linux": "npm run build && electron-builder --linux --x64 --publish never",
+    "package:mac": "npm run build && electron-builder --mac --x64 --arm64 --publish never",
+    "package:win": "npm run build && electron-builder --win --x64 --publish never",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
-    "release": "npm run build && electron-builder build --publish always",
+    "release": "node -e \"throw new Error('Push a v<semver> tag to create an unsigned GitHub Release.')\"",
     "start": "electron-vite dev --watch",
     "test": "cross-env NODE_OPTIONS=--localstorage-file=/tmp/inknote-jest-localstorage jest",
     "test:ci": "cross-env NODE_OPTIONS=--localstorage-file=/tmp/inknote-jest-localstorage jest --runInBand",
@@ -82,7 +86,6 @@
     "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
-    "@electron/notarize": "^3.1.1",
     "@inkdropapp/css": "^0.10.4",
     "@lezer/markdown": "^1.8.1",
     "better-sqlite3": "^13.0.3",
@@ -152,8 +155,8 @@
   "build": {
     "productName": "InkNote",
     "appId": "com.craftxdog.inknote",
+    "artifactName": "${productName}-${version}-${arch}-${os}.${ext}",
     "asar": true,
-    "afterSign": ".erb/scripts/notarize.js",
     "asarUnpack": "**\\*.{node,dll}",
     "files": [
       "dist",
@@ -161,14 +164,23 @@
       "package.json"
     ],
     "mac": {
-      "notarize": false,
-      "target": {
-        "target": "default",
-        "arch": [
-          "arm64",
-          "x64"
-        ]
-      },
+      "icon": "icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "category": "public.app-category.productivity",
       "type": "distribution",
       "hardenedRuntime": true,
@@ -177,6 +189,7 @@
       "gatekeeperAssess": false
     },
     "dmg": {
+      "icon": "icon.icns",
       "contents": [
         {
           "x": 130,
@@ -191,13 +204,47 @@
       ]
     },
     "win": {
+      "icon": "icon.ico",
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
+    "nsis": {
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico"
+    },
     "linux": {
+      "icon": "icons",
       "target": [
-        "AppImage"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "category": "Office"
     },
@@ -209,11 +256,7 @@
     "extraResources": [
       "./assets/**"
     ],
-    "publish": {
-      "provider": "github",
-      "owner": "craftxdog",
-      "repo": "InkNote"
-    }
+    "publish": null
   },
   "devEngines": {
     "runtime": {

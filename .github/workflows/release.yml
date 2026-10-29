@@ -4,29 +4,34 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
+  package:
     name: Package (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
+        include:
+          - os: macos-latest
+            platform: mac
+            package-script: package:mac
           # Keep native-module rebuilding on the VS 2022 runner until the
           # electron-builder node-gyp chain supports Visual Studio 2026.
-          - windows-2022
-          - ubuntu-latest
+          - os: windows-2022
+            platform: win
+            package-script: package:win
+          - os: ubuntu-latest
+            platform: linux
+            package-script: package:linux
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -51,12 +56,44 @@ jobs:
         if: ${{ runner.os != 'Linux' }}
         run: npm run test:smoke
 
-      - name: Publish GitHub release
+      - name: Build unsigned installers
+        run: npm run ${{ matrix.package-script }}
+
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: inknote-${{ matrix.platform }}
+          path: |
+            release/build/*.dmg
+            release/build/*.zip
+            release/build/*.exe
+            release/build/*.AppImage
+            release/build/*.deb
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download desktop installers
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify release asset set
+        shell: bash
+        run: |
+          test "$(find release-assets -maxdepth 1 -type f | wc -l | tr -d ' ')" -eq 9
+
+      - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npm exec electron-builder -- --publish always
+        run: >-
+          gh release create "${GITHUB_REF_NAME}" release-assets/*
+          --verify-tag
+          --generate-notes

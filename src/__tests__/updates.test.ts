@@ -10,6 +10,7 @@ jest.mock('electron-log', () => ({
 
 beforeEach(() => {
   jest.resetModules();
+  delete process.env.INKNOTE_ENABLE_AUTO_UPDATES;
 });
 
 test('development startup does not contact the update service', () => {
@@ -18,12 +19,23 @@ test('development startup does not contact the update service', () => {
   expect(autoUpdater.checkForUpdatesAndNotify).not.toHaveBeenCalled();
 });
 
-test('packaged startup initializes updates once and handles rejection', async () => {
+test('unsigned packaged releases do not contact the automatic update service', () => {
+  const { app } = require('electron');
+  const { autoUpdater } = require('electron-updater');
+  app.isPackaged = true;
+
+  require('../main/updates').default();
+
+  expect(autoUpdater.checkForUpdatesAndNotify).not.toHaveBeenCalled();
+});
+
+test('an explicitly enabled update channel initializes once and handles rejection', async () => {
   const { app } = require('electron');
   const { autoUpdater } = require('electron-updater');
   const log = require('electron-log');
   const failure = new Error('offline');
   app.isPackaged = true;
+  process.env.INKNOTE_ENABLE_AUTO_UPDATES = 'true';
   autoUpdater.checkForUpdatesAndNotify.mockRejectedValue(failure);
   const start = require('../main/updates').default;
   start();

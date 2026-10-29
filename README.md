@@ -50,8 +50,9 @@ git push origin v0.1.0
 ```
 
 The release workflow packages macOS, Windows, and Linux artifacts and publishes
-them to GitHub Releases. macOS signing and notarization run only after the
-corresponding Apple secrets are configured.
+them as unsigned downloads on GitHub Releases. They are distributed as manual
+updates; macOS Gatekeeper and Windows SmartScreen can show the standard warning
+for an independent, unsigned application.
 
 ## Repository setup
 
