@@ -1,4 +1,5 @@
 @import '@inkdropapp/css/tokens.css';
+@import '@inkdropapp/css/syntax.css';
 @import '@inkdropapp/css/mermaid.css';
 @import 'tailwindcss';
 

@@ -194,7 +194,7 @@ describe('enhanceInkNoteMarkdownTree', () => {
     });
     expect(tree.children[1]).toMatchObject({
       properties: {
-        className: ['inknote-code-block'],
+        className: ['inknote-code-block', 'codeblock'],
         dataLanguage: 'JSON',
       },
     });
@@ -212,16 +212,57 @@ describe('enhanceInkNoteMarkdownTree', () => {
         expect.objectContaining({
           type: 'element',
           properties: {
-            className: ['inknote-code-token', 'inknote-code-token--string'],
+            className: ['tok-property-name'],
           },
         }),
         expect.objectContaining({
           type: 'element',
           properties: {
-            className: ['inknote-code-token', 'inknote-code-token--literal'],
+            className: ['tok-bool'],
           },
         }),
       ]),
+    );
+  });
+
+  it('uses the registered C++ grammar instead of a generic token regex', () => {
+    const tree: MarkdownSyntaxTree = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'pre',
+          properties: {},
+          children: [
+            {
+              type: 'element',
+              tagName: 'code',
+              properties: { className: ['language-c++'] },
+              children: [
+                {
+                  type: 'text',
+                  value: '#include <iostream>\nint main() { return 42; }',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    enhanceInkNoteMarkdownTree(tree);
+
+    const codeBlock = tree.children[0] as Extract<
+      MarkdownSyntaxTree,
+      { type: 'element' }
+    >;
+    const code = codeBlock.children[0] as Extract<
+      MarkdownSyntaxTree,
+      { type: 'element' }
+    >;
+
+    expect(tokenClassNamesFor(code)).toEqual(
+      expect.arrayContaining(['tok-control-keyword', 'tok-number']),
     );
   });
 
@@ -436,3 +477,21 @@ describe('enhanceInkNoteMarkdownTree', () => {
     ]);
   });
 });
+
+const tokenClassNamesFor = (node: MarkdownSyntaxTree): readonly string[] => {
+  if (node.type === 'text') {
+    return [];
+  }
+
+  const ownClassNames =
+    node.type === 'element' && Array.isArray(node.properties.className)
+      ? node.properties.className.filter(
+          (className): className is string => typeof className === 'string',
+        )
+      : [];
+
+  return [
+    ...ownClassNames,
+    ...node.children.flatMap((child) => tokenClassNamesFor(child)),
+  ];
+};

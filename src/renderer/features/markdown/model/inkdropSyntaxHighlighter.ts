@@ -1,0 +1,152 @@
+import { tagHighlighter, tags } from '@lezer/highlight';
+
+/**
+ * Inkdrop themes style semantic, kebab-cased `.tok-*` classes. CodeMirror's
+ * stock class highlighter uses a few camel-cased variants instead, so expose
+ * one shared highlighter that speaks Inkdrop's public theme contract in both
+ * the editor and the rendered preview.
+ */
+export const inkdropSyntaxHighlighter = tagHighlighter([
+  { tag: tags.comment, class: 'tok-comment' },
+  { tag: tags.lineComment, class: 'tok-line-comment' },
+  { tag: tags.blockComment, class: 'tok-block-comment' },
+  { tag: tags.docComment, class: 'tok-doc-comment' },
+
+  { tag: tags.name, class: 'tok-name' },
+  { tag: tags.constant(tags.name), class: 'tok-name tok-constant' },
+  { tag: tags.standard(tags.name), class: 'tok-name tok-standard' },
+  { tag: tags.definition(tags.name), class: 'tok-name tok-definition' },
+  { tag: tags.function(tags.name), class: 'tok-name tok-function' },
+  { tag: tags.special(tags.name), class: 'tok-name tok-special' },
+  { tag: tags.local(tags.name), class: 'tok-name tok-local' },
+
+  { tag: tags.variableName, class: 'tok-variable-name' },
+  {
+    tag: tags.constant(tags.variableName),
+    class: 'tok-variable-name tok-constant',
+  },
+  {
+    tag: tags.standard(tags.variableName),
+    class: 'tok-variable-name tok-standard',
+  },
+  {
+    tag: tags.definition(tags.variableName),
+    class: 'tok-variable-name tok-definition',
+  },
+  {
+    tag: tags.function(tags.variableName),
+    class: 'tok-variable-name tok-function',
+  },
+  {
+    tag: tags.special(tags.variableName),
+    class: 'tok-variable-name tok-special',
+  },
+  {
+    tag: tags.local(tags.variableName),
+    class: 'tok-variable-name tok-local',
+  },
+
+  { tag: tags.propertyName, class: 'tok-property-name' },
+  {
+    tag: tags.constant(tags.propertyName),
+    class: 'tok-property-name tok-constant',
+  },
+  {
+    tag: tags.standard(tags.propertyName),
+    class: 'tok-property-name tok-standard',
+  },
+  {
+    tag: tags.definition(tags.propertyName),
+    class: 'tok-property-name tok-definition',
+  },
+  {
+    tag: tags.function(tags.propertyName),
+    class: 'tok-property-name tok-function',
+  },
+  {
+    tag: tags.special(tags.propertyName),
+    class: 'tok-property-name tok-special',
+  },
+  {
+    tag: tags.local(tags.propertyName),
+    class: 'tok-property-name tok-local',
+  },
+
+  { tag: tags.tagName, class: 'tok-tag-name' },
+  { tag: tags.attributeName, class: 'tok-attribute-name' },
+  { tag: tags.typeName, class: 'tok-type-name' },
+  { tag: tags.className, class: 'tok-class-name' },
+  { tag: tags.labelName, class: 'tok-label-name' },
+  { tag: tags.namespace, class: 'tok-namespace' },
+  { tag: tags.macroName, class: 'tok-macro-name' },
+
+  { tag: tags.string, class: 'tok-string' },
+  { tag: tags.docString, class: 'tok-string tok-special' },
+  { tag: tags.character, class: 'tok-character' },
+  { tag: tags.attributeValue, class: 'tok-attribute-value' },
+  { tag: tags.number, class: 'tok-number' },
+  { tag: tags.integer, class: 'tok-integer' },
+  { tag: tags.float, class: 'tok-float' },
+  { tag: tags.bool, class: 'tok-bool' },
+  { tag: tags.regexp, class: 'tok-regexp' },
+  { tag: tags.escape, class: 'tok-string tok-special' },
+  { tag: tags.color, class: 'tok-color' },
+  { tag: tags.url, class: 'tok-url' },
+  { tag: tags.literal, class: 'tok-literal' },
+
+  { tag: tags.self, class: 'tok-self' },
+  { tag: tags.null, class: 'tok-null' },
+  { tag: tags.atom, class: 'tok-atom' },
+  { tag: tags.unit, class: 'tok-unit' },
+  { tag: tags.modifier, class: 'tok-modifier' },
+  { tag: tags.operatorKeyword, class: 'tok-operator-keyword' },
+  { tag: tags.controlKeyword, class: 'tok-control-keyword' },
+  { tag: tags.definitionKeyword, class: 'tok-definition-keyword' },
+  { tag: tags.moduleKeyword, class: 'tok-module-keyword' },
+  { tag: tags.keyword, class: 'tok-keyword' },
+
+  { tag: tags.derefOperator, class: 'tok-deref-operator' },
+  { tag: tags.arithmeticOperator, class: 'tok-arithmetic-operator' },
+  { tag: tags.logicOperator, class: 'tok-logic-operator' },
+  { tag: tags.bitwiseOperator, class: 'tok-bitwise-operator' },
+  { tag: tags.compareOperator, class: 'tok-compare-operator' },
+  { tag: tags.updateOperator, class: 'tok-update-operator' },
+  { tag: tags.definitionOperator, class: 'tok-definition-operator' },
+  { tag: tags.typeOperator, class: 'tok-type-operator' },
+  { tag: tags.controlOperator, class: 'tok-control-operator' },
+  { tag: tags.operator, class: 'tok-operator' },
+
+  { tag: tags.separator, class: 'tok-separator' },
+  { tag: tags.angleBracket, class: 'tok-angle-bracket' },
+  { tag: tags.squareBracket, class: 'tok-square-bracket' },
+  { tag: tags.paren, class: 'tok-paren' },
+  { tag: tags.brace, class: 'tok-brace' },
+  { tag: tags.bracket, class: 'tok-bracket' },
+  { tag: tags.punctuation, class: 'tok-punctuation' },
+
+  { tag: tags.heading, class: 'tok-heading' },
+  { tag: tags.heading1, class: 'tok-heading-1' },
+  { tag: tags.heading2, class: 'tok-heading-2' },
+  { tag: tags.heading3, class: 'tok-heading-3' },
+  { tag: tags.heading4, class: 'tok-heading-4' },
+  { tag: tags.heading5, class: 'tok-heading-5' },
+  { tag: tags.heading6, class: 'tok-heading-6' },
+  { tag: tags.contentSeparator, class: 'tok-content-separator' },
+  { tag: tags.list, class: 'tok-list' },
+  { tag: tags.quote, class: 'tok-quote' },
+  { tag: tags.emphasis, class: 'tok-emphasis' },
+  { tag: tags.strong, class: 'tok-strong' },
+  { tag: tags.link, class: 'tok-link' },
+  { tag: tags.monospace, class: 'tok-monospace' },
+  { tag: tags.strikethrough, class: 'tok-strikethrough' },
+  { tag: tags.content, class: 'tok-content' },
+
+  { tag: tags.inserted, class: 'tok-inserted' },
+  { tag: tags.deleted, class: 'tok-deleted' },
+  { tag: tags.changed, class: 'tok-changed' },
+  { tag: tags.documentMeta, class: 'tok-document-meta' },
+  { tag: tags.annotation, class: 'tok-annotation' },
+  { tag: tags.processingInstruction, class: 'tok-processing-instruction' },
+  { tag: tags.meta, class: 'tok-meta' },
+  { tag: tags.invalid, class: 'tok-invalid' },
+]);

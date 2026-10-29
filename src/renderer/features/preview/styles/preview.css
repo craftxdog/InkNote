@@ -459,24 +459,6 @@
   word-wrap: normal;
 }
 
-.markdown-preview .inknote-code-token--comment {
-  color: var(--syntax-comment-color);
-  font-style: italic;
-}
-
-.markdown-preview .inknote-code-token--keyword {
-  color: var(--syntax-keyword-color);
-}
-
-.markdown-preview .inknote-code-token--literal,
-.markdown-preview .inknote-code-token--number {
-  color: var(--syntax-number-color);
-}
-
-.markdown-preview .inknote-code-token--string {
-  color: var(--syntax-string-color);
-}
-
 .markdown-preview a {
   color: var(--mde-preview-link-color);
 
