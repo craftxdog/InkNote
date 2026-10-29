@@ -182,10 +182,8 @@
         }
       ],
       "category": "public.app-category.productivity",
-      "type": "distribution",
-      "hardenedRuntime": true,
-      "entitlements": "assets/entitlements.mac.plist",
-      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "identity": null,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false
     },
     "dmg": {
