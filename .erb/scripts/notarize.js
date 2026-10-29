@@ -6,19 +6,21 @@ exports.default = async function notarizeMacos(context) {
     return;
   }
 
-  if (process.env.CI !== 'true') {
-    console.warn('Skipping notarizing step. Packaging is not running in CI');
-    return;
-  }
+  const requireNotarization = process.env.REQUIRE_NOTARIZATION === 'true';
 
   if (!(
     'APPLE_ID' in process.env &&
     'APPLE_ID_PASS' in process.env &&
     'APPLE_TEAM_ID' in process.env
   )) {
-    console.warn(
-      'Skipping notarizing step. APPLE_ID, APPLE_ID_PASS, and APPLE_TEAM_ID env variables must be set',
-    );
+    const message =
+      'APPLE_ID, APPLE_ID_PASS, and APPLE_TEAM_ID must be set to notarize macOS releases.';
+
+    if (requireNotarization) {
+      throw new Error(message);
+    }
+
+    console.warn(`Skipping notarization. ${message}`);
     return;
   }
 
