@@ -37,7 +37,7 @@
     "package": "npm run package:current",
     "package:current": "npm run build && electron-builder build --publish never",
     "package:linux": "npm run build && electron-builder --linux --x64 --publish never",
-    "package:mac": "npm run build && electron-builder --mac --x64 --arm64 --publish never",
+    "package:mac": "npm run build && electron-builder --mac --x64 --arm64 --publish never && npm run verify:mac-unsigned",
     "package:win": "npm run build && electron-builder --win --x64 --publish never",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "release": "node -e \"throw new Error('Push a v<semver> tag to create an unsigned GitHub Release.')\"",
@@ -48,6 +48,7 @@
     "test:smoke": "node .erb/scripts/smoke-test.cjs",
     "typecheck": "tsc --noEmit",
     "verify:release-manifest": "node scripts/verify-release-manifest.cjs",
+    "verify:mac-unsigned": "node scripts/verify-macos-unsigned-bundle.cjs release/build/mac/InkNote.app release/build/mac-arm64/InkNote.app",
     "verify": "npm run lint && npm run typecheck && npm run test:ci && npm run verify:native-sqlite && npm run build",
     "preview": "electron-vite preview",
     "verify:native-sqlite": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/verify-native-sqlite.cjs"
@@ -158,6 +159,7 @@
     "artifactName": "${productName}-${version}-${arch}-${os}.${ext}",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",
+    "afterPack": "./scripts/prepare-unsigned-macos.cjs",
     "files": [
       "dist",
       "node_modules",

@@ -55,6 +55,18 @@ if (macBuild?.hardenedRuntime !== false) {
   );
 }
 
+if (macBuild?.gatekeeperAssess !== false) {
+  mismatches.push(
+    'unsigned macOS releases must disable build.mac.gatekeeperAssess',
+  );
+}
+
+if (rootManifest.build?.afterPack !== './scripts/prepare-unsigned-macos.cjs') {
+  mismatches.push(
+    'unsigned macOS releases must remove inherited Electron signatures in build.afterPack',
+  );
+}
+
 for (const field of ['type', 'entitlements', 'entitlementsInherit']) {
   if (field in (macBuild ?? {})) {
     mismatches.push(
