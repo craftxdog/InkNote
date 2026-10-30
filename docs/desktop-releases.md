@@ -3,6 +3,7 @@
 InkNote publica instaladores sin firma en GitHub Releases. Están destinados a
 una distribución independiente y a actualizaciones manuales: las personas
 descargan la versión que corresponde a su sistema desde la página de releases.
+No requiere una cuenta Apple Developer, Developer ID ni notarización.
 
 InkNote genera los instaladores desde runners nativos:
 
@@ -27,6 +28,11 @@ npm run package:linux
 
 Cada script construye el renderer, recompila las dependencias nativas para la
 arquitectura indicada y usa `--publish never`.
+
+En macOS, el empaquetado elimina cualquier firma ad-hoc interna heredada del
+binario de Electron. El resultado se comprueba con `codesign` antes de crear
+los artefactos: queda coherentemente **sin firmar**, en lugar de conservar una
+firma parcial que Gatekeeper pueda interpretar como una aplicación dañada.
 
 Ejecuta `package:mac` en macOS; genera tanto Intel como Apple Silicon. Ejecuta
 `package:win` en Windows y `package:linux` en Ubuntu. InkNote incluye
@@ -62,7 +68,18 @@ Los instaladores son funcionales, pero los sistemas operativos no pueden
 atribuirlos a una entidad verificada:
 
 - En macOS, Gatekeeper puede pedir una apertura explícita desde Ajustes del
-  sistema o mediante clic secundario y **Abrir**.
+  sistema o mediante clic secundario y **Abrir**. Para instalar una copia
+  descargada desde GitHub sin un certificado Apple, mueve `InkNote.app` a
+  Aplicaciones y ejecuta una sola vez en Terminal:
+
+  ```bash
+  xattr -dr com.apple.quarantine "/Applications/InkNote.app"
+  ```
+
+  Después abre InkNote normalmente. Este comando solo elimina la cuarentena de
+  macOS; no sustituye una firma ni una notarización. Si Gatekeeper vuelve a
+  indicar que la aplicación está dañada, no continúes: descarga la versión más
+  reciente y verifica que su release haya superado la validación de paquete.
 - En Windows, SmartScreen puede mostrar un aviso de editor desconocido y pedir
   **Más información** y después **Ejecutar de todas formas**.
 - Linux no necesita firma para descargar los formatos publicados.
