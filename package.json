@@ -88,7 +88,7 @@
     "@codemirror/view": "^6.43.15",
     "@inkdropapp/css": "^0.10.4",
     "@lezer/markdown": "^1.8.1",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^13.1.1",
     "electron-debug": "^4.1.0",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.11",
